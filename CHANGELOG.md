@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.1.0...pixelslop-v0.1.1) (2026-03-20)
+
+
+### Features
+
+* pixelslop v0.1.0 — browser-first design quality scanner ([fbcaa12](https://github.com/gabelul/pixelslop/commit/fbcaa1253cf586aa5316f44cfa03a92516d6b0b0))
+
 ## [0.1.0](https://github.com/gabelul/pixelslop/releases/tag/v0.1.0) (2026-03-19)
 
 ### Features
