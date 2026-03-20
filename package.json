@@ -1,0 +1,60 @@
+{
+  "name": "pixelslop",
+  "version": "0.1.0",
+  "description": "Browser-first design quality scanner. Opens real pages in Playwright, measures actual pixels, catches AI slop patterns.",
+  "private": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "pixelslop": "./bin/pixelslop.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "validate": "node --test tests/resource-validation.test.js",
+    "test:detection": "node --test tests/slop-detection.test.js",
+    "test:format": "node --test tests/report-format.test.js",
+    "test:checkpoint": "node --test tests/checkpoint.test.js",
+    "test:tools": "node --test tests/tools.test.js",
+    "test:plan": "node --test tests/plan-format.test.js",
+    "test:orchestrator": "node --test tests/orchestrator.test.js",
+    "test:installer": "node --test tests/installer.test.js",
+    "test:persona": "node --test tests/persona.test.js"
+  },
+  "author": "Gabi (Booplex)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gabelul/pixelslop"
+  },
+  "keywords": [
+    "design-review",
+    "design-quality",
+    "design-lint",
+    "ai-slop",
+    "visual-testing",
+    "browser-testing",
+    "playwright",
+    "accessibility",
+    "wcag",
+    "contrast-checker",
+    "responsive-design",
+    "css-audit",
+    "ui-testing",
+    "claude-code",
+    "codex-cli",
+    "design-automation"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "homepage": "https://github.com/gabelul/pixelslop#readme",
+  "bugs": {
+    "url": "https://github.com/gabelul/pixelslop/issues"
+  }
+}

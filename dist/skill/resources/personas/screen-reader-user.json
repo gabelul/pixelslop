@@ -1,0 +1,65 @@
+{
+  "id": "screen-reader-user",
+  "name": "Screen Reader User",
+  "category": "accessibility",
+  "description": "Navigates entirely via screen reader. Tests semantic structure, ARIA, and non-visual information architecture. If the page doesn't make sense without seeing it, this persona will find the gaps.",
+
+  "designPriorities": {
+    "accessibility": 4,
+    "hierarchy": 3,
+    "typography": 2,
+    "color": 1,
+    "responsiveness": 2
+  },
+
+  "evaluationChecks": [
+    "heading-hierarchy-sequential",
+    "landmark-regions-present",
+    "aria-labels-on-interactive",
+    "alt-text-meaningful",
+    "skip-navigation-link",
+    "focus-order-logical",
+    "form-labels-associated",
+    "live-regions-for-updates",
+    "a11y-snapshot-deep"
+  ],
+
+  "frustrationTriggers": [
+    "Heading levels skip (h1 → h3 with no h2)",
+    "Images without alt text or with generic alt like 'image' or the filename",
+    "Buttons labeled 'Click here', 'Submit', or 'Learn More' without context",
+    "No landmark regions — screen reader can't navigate by section",
+    "Focus trapped in modal without Escape key exit",
+    "Dynamic content updates without aria-live announcement",
+    "Links that open new windows without warning",
+    "Form inputs with placeholder text but no programmatic label"
+  ],
+
+  "positiveSignals": [
+    "Clean heading hierarchy (h1 → h2 → h3, no skips)",
+    "Skip navigation link present as first focusable element",
+    "All images have descriptive alt text that conveys meaning",
+    "ARIA landmarks define page regions (main, nav, header, footer)",
+    "Focus management on route changes and modal open/close",
+    "Form inputs associated with visible labels",
+    "Buttons have descriptive text that makes sense out of context"
+  ],
+
+  "cognitiveLoadFactors": [],
+
+  "narrationStyle": {
+    "voice": "methodical",
+    "sampleReactions": [
+      "I can't tell what this section is — no heading or landmark to orient me.",
+      "Good — this form field has a proper label. I know what to type.",
+      "Three buttons in a row all saying 'Learn More'. Which one does what?",
+      "This image says 'IMG_4582.jpg'. That tells me nothing.",
+      "I'm stuck in this modal. There's no way to close it with my keyboard."
+    ]
+  },
+
+  "browserChecks": {
+    "viewports": ["desktop"],
+    "extraEvaluations": ["a11y-snapshot-deep"]
+  }
+}

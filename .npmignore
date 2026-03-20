@@ -1,0 +1,11 @@
+dev_docs/
+tests/
+test_sites/
+.opencode/
+.mcp.json
+.deslop/
+.playwright-mcp/
+.claude/
+CONTRIBUTING.md
+CLAUDE.md
+*.test.js

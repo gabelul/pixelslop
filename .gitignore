@@ -1,0 +1,20 @@
+# Internal planning docs — not for public consumption
+dev_docs/
+
+# macOS resource forks (external volumes create these)
+._*
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Build output (dist/ is tracked — it's package content, not compiled output)
+build/
+
+# Scanner output (screenshots, reports — generated per-run)
+.deslop/
+.playwright-mcp/
+
+# Environment
+.env
+.env.*

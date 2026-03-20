@@ -1,0 +1,60 @@
+{
+  "id": "slow-connection-user",
+  "name": "Slow Connection User",
+  "category": "context",
+  "description": "On a throttled or unreliable connection — rural broadband, mobile data in poor coverage, or international user on a high-latency link. Tests whether the page loads meaningfully without waiting for everything, whether images are optimized, and whether fonts degrade gracefully.",
+
+  "designPriorities": {
+    "accessibility": 2,
+    "hierarchy": 2,
+    "typography": 3,
+    "color": 1,
+    "responsiveness": 3
+  },
+
+  "evaluationChecks": [
+    "page-weight-check",
+    "image-optimization-check",
+    "font-loading-strategy",
+    "critical-css-present"
+  ],
+
+  "frustrationTriggers": [
+    "Page total weight exceeds 3MB — takes forever on slow connections",
+    "Images served at full resolution regardless of viewport (no srcset/sizes)",
+    "Custom fonts block rendering — blank text for 3+ seconds until font loads",
+    "No loading states — user stares at blank page or broken layout",
+    "JavaScript bundle blocks rendering of above-fold content",
+    "Third-party scripts (analytics, chat widgets) loaded eagerly",
+    "Layout shift when late-loading content pushes existing content around",
+    "Video auto-plays on page load — massive bandwidth hit"
+  ],
+
+  "positiveSignals": [
+    "Page is under 1MB total transfer size",
+    "Images use srcset and sizes for responsive serving",
+    "Fonts use font-display: swap or optional — text visible immediately",
+    "Above-fold content renders without waiting for full JS bundle",
+    "Loading skeletons or progressive content reveal",
+    "Lazy loading on below-fold images",
+    "Critical CSS inlined in <head>"
+  ],
+
+  "cognitiveLoadFactors": [],
+
+  "narrationStyle": {
+    "voice": "patient",
+    "sampleReactions": [
+      "Still loading. The hero image alone is 2MB. Why?",
+      "All I see is blank rectangles where the fonts should be.",
+      "Good — the text loaded immediately even though images are still coming in.",
+      "This page loaded fast. Must have good critical CSS setup.",
+      "The layout just jumped. Something loaded late and pushed everything down."
+    ]
+  },
+
+  "browserChecks": {
+    "viewports": ["mobile", "desktop"],
+    "extraEvaluations": ["page-weight-check", "image-optimization-check"]
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "id": "rushed-mobile-user",
+  "name": "Rushed Mobile User",
+  "category": "context",
+  "description": "On a phone, distracted, wants to complete one task and leave. Tests whether the primary action is findable fast, touch targets are usable with a thumb, and the page doesn't waste time with walls of text or buried CTAs.",
+
+  "designPriorities": {
+    "accessibility": 2,
+    "hierarchy": 4,
+    "typography": 2,
+    "color": 2,
+    "responsiveness": 4
+  },
+
+  "evaluationChecks": [
+    "above-fold-cta",
+    "page-weight-check",
+    "image-optimization-check"
+  ],
+
+  "frustrationTriggers": [
+    "Primary CTA below the fold on mobile — requires scrolling to find the action",
+    "Touch targets smaller than 44x44px — can't tap accurately with a thumb",
+    "Wall of text before the action — user has to read a paragraph to find the button",
+    "Multiple competing CTAs with equal visual weight — which one do I tap?",
+    "Slow page load (>3s) — user leaves before content appears",
+    "Navigation hamburger that opens a full-screen overlay obscuring content",
+    "Form fields too small to tap or with tiny hit areas",
+    "Interstitials, popups, or banners blocking the primary content"
+  ],
+
+  "positiveSignals": [
+    "Primary CTA visible immediately on mobile without scrolling",
+    "Touch targets generous (48px+) with adequate spacing between them",
+    "Clear value proposition in first viewport — user knows what this page does",
+    "Page loads fast (<2s) with minimal layout shift",
+    "One clear primary action per screen — no decision paralysis",
+    "Bottom navigation or sticky CTA for easy thumb reach"
+  ],
+
+  "cognitiveLoadFactors": [
+    "More than 2 competing CTAs visible simultaneously",
+    "Text-heavy sections before the primary action",
+    "Navigation with 7+ top-level items",
+    "Auto-playing media or animations that distract from the task"
+  ],
+
+  "narrationStyle": {
+    "voice": "impatient",
+    "sampleReactions": [
+      "Where's the button? I've scrolled three times and still can't find it.",
+      "I can't tap this link — it's too small and too close to the other one.",
+      "This page is still loading. I'm leaving.",
+      "Five buttons, all the same size. Which one actually does the thing?",
+      "Good — the CTA is right there at the top. Tap and done."
+    ]
+  },
+
+  "browserChecks": {
+    "viewports": ["mobile"],
+    "extraEvaluations": ["above-fold-cta", "page-weight-check"]
+  }
+}
