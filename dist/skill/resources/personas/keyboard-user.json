@@ -1,0 +1,61 @@
+{
+  "id": "keyboard-user",
+  "name": "Keyboard-Only User",
+  "category": "accessibility",
+  "description": "Navigates entirely by keyboard — Tab, Shift+Tab, Enter, Escape, arrow keys. Tests focus visibility, tab order, skip navigation, and keyboard traps. If you can't see where focus is or can't reach an interactive element, this persona flags it.",
+
+  "designPriorities": {
+    "accessibility": 4,
+    "hierarchy": 2,
+    "typography": 1,
+    "color": 2,
+    "responsiveness": 2
+  },
+
+  "evaluationChecks": [
+    "focus-indicators-visible",
+    "focus-order-logical",
+    "skip-navigation-link",
+    "keyboard-trap-detection",
+    "aria-labels-on-interactive",
+    "landmark-regions-present"
+  ],
+
+  "frustrationTriggers": [
+    "No visible focus indicator on interactive elements",
+    "Tab order doesn't follow visual layout — focus jumps unpredictably",
+    "No skip navigation link — must tab through entire nav to reach content",
+    "Focus trapped in a component with no escape route",
+    "Custom interactive elements (dropdowns, sliders) not keyboard-operable",
+    "Outline removed via CSS (outline: none) without a replacement focus style",
+    "Modal opens but focus doesn't move to it — keyboard user is lost",
+    "Off-screen elements receive focus — tab goes to invisible content"
+  ],
+
+  "positiveSignals": [
+    "Clear, high-contrast focus indicators on all interactive elements",
+    "Tab order follows visual reading order (left-to-right, top-to-bottom)",
+    "Skip navigation link present and functional",
+    "Modals trap focus appropriately and return focus on close",
+    "Custom widgets are keyboard-operable (Enter to activate, Escape to close)",
+    "Focus-visible styles distinct from hover styles"
+  ],
+
+  "cognitiveLoadFactors": [],
+
+  "narrationStyle": {
+    "voice": "systematic",
+    "sampleReactions": [
+      "I'm tabbing but I can't see where focus is. The outline was removed.",
+      "Focus jumped from the header straight to the footer. Skipped the main content.",
+      "I opened this dropdown but I can't close it with Escape. I'm stuck.",
+      "Good — there's a skip-nav link. I can jump right to the content.",
+      "Focus went into the modal correctly and came back when I closed it."
+    ]
+  },
+
+  "browserChecks": {
+    "viewports": ["desktop"],
+    "extraEvaluations": ["a11y-snapshot-deep"]
+  }
+}

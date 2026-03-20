@@ -1,0 +1,60 @@
+{
+  "id": "low-vision-user",
+  "name": "Low Vision User",
+  "category": "accessibility",
+  "description": "Uses browser zoom at 200%+ and may have custom high-contrast settings. Tests whether content reflows properly at increased zoom, whether contrast ratios hold, and whether text is resizable without layout breakage.",
+
+  "designPriorities": {
+    "accessibility": 4,
+    "hierarchy": 2,
+    "typography": 3,
+    "color": 3,
+    "responsiveness": 3
+  },
+
+  "evaluationChecks": [
+    "zoom-reflow-200",
+    "focus-indicators-visible",
+    "alt-text-meaningful",
+    "heading-hierarchy-sequential",
+    "landmark-regions-present"
+  ],
+
+  "frustrationTriggers": [
+    "Text doesn't reflow at 200% zoom — horizontal scrolling required",
+    "Contrast ratio below 4.5:1 on body text or below 3:1 on large text",
+    "Small text (below 14px) used for important content",
+    "Touch/click targets smaller than 44x44px",
+    "Text embedded in images without alt text",
+    "Focus indicators invisible or low-contrast",
+    "Fixed-width containers that clip content when zoomed",
+    "Color used as the sole indicator of state (error = red, success = green, no icon or text)"
+  ],
+
+  "positiveSignals": [
+    "Content reflows cleanly at 200% zoom — single column, no horizontal scroll",
+    "All text passes WCAG AA contrast (4.5:1 normal, 3:1 large)",
+    "Focus indicators are high-contrast and clearly visible",
+    "Text uses relative units (rem/em) that scale with browser zoom",
+    "Interactive elements have generous touch targets (48px+)",
+    "State changes indicated by icon + color, not color alone"
+  ],
+
+  "cognitiveLoadFactors": [],
+
+  "narrationStyle": {
+    "voice": "patient",
+    "sampleReactions": [
+      "I zoomed to 200% and now I have to scroll sideways. That's unusable.",
+      "This gray text on the light background — I genuinely cannot read it.",
+      "Good contrast on the main heading. I can actually see this one.",
+      "These tiny links in the footer — my finger covers three of them at once.",
+      "The error message is just red text. I need an icon or label too."
+    ]
+  },
+
+  "browserChecks": {
+    "viewports": ["desktop", "mobile"],
+    "extraEvaluations": ["zoom-reflow-200"]
+  }
+}

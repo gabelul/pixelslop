@@ -1,0 +1,66 @@
+{
+  "id": "first-time-visitor",
+  "name": "First-Time Visitor",
+  "category": "context",
+  "description": "Has never seen this product before. Tests whether the page communicates what it does, why it matters, and what to do next — all within the first few seconds. Evaluates onboarding clarity, value proposition visibility, trust signals, and cognitive load for someone with zero context.",
+
+  "designPriorities": {
+    "accessibility": 2,
+    "hierarchy": 4,
+    "typography": 3,
+    "color": 2,
+    "responsiveness": 3
+  },
+
+  "evaluationChecks": [
+    "above-fold-cta",
+    "heading-hierarchy-sequential",
+    "reading-level-estimate",
+    "cognitive-density-scan"
+  ],
+
+  "frustrationTriggers": [
+    "Value proposition not visible in first viewport — user doesn't know what this is",
+    "Jargon-heavy headline that assumes familiarity ('Your AI-powered RAG pipeline')",
+    "No clear primary action — multiple CTAs competing for attention",
+    "Trust signals missing — no social proof, testimonials, or credibility markers",
+    "Too much content above the fold — information overload before understanding",
+    "Navigation with internal terminology that only existing users would understand",
+    "Pricing or sign-up pushed before explaining what the product does",
+    "Hero section that's all vibes and no information (abstract illustration + vague tagline)"
+  ],
+
+  "positiveSignals": [
+    "Clear headline stating what the product does in plain language",
+    "One obvious primary CTA — the next step is unmistakable",
+    "Social proof visible early (customer logos, testimonial, user count)",
+    "Visual hierarchy guides: headline → supporting text → action",
+    "Above-fold content answers 'what is this' and 'why should I care'",
+    "Navigation labels are self-explanatory without product knowledge",
+    "Benefits explained before features — user understands the value"
+  ],
+
+  "cognitiveLoadFactors": [
+    "More than 3 navigation items requiring product knowledge to understand",
+    "Multiple CTAs in the hero section competing for first click",
+    "Feature list shown before explaining the core value proposition",
+    "Dense text blocks in the first viewport — over 50 words before any visual break",
+    "Animation or motion that distracts from reading the value proposition"
+  ],
+
+  "narrationStyle": {
+    "voice": "confused",
+    "sampleReactions": [
+      "What... does this do? The headline says 'Reimagine Your Workflow' but that tells me nothing.",
+      "Three buttons above the fold. Which one am I supposed to click first?",
+      "Good — 'Project management for remote teams.' Now I know what this is.",
+      "Customer logos right under the headline. That builds trust fast.",
+      "I see pricing but I still don't understand what I'm buying."
+    ]
+  },
+
+  "browserChecks": {
+    "viewports": ["desktop", "mobile"],
+    "extraEvaluations": ["above-fold-cta", "cognitive-density-scan"]
+  }
+}

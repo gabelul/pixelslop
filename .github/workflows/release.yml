@@ -1,0 +1,71 @@
+# release.yml — pixelslop automated releases + npm publish
+#
+# Uses release-please to automate versioning based on conventional commits.
+# How it works:
+#   1. Every push to main is analyzed for conventional commits (feat, fix, etc.)
+#   2. release-please opens a "Release PR" with the version bump + CHANGELOG update
+#   3. When you merge the Release PR, it creates a GitHub release + tag automatically
+#   4. If a release was created, publishes to npm via OIDC trusted publishing (no token)
+#
+# Version bump rules (from conventional commits):
+#   feat:            → minor bump (0.1.0 → 0.2.0)
+#   fix: / chore:    → patch bump (0.1.0 → 0.1.1)
+#   BREAKING CHANGE: → major bump (0.1.0 → 1.0.0)
+#
+# npm publishing uses OIDC trusted publishing — no NPM_TOKEN secret required.
+# One-time setup on npmjs.com:
+#   1. First publish manually: npm publish --access public
+#   2. Go to https://www.npmjs.com/package/pixelslop/access
+#   3. Under "Publishing access", click "Add trusted publisher"
+#   4. Set: owner=gabelul, repo=pixelslop, workflow=release.yml, environment=npm
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Force publish to npm (use when release exists but publish failed)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Create or update release PR
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      - uses: googleapis/release-please-action@a02a34c4d625f9be7cb89156071d8567266a2445 # v4.2.0
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish-npm:
+    name: Publish to npm
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm for OIDC support
+        run: npm install -g npm@latest
+
+      - run: npm publish --provenance --access public

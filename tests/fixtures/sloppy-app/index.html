@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SloppyCorp - AI Analytics Dashboard</title>
+  <!--
+    Deslop Test Fixture: Sloppy App
+    ================================
+    A deliberately terrible page designed to trigger scanner findings
+    and serve as an integration test target for the fixer/checker loop.
+
+    Known problems (by pillar):
+    - Hierarchy: All headings are similarly sized, no clear focal point
+    - Typography: Inter font, no scale discipline, inconsistent weights
+    - Color: Cyan-on-dark palette, pure black background, low contrast CTA
+    - Responsiveness: Fixed widths, no breakpoints, tiny touch targets
+    - Accessibility: Missing alt, broken heading hierarchy, no landmarks, no focus styles
+    - AI Slop: Gradient text, glassmorphism, glow shadows, identical cards, everything centered
+
+    Serve with: npx http-server tests/fixtures/sloppy-app/ -p 8888
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    /* ─── Reset ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ─── Base: Pure black background, Inter font, everything centered ─── */
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #000000;
+      color: #e0e0e0;
+      text-align: center;
+      line-height: normal; /* browser default — bad for readability */
+    }
+
+    /* ─── Remove all focus indicators ─── */
+    *:focus { outline: none; }
+
+    /* ─── Hero Section ─── */
+    .hero {
+      padding: 32px;
+    }
+
+    /* Gradient text — AI slop pattern #1 */
+    .hero h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #7c3aed, #3b82f6, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+
+    .hero p {
+      font-size: 15px;
+      color: #999;
+      margin-bottom: 16px;
+    }
+
+    /* Low contrast CTA — white text on bright green, ~2.5:1 ratio */
+    .cta-button {
+      display: inline-block;
+      background: #22c55e;
+      color: #ffffff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    /* ─── Metric Cards — Hero metrics pattern ─── */
+    .metrics {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      padding: 32px;
+    }
+
+    .metric-card {
+      /* Glassmorphism — AI slop pattern #2 */
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+      width: 200px;
+      /* Glow shadow — AI slop pattern #3 */
+      box-shadow: 0 0 20px rgba(0, 180, 255, 0.2);
+    }
+
+    .metric-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #06b6d4; /* Cyan accent — AI slop pattern #4 */
+    }
+
+    .metric-label {
+      font-size: 13px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    /* ─── Feature Cards — Identical card grid pattern ─── */
+    .features {
+      padding: 32px;
+    }
+
+    /* Broken heading hierarchy: h1 in hero, then h3 here (skips h2) */
+    .features h3 {
+      font-size: 22px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    /* Redundant subtitle */
+    .features .subtitle {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 24px;
+    }
+
+    .card-grid {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .feature-card {
+      /* More glassmorphism */
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 24px;
+      width: 280px;
+      /* One-sided accent border */
+      border-left: 3px solid #7c3aed;
+    }
+
+    .feature-card .icon {
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
+    .feature-card h4 {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #e0e0e0;
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: #888;
+      line-height: 1.3;
+    }
+
+    /* ─── CTA Section ─── */
+    .bottom-cta {
+      padding: 32px;
+    }
+
+    .bottom-cta h3 {
+      font-size: 24px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .bottom-cta p {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 16px;
+    }
+
+    /* All buttons look the same — "every button is primary" pattern */
+    .bottom-cta .cta-button {
+      margin: 0 8px;
+    }
+
+    /* ─── Footer ─── */
+    .footer {
+      padding: 32px;
+      font-size: 12px;
+      color: #444;
+    }
+
+    .footer a {
+      color: #06b6d4;
+      text-decoration: none;
+      font-size: 12px;
+      padding: 2px; /* Touch target way too small */
+    }
+
+    /* ─── Bounce animation — AI slop pattern ─── */
+    @keyframes bounceIn {
+      0% { transform: scale(0.8); opacity: 0; }
+      60% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .metric-card {
+      animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) both;
+    }
+    .metric-card:nth-child(1) { animation-delay: 0.1s; }
+    .metric-card:nth-child(2) { animation-delay: 0.2s; }
+    .metric-card:nth-child(3) { animation-delay: 0.3s; }
+  </style>
+</head>
+<body>
+  <!-- No <header>, <nav>, <main>, or <footer> landmarks -->
+  <!-- No skip-to-content link -->
+
+  <div class="hero">
+    <h1>SloppyCorp AI Analytics</h1>
+    <!-- Redundant subtitle — says the same thing as the heading -->
+    <p>Explore SloppyCorp's powerful AI-driven analytics platform.</p>
+    <a href="#" class="cta-button">Get Started</a>
+  </div>
+
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="metric-value">10K+</div>
+      <div class="metric-label">Active Users</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">99.9%</div>
+      <div class="metric-label">Uptime</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">50M+</div>
+      <div class="metric-label">Data Points</div>
+    </div>
+  </div>
+
+  <!-- Broken heading hierarchy: h1 → h3 (skips h2) -->
+  <div class="features">
+    <h3>Our Features</h3>
+    <p class="subtitle">Discover the amazing features we offer.</p>
+
+    <div class="card-grid">
+      <!-- Three identical feature cards — same structure, same size -->
+      <div class="feature-card">
+        <div class="icon">📊</div>
+        <h4>Real-time Analytics</h4>
+        <p>Monitor your metrics in real-time with our advanced dashboard system.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🔒</div>
+        <h4>Enterprise Security</h4>
+        <p>Bank-level encryption and security protocols to protect your data.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">⚡</div>
+        <h4>Lightning Fast</h4>
+        <p>Optimized performance with sub-millisecond response times globally.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-cta">
+    <h3>Ready to Get Started?</h3>
+    <p>Join thousands of companies using SloppyCorp.</p>
+    <!-- Both buttons look identical — no primary/secondary distinction -->
+    <a href="#" class="cta-button">Start Free Trial</a>
+    <a href="#" class="cta-button">Contact Sales</a>
+  </div>
+
+  <!-- Image with no alt text -->
+  <div style="padding: 16px;">
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='40' viewBox='0 0 200 40'%3E%3Crect fill='%23333' width='200' height='40' rx='4'/%3E%3Ctext x='100' y='24' text-anchor='middle' fill='%23888' font-size='12' font-family='Inter'%3ESloppyCorp Logo%3C/text%3E%3C/svg%3E">
+  </div>
+
+  <div class="footer">
+    <p>&copy; 2026 SloppyCorp. All rights reserved.</p>
+    <p>
+      <a href="#">Privacy</a> |
+      <a href="#">Terms</a> |
+      <a href="#">Contact</a>
+    </p>
+  </div>
+</body>
+</html>

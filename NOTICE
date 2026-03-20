@@ -1,0 +1,16 @@
+Pixelslop
+Copyright 2026 Gabi (Booplex)
+
+This product includes material adapted from the following projects:
+
+1. Anthropic frontend-design skill
+   Copyright Anthropic, PBC
+   Licensed under Apache License 2.0
+   https://github.com/anthropics/anthropic-cookbook
+   Adapted: Anti-pattern detection lists, design quality guidelines
+
+2. Impeccable
+   Copyright Idan Gazit
+   Licensed under Apache License 2.0
+   https://github.com/idangz/impeccable
+   Adapted: Scoring structure, audit methodology, design reference materials

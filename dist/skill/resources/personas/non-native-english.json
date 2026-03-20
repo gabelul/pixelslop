@@ -1,0 +1,65 @@
+{
+  "id": "non-native-english",
+  "name": "Non-Native English Speaker",
+  "category": "international",
+  "description": "Reads English as a second language with intermediate proficiency. Tests whether copy uses plain language, avoids idioms, pairs icons with text labels, and keeps reading level accessible. Jargon and clever wordplay that native speakers appreciate become barriers for this user.",
+
+  "designPriorities": {
+    "accessibility": 2,
+    "hierarchy": 3,
+    "typography": 3,
+    "color": 1,
+    "responsiveness": 2
+  },
+
+  "evaluationChecks": [
+    "reading-level-estimate",
+    "icon-text-pairing",
+    "alt-text-meaningful",
+    "heading-hierarchy-sequential"
+  ],
+
+  "frustrationTriggers": [
+    "Reading level above grade 10 (Flesch-Kincaid) — complex sentences and vocabulary",
+    "Idioms used as labels or headings ('Get the ball rolling', 'Out of the box')",
+    "Icons without text labels — meaning depends on cultural convention",
+    "Ambiguous button labels ('Go', 'Submit', 'Proceed') without clear context",
+    "Dense paragraph text without visual breaks or bullet points",
+    "Acronyms or jargon used without explanation on first appearance",
+    "Humor or sarcasm in UI copy that doesn't translate well",
+    "Error messages using colloquial language ('Oops! Something went sideways')"
+  ],
+
+  "positiveSignals": [
+    "Reading level at grade 8 or below — clear, simple sentences",
+    "Icons always paired with text labels",
+    "Headings describe content clearly — no clever or ambiguous phrasing",
+    "Button labels state the action explicitly ('Create Account', 'Download PDF')",
+    "Visual hierarchy guides the eye without requiring deep reading",
+    "Bullet points and short paragraphs break up dense content",
+    "Error messages state what happened and what to do next, plainly"
+  ],
+
+  "cognitiveLoadFactors": [
+    "Text-heavy sections without visual aids (icons, images, diagrams)",
+    "Long paragraphs (5+ sentences) without breaks",
+    "Multiple technical terms in close proximity",
+    "Navigation labels that rely on English wordplay or cultural context"
+  ],
+
+  "narrationStyle": {
+    "voice": "careful",
+    "sampleReactions": [
+      "What does 'Get started' mean here? Started with what?",
+      "This icon — is it settings or support? I can't tell without a label.",
+      "Good — the button says 'Create Account'. I know exactly what it does.",
+      "This paragraph is very long and uses words I need to look up.",
+      "The heading says 'Hit the ground running'. I don't understand the reference."
+    ]
+  },
+
+  "browserChecks": {
+    "viewports": ["desktop"],
+    "extraEvaluations": ["reading-level-estimate"]
+  }
+}
