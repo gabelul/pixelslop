@@ -2003,7 +2003,7 @@
       </div>
 
       <div class="footer__bottom">
-        <p class="footer__copy">© 2024 Osteria Fiamma. Tutti i diritti riservati.</p>
+        <p class="footer__copy">© <span id="copyright-year">2024</span> Osteria Fiamma. Tutti i diritti riservati.</p>
         <div class="footer__social" aria-label="Social media links">
           <a href="#" aria-label="Instagram">IG</a>
           <a href="#" aria-label="Facebook">FB</a>
@@ -2141,6 +2141,15 @@
       const dateInput = document.getElementById('res-date');
       const today = new Date().toISOString().split('T')[0];
       dateInput.setAttribute('min', today);
+    })();
+
+    /**
+     * Dynamic copyright year — keeps the footer honest
+     * so nobody has to remember to bump it in January.
+     */
+    (function setCopyrightYear() {
+      const el = document.getElementById('copyright-year');
+      if (el) el.textContent = new Date().getFullYear();
     })();
   </script>
 
