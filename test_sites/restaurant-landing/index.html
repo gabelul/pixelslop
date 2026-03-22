@@ -1470,9 +1470,16 @@
   <header class="hero" id="hero">
     <div class="hero__image-wrap">
       <img
-        src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1600&q=85&auto=format"
+        src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=80&auto=format"
+        srcset="
+          https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=640&q=75&auto=format 640w,
+          https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=960&q=80&auto=format 960w,
+          https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=80&auto=format 1200w,
+          https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1600&q=85&auto=format 1600w"
+        sizes="100vw"
         alt="Beautifully plated dish on a rustic wooden table with warm candlelight"
         loading="eager"
+        fetchpriority="high"
       >
     </div>
 
