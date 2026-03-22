@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Osteria Fiamma — Wood-Fired Kitchen & Bar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════
+       OSTERIA FIAMMA — Design Tokens
+       Editorial food magazine meets rustic trattoria.
+       Warm terracotta, saffron, and deep wine tones.
+       ═══════════════════════════════════════════════ */
+    :root {
+      /* Primary palette — warm, appetizing, earthy */
+      --color-terracotta: #C4613A;
+      --color-terracotta-light: #D88B6A;
+      --color-terracotta-dark: #9E4A28;
+      --color-saffron: #D4943A;
+      --color-saffron-light: #E8B96D;
+      --color-wine: #6B2D3E;
+      --color-wine-deep: #4A1E2B;
+      --color-olive: #5E6B4A;
+      --color-olive-light: #8A9670;
+
+      /* Neutrals — all tinted warm, no pure black/white */
+      --color-cream: #FAF5EF;
+      --color-cream-dark: #F0E6D8;
+      --color-linen: #EDE4D6;
+      --color-charcoal: #2C2420;
+      --color-charcoal-soft: #4A3F38;
+      --color-text: #3B302A;
+      --color-text-muted: #8A7B6E;
+
+      /* Typography scale — fluid with clamp */
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+      --fs-hero: clamp(3rem, 7vw, 6.5rem);
+      --fs-section: clamp(2rem, 4vw, 3.5rem);
+      --fs-subsection: clamp(1.5rem, 2.5vw, 2rem);
+      --fs-body-lg: clamp(1.05rem, 1.2vw, 1.2rem);
+      --fs-body: clamp(0.95rem, 1vw, 1.05rem);
+      --fs-small: clamp(0.8rem, 0.9vw, 0.875rem);
+      --fs-label: 0.7rem;
+
+      /* Spacing rhythm */
+      --space-xs: 0.25rem;
+      --space-sm: 0.5rem;
+      --space-md: 1rem;
+      --space-lg: 1.5rem;
+      --space-xl: 2.5rem;
+      --space-2xl: 4rem;
+      --space-3xl: 6rem;
+      --space-4xl: 8rem;
+      --space-section: clamp(5rem, 10vw, 9rem);
+
+      /* Radius */
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+
+      /* Transitions */
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --transition-base: 350ms var(--ease-out-expo);
+    }
+
+    /* ═══════════════════════════════════════════════
+       Reset & Base
+       ═══════════════════════════════════════════════ */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: var(--font-body);
+      font-size: var(--fs-body);
+      color: var(--color-text);
+      background-color: var(--color-cream);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    /* Skip navigation — visible only on focus for keyboard users */
+    .skip-nav {
+      position: absolute;
+      top: -100%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      padding: 0.75em 1.5em;
+      background: var(--color-charcoal);
+      color: var(--color-cream);
+      font-family: var(--font-body);
+      font-size: var(--fs-small);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      text-decoration: none;
+      transition: top 200ms ease;
+    }
+
+    .skip-nav:focus {
+      top: 0;
+      outline: 2px solid var(--color-terracotta);
+      outline-offset: 2px;
+    }
+
+    /* ═══════════════════════════════════════════════
+       Utility Classes
+       ═══════════════════════════════════════════════ */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 clamp(1.25rem, 4vw, 3rem);
+    }
+
+    .container--wide {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 clamp(1.25rem, 4vw, 3rem);
+    }
+
+    /* Label — small caps tracking for editorial feel */
+    .label {
+      font-family: var(--font-body);
+      font-size: var(--fs-label);
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-terracotta);
+    }
+
+    .section-heading {
+      font-family: var(--font-display);
+      font-size: var(--fs-section);
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--color-charcoal);
+    }
+
+    /* Decorative divider — a thin terracotta line */
+    .divider {
+      width: 48px;
+      height: 2px;
+      background: var(--color-terracotta);
+      border: none;
+    }
+
+    /* ═══════════════════════════════════════════════
+       Navigation — fixed, minimal, editorial
+       ═══════════════════════════════════════════════ */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: var(--space-lg) 0;
+      transition: background var(--transition-base), padding var(--transition-base);
+    }
+
+    .nav.scrolled {
+      background: rgba(250, 245, 239, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: var(--space-md) 0;
+      box-shadow: 0 1px 0 rgba(44, 36, 32, 0.06);
+    }
+
+    .nav__inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav__brand {
+      font-family: var(--font-display);
+      font-size: clamp(1.25rem, 2vw, 1.5rem);
+      font-weight: 700;
+      color: var(--color-charcoal);
+      letter-spacing: -0.02em;
+    }
+
+    .nav__brand span {
+      color: var(--color-terracotta);
+    }
+
+    .nav__links {
+      display: flex;
+      gap: var(--space-xl);
+      list-style: none;
+    }
+
+    .nav__links a {
+      font-size: var(--fs-small);
+      font-weight: 500;
+      color: var(--color-charcoal-soft);
+      letter-spacing: 0.03em;
+      transition: color var(--transition-base);
+      position: relative;
+    }
+
+    .nav__links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 1.5px;
+      background: var(--color-terracotta);
+      transition: width var(--transition-base);
+    }
+
+    .nav__links a:hover {
+      color: var(--color-terracotta);
+    }
+
+    .nav__links a:hover::after {
+      width: 100%;
+    }
+
+    .nav__cta {
+      font-size: var(--fs-small);
+      font-weight: 600;
+      color: var(--color-cream) !important;
+      background: var(--color-terracotta);
+      padding: 0.6em 1.6em;
+      border-radius: var(--radius-sm);
+      transition: background var(--transition-base), transform var(--transition-base);
+    }
+
+    .nav__cta:hover {
+      background: var(--color-terracotta-dark);
+      transform: translateY(-1px);
+    }
+
+    .nav__cta::after {
+      display: none !important;
+    }
+
+    /* Mobile hamburger */
+    .nav__toggle {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 28px;
+      height: 20px;
+      position: relative;
+    }
+
+    .nav__toggle span {
+      display: block;
+      width: 100%;
+      height: 2px;
+      background: var(--color-charcoal);
+      position: absolute;
+      left: 0;
+      transition: transform var(--transition-base), opacity 200ms ease;
+    }
+
+    .nav__toggle span:nth-child(1) { top: 0; }
+    .nav__toggle span:nth-child(2) { top: 9px; }
+    .nav__toggle span:nth-child(3) { top: 18px; }
+
+    .nav__toggle.active span:nth-child(1) {
+      transform: translateY(9px) rotate(45deg);
+    }
+    .nav__toggle.active span:nth-child(2) {
+      opacity: 0;
+    }
+    .nav__toggle.active span:nth-child(3) {
+      transform: translateY(-9px) rotate(-45deg);
+    }
+
+    /* ═══════════════════════════════════════════════
+       Hero — full-bleed editorial with overlapping text
+       ═══════════════════════════════════════════════ */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: end;
+      overflow: hidden;
+    }
+
+    .hero__image-wrap {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
+
+    .hero__image-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 30%;
+    }
+
+    /* Gradient overlay — warm, not the usual cold dark fade */
+    .hero__image-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(to top, rgba(44, 36, 32, 0.85) 0%, rgba(44, 36, 32, 0.3) 50%, transparent 80%),
+        linear-gradient(to right, rgba(44, 36, 32, 0.4) 0%, transparent 60%);
+    }
+
+    .hero__content {
+      position: relative;
+      z-index: 2;
+      grid-column: 1 / -1;
+      padding: var(--space-4xl) clamp(1.5rem, 5vw, 4rem) clamp(3rem, 6vw, 5rem);
+      max-width: 800px;
+    }
+
+    .hero__label {
+      font-family: var(--font-body);
+      font-size: var(--fs-label);
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--color-saffron-light);
+      margin-bottom: var(--space-lg);
+    }
+
+    .hero__title {
+      font-family: var(--font-display);
+      font-size: var(--fs-hero);
+      font-weight: 800;
+      line-height: 0.95;
+      color: var(--color-cream);
+      margin-bottom: var(--space-xl);
+      letter-spacing: -0.03em;
+    }
+
+    .hero__title em {
+      font-style: italic;
+      font-weight: 600;
+      color: var(--color-saffron-light);
+    }
+
+    .hero__subtitle {
+      font-size: var(--fs-body-lg);
+      color: var(--color-linen);
+      line-height: 1.7;
+      max-width: 480px;
+      margin-bottom: var(--space-2xl);
+      opacity: 0.9;
+    }
+
+    .hero__actions {
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5em;
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: var(--fs-small);
+      letter-spacing: 0.04em;
+      padding: 0.9em 2em;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-base);
+      text-transform: uppercase;
+    }
+
+    .btn--primary {
+      background: var(--color-terracotta);
+      color: var(--color-cream);
+    }
+
+    .btn--primary:hover {
+      background: var(--color-terracotta-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(196, 97, 58, 0.35);
+    }
+
+    .btn--ghost {
+      background: transparent;
+      color: var(--color-cream);
+      border: 1.5px solid rgba(250, 245, 239, 0.4);
+    }
+
+    .btn--ghost:hover {
+      border-color: var(--color-cream);
+      background: rgba(250, 245, 239, 0.08);
+    }
+
+    /* Scroll indicator */
+    .hero__scroll {
+      position: absolute;
+      bottom: var(--space-xl);
+      right: clamp(1.5rem, 5vw, 4rem);
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-sm);
+      color: rgba(250, 245, 239, 0.5);
+      font-size: var(--fs-label);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .hero__scroll-line {
+      width: 1px;
+      height: 48px;
+      background: linear-gradient(to bottom, rgba(250, 245, 239, 0.5), transparent);
+      animation: scrollPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes scrollPulse {
+      0%, 100% { opacity: 1; transform: scaleY(1); }
+      50% { opacity: 0.3; transform: scaleY(0.6); }
+    }
+
+    /* ═══════════════════════════════════════════════
+       Philosophy Strip — full-width warm background
+       ═══════════════════════════════════════════════ */
+    .philosophy {
+      background: var(--color-charcoal);
+      padding: var(--space-3xl) 0;
+      text-align: center;
+    }
+
+    .philosophy__text {
+      font-family: var(--font-display);
+      font-size: clamp(1.15rem, 2vw, 1.6rem);
+      font-weight: 400;
+      font-style: italic;
+      color: var(--color-cream);
+      line-height: 1.7;
+      max-width: 680px;
+      margin: 0 auto;
+      opacity: 0.85;
+    }
+
+    .philosophy__text strong {
+      color: var(--color-saffron-light);
+      font-weight: 600;
+      font-style: normal;
+    }
+
+    /* ═══════════════════════════════════════════════
+       Menu Section — editorial asymmetric layout
+       ═══════════════════════════════════════════════ */
+    .menu {
+      padding: var(--space-section) 0;
+    }
+
+    .menu__header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-2xl);
+      align-items: end;
+      margin-bottom: var(--space-3xl);
+    }
+
+    .menu__header-text {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .menu__header-aside {
+      font-size: var(--fs-body);
+      color: var(--color-text-muted);
+      line-height: 1.8;
+      max-width: 380px;
+      justify-self: end;
+    }
+
+    /* Menu category tabs */
+    .menu__tabs {
+      display: flex;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-2xl);
+      flex-wrap: wrap;
+    }
+
+    .menu__tab {
+      font-family: var(--font-body);
+      font-size: var(--fs-small);
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.55em 1.4em;
+      border: 1.5px solid var(--color-linen);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      transition: all var(--transition-base);
+    }
+
+    .menu__tab:hover {
+      border-color: var(--color-terracotta-light);
+      color: var(--color-terracotta);
+    }
+
+    .menu__tab.active {
+      background: var(--color-terracotta);
+      border-color: var(--color-terracotta);
+      color: var(--color-cream);
+    }
+
+    /* Menu grid — asymmetric with featured item */
+    .menu__grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: var(--space-2xl);
+    }
+
+    .menu__featured {
+      position: relative;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      aspect-ratio: 4/5;
+    }
+
+    .menu__featured img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .menu__featured-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: var(--space-2xl) var(--space-xl);
+      background: linear-gradient(to top, rgba(44, 36, 32, 0.9), transparent);
+    }
+
+    .menu__featured-name {
+      font-family: var(--font-display);
+      font-size: var(--fs-subsection);
+      font-weight: 700;
+      color: var(--color-cream);
+      margin-bottom: var(--space-xs);
+    }
+
+    .menu__featured-desc {
+      font-size: var(--fs-small);
+      color: rgba(250, 245, 239, 0.75);
+      margin-bottom: var(--space-sm);
+    }
+
+    .menu__featured-price {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--color-saffron-light);
+    }
+
+    .menu__featured-badge {
+      position: absolute;
+      top: var(--space-lg);
+      left: var(--space-lg);
+      font-size: var(--fs-label);
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.4em 1em;
+      background: var(--color-terracotta);
+      color: var(--color-cream);
+      border-radius: var(--radius-sm);
+    }
+
+    /* Menu items list */
+    .menu__items {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .menu__item {
+      padding: var(--space-lg) 0;
+      border-bottom: 1px solid var(--color-linen);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--space-md);
+      align-items: start;
+      transition: background var(--transition-base);
+    }
+
+    .menu__item:first-child {
+      padding-top: 0;
+    }
+
+    .menu__item-name {
+      font-family: var(--font-display);
+      font-size: clamp(1.05rem, 1.3vw, 1.2rem);
+      font-weight: 600;
+      color: var(--color-charcoal);
+      margin-bottom: var(--space-xs);
+    }
+
+    .menu__item-desc {
+      font-size: var(--fs-small);
+      color: var(--color-text-muted);
+      line-height: 1.6;
+    }
+
+    .menu__item-price {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--color-terracotta);
+      white-space: nowrap;
+    }
+
+    .menu__item-tags {
+      display: flex;
+      gap: var(--space-xs);
+      margin-top: var(--space-sm);
+    }
+
+    .menu__item-tag {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.2em 0.6em;
+      border-radius: 2px;
+      background: var(--color-cream-dark);
+      color: var(--color-olive);
+    }
+
+    .menu__cta-row {
+      margin-top: var(--space-2xl);
+      text-align: center;
+    }
+
+    .btn--outline {
+      background: transparent;
+      color: var(--color-terracotta);
+      border: 1.5px solid var(--color-terracotta);
+    }
+
+    .btn--outline:hover {
+      background: var(--color-terracotta);
+      color: var(--color-cream);
+      transform: translateY(-2px);
+    }
+
+    /* ═══════════════════════════════════════════════
+       Gallery Strip — horizontal scroll of photos
+       ═══════════════════════════════════════════════ */
+    .gallery {
+      padding: var(--space-section) 0 var(--space-3xl);
+      overflow: hidden;
+    }
+
+    .gallery__track {
+      display: flex;
+      gap: var(--space-md);
+      animation: galleryScroll 40s linear infinite;
+    }
+
+    .gallery__item {
+      flex: 0 0 auto;
+      width: clamp(240px, 25vw, 340px);
+      aspect-ratio: 3/4;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .gallery__item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 600ms var(--ease-out-expo);
+    }
+
+    .gallery__item:hover img {
+      transform: scale(1.06);
+    }
+
+    @keyframes galleryScroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* ═══════════════════════════════════════════════
+       Chef Section — story, portrait, asymmetric
+       ═══════════════════════════════════════════════ */
+    .chef {
+      padding: var(--space-section) 0;
+      background: var(--color-cream-dark);
+    }
+
+    .chef__grid {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      gap: var(--space-3xl);
+      align-items: center;
+    }
+
+    .chef__portrait {
+      position: relative;
+    }
+
+    .chef__portrait-img {
+      border-radius: var(--radius-lg);
+      aspect-ratio: 3/4;
+      object-fit: cover;
+      width: 100%;
+    }
+
+    /* Decorative terracotta accent behind portrait */
+    .chef__portrait::before {
+      content: '';
+      position: absolute;
+      top: -16px;
+      left: -16px;
+      width: 100%;
+      height: 100%;
+      border: 2px solid var(--color-terracotta-light);
+      border-radius: var(--radius-lg);
+      opacity: 0.3;
+      z-index: -1;
+    }
+
+    .chef__content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    .chef__name {
+      font-family: var(--font-display);
+      font-size: var(--fs-subsection);
+      font-weight: 700;
+      color: var(--color-charcoal);
+    }
+
+    .chef__role {
+      font-size: var(--fs-small);
+      color: var(--color-terracotta);
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .chef__story {
+      font-size: var(--fs-body);
+      color: var(--color-text-muted);
+      line-height: 1.8;
+    }
+
+    .chef__quote {
+      font-family: var(--font-display);
+      font-size: clamp(1.15rem, 1.5vw, 1.35rem);
+      font-style: italic;
+      color: var(--color-charcoal);
+      line-height: 1.6;
+      padding-left: var(--space-lg);
+      border-left: 3px solid var(--color-terracotta);
+    }
+
+    .chef__stats {
+      display: flex;
+      gap: var(--space-2xl);
+      margin-top: var(--space-md);
+    }
+
+    .chef__stat-value {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 2.5vw, 2.2rem);
+      font-weight: 700;
+      color: var(--color-terracotta);
+      line-height: 1;
+    }
+
+    .chef__stat-label {
+      font-size: var(--fs-label);
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      margin-top: var(--space-xs);
+    }
+
+    /* ═══════════════════════════════════════════════
+       Reservation Section — warm, inviting form
+       ═══════════════════════════════════════════════ */
+    .reservation {
+      padding: var(--space-section) 0;
+      position: relative;
+    }
+
+    .reservation__grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: var(--space-3xl);
+      align-items: start;
+    }
+
+    .reservation__info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xl);
+    }
+
+    .reservation__hours {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .reservation__hours-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding-bottom: var(--space-sm);
+      border-bottom: 1px solid var(--color-linen);
+    }
+
+    .reservation__hours-day {
+      font-weight: 500;
+      color: var(--color-charcoal);
+    }
+
+    .reservation__hours-time {
+      color: var(--color-text-muted);
+      font-size: var(--fs-small);
+    }
+
+    .reservation__note {
+      font-size: var(--fs-small);
+      color: var(--color-text-muted);
+      line-height: 1.7;
+      padding: var(--space-lg);
+      background: var(--color-cream-dark);
+      border-radius: var(--radius-md);
+      border-left: 3px solid var(--color-saffron);
+    }
+
+    /* Form */
+    .reservation__form {
+      background: var(--color-charcoal);
+      padding: clamp(2rem, 4vw, 3rem);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    .reservation__form-title {
+      font-family: var(--font-display);
+      font-size: var(--fs-subsection);
+      font-weight: 700;
+      color: var(--color-cream);
+      margin-bottom: var(--space-sm);
+    }
+
+    .form__row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-md);
+    }
+
+    .form__group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .form__label {
+      font-size: var(--fs-label);
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+
+    .form__input,
+    .form__select,
+    .form__textarea {
+      font-family: var(--font-body);
+      font-size: var(--fs-body);
+      color: var(--color-cream);
+      background: rgba(250, 245, 239, 0.06);
+      border: 1.5px solid rgba(250, 245, 239, 0.12);
+      border-radius: var(--radius-sm);
+      padding: 0.75em 1em;
+      transition: border-color var(--transition-base), background var(--transition-base);
+      outline: none;
+    }
+
+    .form__input::placeholder,
+    .form__textarea::placeholder {
+      color: rgba(250, 245, 239, 0.3);
+    }
+
+    .form__input:focus,
+    .form__select:focus,
+    .form__textarea:focus {
+      border-color: var(--color-terracotta);
+      background: rgba(250, 245, 239, 0.1);
+    }
+
+    .form__select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1.5l5 5 5-5' stroke='%238A7B6E' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 1em center;
+      padding-right: 2.5em;
+    }
+
+    .form__select option {
+      background: var(--color-charcoal);
+      color: var(--color-cream);
+    }
+
+    .form__textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .btn--form {
+      width: 100%;
+      justify-content: center;
+      background: var(--color-terracotta);
+      color: var(--color-cream);
+      padding: 1em 2em;
+      font-size: var(--fs-body);
+      margin-top: var(--space-sm);
+    }
+
+    .btn--form:hover {
+      background: var(--color-terracotta-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(196, 97, 58, 0.4);
+    }
+
+    /* ═══════════════════════════════════════════════
+       Testimonials — subtle, editorial
+       ═══════════════════════════════════════════════ */
+    .testimonials {
+      padding: var(--space-section) 0;
+      background: var(--color-wine-deep);
+    }
+
+    .testimonials__header {
+      text-align: center;
+      margin-bottom: var(--space-3xl);
+    }
+
+    .testimonials .section-heading {
+      color: var(--color-cream);
+    }
+
+    .testimonials .divider {
+      margin: var(--space-md) auto 0;
+      background: var(--color-saffron);
+    }
+
+    .testimonials__grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-xl);
+    }
+
+    .testimonial {
+      padding: var(--space-xl);
+      border-radius: var(--radius-md);
+      background: rgba(250, 245, 239, 0.04);
+      border: 1px solid rgba(250, 245, 239, 0.08);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    .testimonial__stars {
+      color: var(--color-saffron);
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+    }
+
+    .testimonial__text {
+      font-family: var(--font-display);
+      font-size: clamp(1rem, 1.15vw, 1.15rem);
+      font-style: italic;
+      color: var(--color-cream);
+      line-height: 1.7;
+      opacity: 0.9;
+      flex: 1;
+    }
+
+    .testimonial__author {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .testimonial__avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--color-terracotta);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--color-cream);
+    }
+
+    .testimonial__name {
+      font-weight: 600;
+      color: var(--color-cream);
+      font-size: var(--fs-small);
+    }
+
+    .testimonial__source {
+      font-size: var(--fs-label);
+      color: var(--color-text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* ═══════════════════════════════════════════════
+       Location / Map Section
+       ═══════════════════════════════════════════════ */
+    .location {
+      padding: var(--space-section) 0;
+    }
+
+    .location__grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-3xl);
+      align-items: start;
+    }
+
+    .location__map {
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      aspect-ratio: 4/3;
+      background: var(--color-linen);
+      position: relative;
+    }
+
+    .location__map iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      filter: sepia(20%) saturate(80%) brightness(96%);
+    }
+
+    .location__details {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xl);
+    }
+
+    .location__address {
+      font-family: var(--font-display);
+      font-size: var(--fs-body-lg);
+      color: var(--color-charcoal);
+      line-height: 1.7;
+    }
+
+    .location__transport {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .location__transport-item {
+      display: flex;
+      gap: var(--space-md);
+      align-items: start;
+    }
+
+    .location__transport-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      background: var(--color-cream-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 1rem;
+    }
+
+    .location__transport-text {
+      font-size: var(--fs-small);
+      color: var(--color-text-muted);
+      line-height: 1.6;
+    }
+
+    .location__transport-text strong {
+      display: block;
+      color: var(--color-charcoal);
+      font-weight: 600;
+      font-size: var(--fs-body);
+    }
+
+    .location__contact {
+      display: flex;
+      gap: var(--space-xl);
+    }
+
+    .location__contact-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .location__contact-value {
+      font-family: var(--font-display);
+      font-size: var(--fs-body-lg);
+      font-weight: 600;
+      color: var(--color-terracotta);
+    }
+
+    /* ═══════════════════════════════════════════════
+       Footer — warm, minimal
+       ═══════════════════════════════════════════════ */
+    .footer {
+      background: var(--color-charcoal);
+      padding: var(--space-3xl) 0 var(--space-xl);
+    }
+
+    .footer__top {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr 1fr;
+      gap: var(--space-2xl);
+      padding-bottom: var(--space-2xl);
+      border-bottom: 1px solid rgba(250, 245, 239, 0.08);
+    }
+
+    .footer__brand {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--color-cream);
+      margin-bottom: var(--space-md);
+    }
+
+    .footer__brand span {
+      color: var(--color-terracotta);
+    }
+
+    .footer__tagline {
+      font-size: var(--fs-small);
+      color: var(--color-text-muted);
+      line-height: 1.7;
+      max-width: 280px;
+    }
+
+    .footer__column-title {
+      font-size: var(--fs-label);
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      margin-bottom: var(--space-lg);
+    }
+
+    .footer__links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .footer__links a {
+      font-size: var(--fs-small);
+      color: rgba(250, 245, 239, 0.6);
+      transition: color var(--transition-base);
+    }
+
+    .footer__links a:hover {
+      color: var(--color-terracotta-light);
+    }
+
+    .footer__bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: var(--space-xl);
+    }
+
+    .footer__copy {
+      font-size: var(--fs-label);
+      color: var(--color-text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    .footer__social {
+      display: flex;
+      gap: var(--space-md);
+    }
+
+    .footer__social a {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid rgba(250, 245, 239, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      color: rgba(250, 245, 239, 0.5);
+      transition: all var(--transition-base);
+    }
+
+    .footer__social a:hover {
+      border-color: var(--color-terracotta);
+      color: var(--color-terracotta);
+      transform: translateY(-2px);
+    }
+
+    /* ═══════════════════════════════════════════════
+       Entrance Animations — staggered on scroll
+       ═══════════════════════════════════════════════ */
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 700ms var(--ease-out-expo), transform 700ms var(--ease-out-expo);
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal-delay-1 { transition-delay: 80ms; }
+    .reveal-delay-2 { transition-delay: 160ms; }
+    .reveal-delay-3 { transition-delay: 240ms; }
+    .reveal-delay-4 { transition-delay: 320ms; }
+
+    /* ═══════════════════════════════════════════════
+       Responsive — tablet & mobile
+       ═══════════════════════════════════════════════ */
+    @media (max-width: 968px) {
+      .nav__links { display: none; }
+      .nav__toggle { display: block; }
+
+      /* Mobile nav drawer */
+      .nav__links.open {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--color-cream);
+        padding: var(--space-xl) clamp(1.25rem, 4vw, 3rem);
+        gap: var(--space-lg);
+        box-shadow: 0 8px 32px rgba(44, 36, 32, 0.1);
+      }
+
+      .hero__content {
+        max-width: 100%;
+      }
+
+      .menu__header {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+      }
+
+      .menu__header-aside {
+        justify-self: start;
+      }
+
+      .menu__grid {
+        grid-template-columns: 1fr;
+      }
+
+      .menu__featured {
+        aspect-ratio: 16/9;
+      }
+
+      .chef__grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-2xl);
+      }
+
+      .chef__portrait {
+        max-width: 400px;
+      }
+
+      .reservation__grid {
+        grid-template-columns: 1fr;
+      }
+
+      .testimonials__grid {
+        grid-template-columns: 1fr;
+      }
+
+      .location__grid {
+        grid-template-columns: 1fr;
+      }
+
+      .footer__top {
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-xl);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .hero {
+        min-height: 90vh;
+      }
+
+      .hero__actions {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .form__row {
+        grid-template-columns: 1fr;
+      }
+
+      .chef__stats {
+        gap: var(--space-xl);
+      }
+
+      .location__contact {
+        flex-direction: column;
+        gap: var(--space-md);
+      }
+
+      .footer__top {
+        grid-template-columns: 1fr;
+      }
+
+      .footer__bottom {
+        flex-direction: column;
+        gap: var(--space-md);
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Skip navigation for keyboard/screen reader users -->
+  <a href="#main-content" class="skip-nav">Skip to main content</a>
+
+  <!-- ════════════════════════════════════════════════
+       Navigation
+       ════════════════════════════════════════════════ -->
+  <nav class="nav" id="nav" role="navigation" aria-label="Main navigation">
+    <div class="container--wide nav__inner">
+      <a href="#" class="nav__brand" aria-label="Osteria Fiamma home">Osteria <span>Fiamma</span></a>
+
+      <button class="nav__toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+
+      <ul class="nav__links" id="navLinks" role="list">
+        <li><a href="#menu">Menu</a></li>
+        <li><a href="#chef">Our Story</a></li>
+        <li><a href="#reservation">Reserve</a></li>
+        <li><a href="#location">Find Us</a></li>
+        <li><a href="#reservation" class="nav__cta">Book a Table</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main id="main-content">
+
+  <!-- ════════════════════════════════════════════════
+       Hero
+       ════════════════════════════════════════════════ -->
+  <header class="hero" id="hero">
+    <div class="hero__image-wrap">
+      <img
+        src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1600&q=85&auto=format"
+        alt="Beautifully plated dish on a rustic wooden table with warm candlelight"
+        loading="eager"
+      >
+    </div>
+
+    <div class="hero__content">
+      <p class="hero__label">Wood-Fired Kitchen & Bar — Est. 2018</p>
+      <h1 class="hero__title">Where Fire<br>Meets <em>Flavor</em></h1>
+      <p class="hero__subtitle">
+        Seasonal Italian cooking over live flame. Small plates, house-made pasta,
+        and a wine list that leans natural. No shortcuts, no pretension.
+      </p>
+      <div class="hero__actions">
+        <a href="#reservation" class="btn btn--primary">Reserve a Table</a>
+        <a href="#menu" class="btn btn--ghost">View the Menu</a>
+      </div>
+    </div>
+
+    <div class="hero__scroll" aria-hidden="true">
+      <span>Scroll</span>
+      <div class="hero__scroll-line"></div>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════
+       Philosophy Strip
+       ════════════════════════════════════════════════ -->
+  <section class="philosophy" aria-label="Our philosophy">
+    <div class="container">
+      <p class="philosophy__text reveal">
+        "We don't chase trends. We chase <strong>seasons</strong>.
+        Every dish starts at the market, not in a cookbook.
+        The fire does the rest."
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════
+       Menu Preview
+       ════════════════════════════════════════════════ -->
+  <section class="menu" id="menu" aria-label="Menu preview">
+    <div class="container">
+      <div class="menu__header reveal">
+        <div class="menu__header-text">
+          <span class="label">The Menu</span>
+          <h2 class="section-heading">Seasonal<br>Offerings</h2>
+          <hr class="divider">
+        </div>
+        <p class="menu__header-aside">
+          Our menu shifts with what's ripe, caught, or foraged. These are
+          today's highlights — the full menu waits at your table.
+        </p>
+      </div>
+
+      <!-- Category tabs -->
+      <div class="menu__tabs reveal reveal-delay-1" role="tablist" aria-label="Menu categories">
+        <button class="menu__tab active" role="tab" aria-selected="true" data-tab="antipasti">Antipasti</button>
+        <button class="menu__tab" role="tab" aria-selected="false" data-tab="primi">Primi</button>
+        <button class="menu__tab" role="tab" aria-selected="false" data-tab="secondi">Secondi</button>
+        <button class="menu__tab" role="tab" aria-selected="false" data-tab="dolci">Dolci</button>
+      </div>
+
+      <div class="menu__grid">
+        <!-- Featured dish with photo -->
+        <div class="menu__featured reveal reveal-delay-2">
+          <img
+            src="https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=800&q=80&auto=format"
+            alt="Handmade pappardelle with slow-braised wild boar ragù"
+            loading="lazy"
+          >
+          <div class="menu__featured-overlay">
+            <p class="menu__featured-name">Pappardelle al Cinghiale</p>
+            <p class="menu__featured-desc">Hand-rolled pasta, slow-braised wild boar, pecorino, fresh thyme</p>
+            <p class="menu__featured-price">€24</p>
+          </div>
+          <span class="menu__featured-badge">Chef's Pick</span>
+        </div>
+
+        <!-- Menu items list -->
+        <div class="menu__items reveal reveal-delay-3">
+          <article class="menu__item">
+            <div>
+              <h3 class="menu__item-name">Burrata e Fichi</h3>
+              <p class="menu__item-desc">Pugliese burrata, roasted figs, aged balsamic, wild arugula, pistachios</p>
+              <div class="menu__item-tags">
+                <span class="menu__item-tag">Vegetarian</span>
+              </div>
+            </div>
+            <span class="menu__item-price">€16</span>
+          </article>
+
+          <article class="menu__item">
+            <div>
+              <h3 class="menu__item-name">Polpo alla Griglia</h3>
+              <p class="menu__item-desc">Charred octopus, smoked potato cream, 'nduja oil, capers, celery</p>
+            </div>
+            <span class="menu__item-price">€19</span>
+          </article>
+
+          <article class="menu__item">
+            <div>
+              <h3 class="menu__item-name">Cacio e Pepe</h3>
+              <p class="menu__item-desc">Tonnarelli, aged pecorino romano, Tellicherry black pepper, olive oil</p>
+              <div class="menu__item-tags">
+                <span class="menu__item-tag">Vegetarian</span>
+                <span class="menu__item-tag">Classic</span>
+              </div>
+            </div>
+            <span class="menu__item-price">€18</span>
+          </article>
+
+          <article class="menu__item">
+            <div>
+              <h3 class="menu__item-name">Branzino al Forno</h3>
+              <p class="menu__item-desc">Whole roasted sea bass, Taggiasca olives, cherry tomatoes, white wine</p>
+            </div>
+            <span class="menu__item-price">€28</span>
+          </article>
+
+          <article class="menu__item">
+            <div>
+              <h3 class="menu__item-name">Tagliata di Manzo</h3>
+              <p class="menu__item-desc">Dry-aged rib-eye, wood-fired, rosemary salt, rocket, shaved parmigiano</p>
+            </div>
+            <span class="menu__item-price">€32</span>
+          </article>
+
+          <article class="menu__item">
+            <div>
+              <h3 class="menu__item-name">Tiramisù della Nonna</h3>
+              <p class="menu__item-desc">Savoiardi, espresso, mascarpone, Marsala, bitter cocoa — grandma's recipe</p>
+              <div class="menu__item-tags">
+                <span class="menu__item-tag">House Favorite</span>
+              </div>
+            </div>
+            <span class="menu__item-price">€12</span>
+          </article>
+        </div>
+      </div>
+
+      <div class="menu__cta-row reveal">
+        <a href="#" class="btn btn--outline">Download Full Menu (PDF)</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════
+       Photo Gallery — infinite scroll strip
+       ════════════════════════════════════════════════ -->
+  <section class="gallery" aria-label="Restaurant gallery">
+    <div class="gallery__track" aria-hidden="true">
+      <!-- Duplicated set for seamless loop -->
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&q=75&auto=format" alt="Restaurant interior with warm lighting" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=75&auto=format" alt="Colorful appetizer plating" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=75&auto=format" alt="Fresh pasta preparation" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1551218808-94e220e084d2?w=600&q=75&auto=format" alt="Wood-fired oven with flames" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=600&q=75&auto=format" alt="Fresh salad with seasonal vegetables" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=75&auto=format" alt="Wine glasses on a table" loading="lazy">
+      </div>
+      <!-- Duplicated for loop -->
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&q=75&auto=format" alt="Restaurant interior with warm lighting" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=75&auto=format" alt="Colorful appetizer plating" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=75&auto=format" alt="Fresh pasta preparation" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1551218808-94e220e084d2?w=600&q=75&auto=format" alt="Wood-fired oven with flames" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=600&q=75&auto=format" alt="Fresh salad with seasonal vegetables" loading="lazy">
+      </div>
+      <div class="gallery__item">
+        <img src="https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=75&auto=format" alt="Wine glasses on a table" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════
+       Chef Story
+       ════════════════════════════════════════════════ -->
+  <section class="chef" id="chef" aria-label="About the chef">
+    <div class="container">
+      <div class="chef__grid">
+        <div class="chef__portrait reveal">
+          <img
+            class="chef__portrait-img"
+            src="https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=700&q=80&auto=format"
+            alt="Chef Luca Ferretti in the kitchen preparing a dish"
+            loading="lazy"
+          >
+        </div>
+        <div class="chef__content">
+          <span class="label reveal">The Chef</span>
+          <h2 class="chef__name reveal reveal-delay-1">Luca Ferretti</h2>
+          <p class="chef__role reveal reveal-delay-1">Executive Chef & Co-Founder</p>
+          <hr class="divider reveal reveal-delay-2">
+          <p class="chef__story reveal reveal-delay-2">
+            Luca grew up in his grandmother's kitchen in the hills outside Siena,
+            where cooking wasn't a career — it was how you showed love. After a decade
+            staging through Michelin kitchens in Lyon and Copenhagen, he came back to
+            what he knew: simple ingredients, live fire, zero waste.
+          </p>
+          <blockquote class="chef__quote reveal reveal-delay-3">
+            "The best dish I ever made was the one my nonna would've nodded at.
+            No foam, no tweezers. Just food that makes you close your eyes."
+          </blockquote>
+          <div class="chef__stats reveal reveal-delay-4">
+            <div>
+              <p class="chef__stat-value">18</p>
+              <p class="chef__stat-label">Years in kitchens</p>
+            </div>
+            <div>
+              <p class="chef__stat-value">6</p>
+              <p class="chef__stat-label">Countries trained</p>
+            </div>
+            <div>
+              <p class="chef__stat-value">1</p>
+              <p class="chef__stat-label">Philosophy: simplicity</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════
+       Reservation
+       ════════════════════════════════════════════════ -->
+  <section class="reservation" id="reservation" aria-label="Make a reservation">
+    <div class="container">
+      <div class="reservation__grid">
+        <div class="reservation__info reveal">
+          <span class="label">Reserve Your Table</span>
+          <h2 class="section-heading">Join Us for<br>an Evening</h2>
+          <hr class="divider">
+
+          <div class="reservation__hours">
+            <div class="reservation__hours-row">
+              <span class="reservation__hours-day">Tuesday — Thursday</span>
+              <span class="reservation__hours-time">18:00 — 22:30</span>
+            </div>
+            <div class="reservation__hours-row">
+              <span class="reservation__hours-day">Friday — Saturday</span>
+              <span class="reservation__hours-time">18:00 — 23:30</span>
+            </div>
+            <div class="reservation__hours-row">
+              <span class="reservation__hours-day">Sunday Brunch</span>
+              <span class="reservation__hours-time">11:00 — 15:00</span>
+            </div>
+            <div class="reservation__hours-row">
+              <span class="reservation__hours-day">Monday</span>
+              <span class="reservation__hours-time">Closed</span>
+            </div>
+          </div>
+
+          <div class="reservation__note">
+            <strong>Walk-ins welcome.</strong> We hold a few tables each night for
+            spontaneous visitors. For parties of 6+, please book by phone — our
+            chef's table seats up to 10.
+          </div>
+        </div>
+
+        <!-- Reservation form -->
+        <form class="reservation__form reveal reveal-delay-2" aria-label="Reservation form" onsubmit="handleReservation(event)">
+          <h3 class="reservation__form-title">Book a Table</h3>
+
+          <div class="form__row">
+            <div class="form__group">
+              <label class="form__label" for="res-name">Name</label>
+              <input class="form__input" type="text" id="res-name" name="name" placeholder="Your name" required>
+            </div>
+            <div class="form__group">
+              <label class="form__label" for="res-email">Email</label>
+              <input class="form__input" type="email" id="res-email" name="email" placeholder="you@email.com" required>
+            </div>
+          </div>
+
+          <div class="form__row">
+            <div class="form__group">
+              <label class="form__label" for="res-date">Date</label>
+              <input class="form__input" type="date" id="res-date" name="date" required>
+            </div>
+            <div class="form__group">
+              <label class="form__label" for="res-time">Time</label>
+              <select class="form__select" id="res-time" name="time" required>
+                <option value="" disabled selected>Select time</option>
+                <option value="18:00">18:00</option>
+                <option value="18:30">18:30</option>
+                <option value="19:00">19:00</option>
+                <option value="19:30">19:30</option>
+                <option value="20:00">20:00</option>
+                <option value="20:30">20:30</option>
+                <option value="21:00">21:00</option>
+                <option value="21:30">21:30</option>
+                <option value="22:00">22:00</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form__row">
+            <div class="form__group">
+              <label class="form__label" for="res-guests">Guests</label>
+              <select class="form__select" id="res-guests" name="guests" required>
+                <option value="" disabled selected>Party size</option>
+                <option value="1">1 guest</option>
+                <option value="2">2 guests</option>
+                <option value="3">3 guests</option>
+                <option value="4">4 guests</option>
+                <option value="5">5 guests</option>
+                <option value="6">6+ (call us)</option>
+              </select>
+            </div>
+            <div class="form__group">
+              <label class="form__label" for="res-occasion">Occasion</label>
+              <select class="form__select" id="res-occasion" name="occasion">
+                <option value="" disabled selected>Optional</option>
+                <option value="birthday">Birthday</option>
+                <option value="anniversary">Anniversary</option>
+                <option value="business">Business dinner</option>
+                <option value="date">Date night</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form__group">
+            <label class="form__label" for="res-notes">Special Requests</label>
+            <textarea class="form__textarea" id="res-notes" name="notes" placeholder="Allergies, seating preferences, celebrations..."></textarea>
+          </div>
+
+          <button type="submit" class="btn btn--form">Confirm Reservation</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════
+       Testimonials
+       ════════════════════════════════════════════════ -->
+  <section class="testimonials" aria-label="Guest testimonials">
+    <div class="container">
+      <div class="testimonials__header reveal">
+        <span class="label" style="color: var(--color-saffron-light);">What People Say</span>
+        <h2 class="section-heading">Guests'<br>Words</h2>
+        <hr class="divider">
+      </div>
+
+      <div class="testimonials__grid">
+        <article class="testimonial reveal reveal-delay-1">
+          <div class="testimonial__stars" aria-label="5 out of 5 stars">★★★★★</div>
+          <p class="testimonial__text">
+            "The pappardelle genuinely made me emotional. I haven't tasted
+            anything this honest since my last trip to Tuscany. The wine
+            pairings were inspired."
+          </p>
+          <div class="testimonial__author">
+            <div class="testimonial__avatar" aria-hidden="true">MR</div>
+            <div>
+              <p class="testimonial__name">Maria Rossi</p>
+              <p class="testimonial__source">Google Reviews</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="testimonial reveal reveal-delay-2">
+          <div class="testimonial__stars" aria-label="5 out of 5 stars">★★★★★</div>
+          <p class="testimonial__text">
+            "We came for a birthday dinner and left feeling like family.
+            The staff remembered my wife's name by the second course. That
+            never happens."
+          </p>
+          <div class="testimonial__author">
+            <div class="testimonial__avatar" aria-hidden="true">JC</div>
+            <div>
+              <p class="testimonial__name">James Chen</p>
+              <p class="testimonial__source">TripAdvisor</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="testimonial reveal reveal-delay-3">
+          <div class="testimonial__stars" aria-label="5 out of 5 stars">★★★★★</div>
+          <p class="testimonial__text">
+            "Skip the tourist traps. This is where the locals eat. The
+            octopus is life-changing and the tiramisù should be illegal.
+            Go on a weekday if you can."
+          </p>
+          <div class="testimonial__author">
+            <div class="testimonial__avatar" aria-hidden="true">SE</div>
+            <div>
+              <p class="testimonial__name">Sofia Engström</p>
+              <p class="testimonial__source">Yelp Elite</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════
+       Location & Map
+       ════════════════════════════════════════════════ -->
+  <section class="location" id="location" aria-label="Location and directions">
+    <div class="container">
+      <div class="location__grid">
+        <div class="location__details reveal">
+          <span class="label">Find Us</span>
+          <h2 class="section-heading">Visit<br>Osteria Fiamma</h2>
+          <hr class="divider">
+
+          <address class="location__address" style="font-style: normal;">
+            127 Via delle Fornaci<br>
+            Quartiere Trastevere<br>
+            00153 Roma, Italia
+          </address>
+
+          <div class="location__transport">
+            <div class="location__transport-item">
+              <div class="location__transport-icon" aria-hidden="true">🚇</div>
+              <div class="location__transport-text">
+                <strong>Metro</strong>
+                Trastevere station (Line 8) — 5 min walk
+              </div>
+            </div>
+            <div class="location__transport-item">
+              <div class="location__transport-icon" aria-hidden="true">🚗</div>
+              <div class="location__transport-text">
+                <strong>Parking</strong>
+                Garage Trastevere — 2 blocks north, validated for diners
+              </div>
+            </div>
+            <div class="location__transport-item">
+              <div class="location__transport-icon" aria-hidden="true">🚶</div>
+              <div class="location__transport-text">
+                <strong>Walking</strong>
+                15 min from Piazza Navona, across Ponte Sisto
+              </div>
+            </div>
+          </div>
+
+          <div class="location__contact">
+            <div class="location__contact-item">
+              <span class="label">Phone</span>
+              <a href="tel:+39065551234" class="location__contact-value">+39 06 555 1234</a>
+            </div>
+            <div class="location__contact-item">
+              <span class="label">Email</span>
+              <a href="mailto:ciao@osteriafiamma.it" class="location__contact-value">ciao@osteriafiamma.it</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="location__map reveal reveal-delay-2">
+          <!-- Sepia-tinted map embed for warm aesthetic -->
+          <iframe
+            src="https://www.openstreetmap.org/export/embed.html?bbox=12.4600%2C41.8800%2C12.4800%2C41.8930&layer=mapnik&marker=41.8865%2C12.4700"
+            title="Map showing Osteria Fiamma location in Trastevere, Rome"
+            loading="lazy"
+            referrerpolicy="no-referrer"
+          ></iframe>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  </main>
+
+  <!-- ════════════════════════════════════════════════
+       Footer
+       ════════════════════════════════════════════════ -->
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer__top">
+        <div>
+          <p class="footer__brand">Osteria <span>Fiamma</span></p>
+          <p class="footer__tagline">
+            Wood-fired Italian cooking in the heart of Trastevere.
+            Seasonal, honest, unforgettable.
+          </p>
+        </div>
+        <div>
+          <p class="footer__column-title">Navigate</p>
+          <ul class="footer__links" role="list">
+            <li><a href="#menu">Menu</a></li>
+            <li><a href="#chef">Our Story</a></li>
+            <li><a href="#reservation">Reservations</a></li>
+            <li><a href="#location">Find Us</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="footer__column-title">Policies</p>
+          <ul class="footer__links" role="list">
+            <li><a href="#">Privacy</a></li>
+            <li><a href="#">Terms</a></li>
+            <li><a href="#">Accessibility</a></li>
+            <li><a href="#">Cancellation</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="footer__column-title">Hours</p>
+          <ul class="footer__links" role="list">
+            <li>Tue–Thu: 18:00–22:30</li>
+            <li>Fri–Sat: 18:00–23:30</li>
+            <li>Sun Brunch: 11:00–15:00</li>
+            <li>Monday: Closed</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer__bottom">
+        <p class="footer__copy">© 2024 Osteria Fiamma. Tutti i diritti riservati.</p>
+        <div class="footer__social" aria-label="Social media links">
+          <a href="#" aria-label="Instagram">IG</a>
+          <a href="#" aria-label="Facebook">FB</a>
+          <a href="#" aria-label="TripAdvisor">TA</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ════════════════════════════════════════════════
+       Scripts — nav scroll, mobile toggle, reveal,
+       menu tabs, reservation handler
+       ════════════════════════════════════════════════ -->
+  <script>
+    /**
+     * Navigation scroll effect — adds 'scrolled' class for
+     * background blur and compact padding on scroll
+     */
+    (function initNavScroll() {
+      const nav = document.getElementById('nav');
+      let ticking = false;
+
+      window.addEventListener('scroll', () => {
+        if (!ticking) {
+          requestAnimationFrame(() => {
+            nav.classList.toggle('scrolled', window.scrollY > 60);
+            ticking = false;
+          });
+          ticking = true;
+        }
+      });
+    })();
+
+    /**
+     * Mobile navigation toggle — hamburger to X animation
+     * with accessible aria-expanded state
+     */
+    (function initMobileNav() {
+      const toggle = document.getElementById('navToggle');
+      const links = document.getElementById('navLinks');
+
+      toggle.addEventListener('click', () => {
+        const isOpen = links.classList.toggle('open');
+        toggle.classList.toggle('active');
+        toggle.setAttribute('aria-expanded', isOpen);
+      });
+
+      /* Close menu when a link is clicked */
+      links.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', () => {
+          links.classList.remove('open');
+          toggle.classList.remove('active');
+          toggle.setAttribute('aria-expanded', 'false');
+        });
+      });
+    })();
+
+    /**
+     * Scroll-triggered reveal animations using IntersectionObserver.
+     * Elements with class 'reveal' fade in and slide up when
+     * they enter the viewport.
+     */
+    (function initRevealAnimations() {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+              observer.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+      );
+
+      document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    })();
+
+    /**
+     * Menu category tabs — switches active state.
+     * In a real app, this would filter the menu items;
+     * here it just updates visual state for the demo.
+     */
+    (function initMenuTabs() {
+      const tabs = document.querySelectorAll('.menu__tab');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.forEach(t => {
+            t.classList.remove('active');
+            t.setAttribute('aria-selected', 'false');
+          });
+          tab.classList.add('active');
+          tab.setAttribute('aria-selected', 'true');
+        });
+      });
+    })();
+
+    /**
+     * Reservation form handler — demo only.
+     * Prevents default submission and shows a confirmation.
+     * In production, this would POST to a booking API.
+     * @param {Event} e - The form submit event
+     */
+    function handleReservation(e) {
+      e.preventDefault();
+
+      const form = e.target;
+      const name = form.querySelector('#res-name').value;
+      const date = form.querySelector('#res-date').value;
+      const time = form.querySelector('#res-time').value;
+
+      /* Replace form with confirmation message */
+      form.innerHTML = `
+        <div style="text-align: center; padding: var(--space-2xl) 0;">
+          <p style="font-family: var(--font-display); font-size: var(--fs-subsection); font-weight: 700; color: var(--color-cream); margin-bottom: var(--space-md);">
+            Grazie, ${name}!
+          </p>
+          <p style="color: var(--color-saffron-light); font-size: var(--fs-body-lg); margin-bottom: var(--space-lg);">
+            Your table is reserved for ${date} at ${time}.
+          </p>
+          <p style="color: var(--color-text-muted); font-size: var(--fs-small);">
+            A confirmation has been sent to your email.<br>
+            We can't wait to welcome you.
+          </p>
+        </div>
+      `;
+    }
+
+    /**
+     * Set minimum date for reservation to today.
+     * Prevents users from booking in the past.
+     */
+    (function setMinDate() {
+      const dateInput = document.getElementById('res-date');
+      const today = new Date().toISOString().split('T')[0];
+      dateInput.setAttribute('min', today);
+    })();
+  </script>
+
+</body>
+</html>
