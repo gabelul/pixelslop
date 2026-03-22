@@ -1249,6 +1249,40 @@
     }
 
     /* ═══════════════════════════════════════════════
+       Focus States — visible ring for keyboard navigation
+       Uses :focus-visible so mouse clicks stay clean.
+       ═══════════════════════════════════════════════ */
+    .nav__links a:focus-visible,
+    .nav__cta:focus-visible,
+    .btn:focus-visible,
+    .menu__tab:focus-visible,
+    .footer__links a:focus-visible,
+    .footer__social a:focus-visible,
+    .hero__scroll:focus-visible,
+    .nav__brand:focus-visible {
+      outline: 2px solid var(--color-terracotta);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* Dark backgrounds need a lighter ring to pop */
+    .footer__links a:focus-visible,
+    .footer__social a:focus-visible {
+      outline-color: var(--color-terracotta-light);
+    }
+
+    /* Ghost/outline buttons on hero — ring on dark bg */
+    .btn--ghost:focus-visible {
+      outline-color: var(--color-cream);
+    }
+
+    /* Form submit button inherits from .btn:focus-visible,
+       but bump outline for the dark form background */
+    .btn--form:focus-visible {
+      outline-color: var(--color-saffron-light);
+    }
+
+    /* ═══════════════════════════════════════════════
        Entrance Animations — staggered on scroll
        ═══════════════════════════════════════════════ */
     .reveal {
