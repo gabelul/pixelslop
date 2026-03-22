@@ -904,7 +904,7 @@
       font-weight: 600;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--color-text-muted);
+      color: var(--color-linen);  /* was --color-text-muted (#8A7B6E) — too low contrast on charcoal bg */
     }
 
     .form__input,
@@ -923,7 +923,7 @@
 
     .form__input::placeholder,
     .form__textarea::placeholder {
-      color: rgba(250, 245, 239, 0.3);
+      color: rgba(250, 245, 239, 0.45);  /* was 0.3 — too dim on dark form bg */
     }
 
     .form__input:focus,
