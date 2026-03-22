@@ -1369,6 +1369,37 @@
         text-align: center;
       }
     }
+
+    /* ═══════════════════════════════════════════════
+       Reduced Motion — respect user motion preferences
+       ═══════════════════════════════════════════════ */
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      /* Kill all keyframe animations */
+      .hero__scroll-line,
+      .gallery__track {
+        animation: none;
+      }
+
+      /* Reveal elements immediately — no slide-up or fade */
+      .reveal {
+        opacity: 1;
+        transform: none;
+        transition: none;
+      }
+
+      /* Reduce hover/focus transitions to instant */
+      *,
+      *::before,
+      *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
   </style>
 </head>
 <body>
