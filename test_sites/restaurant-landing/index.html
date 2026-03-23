@@ -265,14 +265,17 @@
       background: none;
       border: none;
       cursor: pointer;
-      width: 28px;
-      height: 20px;
+      width: 44px;
+      height: 44px;
       position: relative;
+      /* Touch target: 44x44px min, lines centered with padding */
+      padding: 12px 8px;
+      box-sizing: border-box;
     }
 
     .nav__toggle span {
       display: block;
-      width: 100%;
+      width: 28px;
       height: 2px;
       background: var(--color-charcoal);
       position: absolute;
@@ -280,9 +283,9 @@
       transition: transform var(--transition-base), opacity 200ms ease;
     }
 
-    .nav__toggle span:nth-child(1) { top: 0; }
-    .nav__toggle span:nth-child(2) { top: 9px; }
-    .nav__toggle span:nth-child(3) { top: 18px; }
+    .nav__toggle span:nth-child(1) { top: 12px; left: 8px; }
+    .nav__toggle span:nth-child(2) { top: 21px; left: 8px; }
+    .nav__toggle span:nth-child(3) { top: 30px; left: 8px; }
 
     .nav__toggle.active span:nth-child(1) {
       transform: translateY(9px) rotate(45deg);
@@ -515,13 +518,18 @@
       font-weight: 500;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      padding: 0.55em 1.4em;
+      padding: 0.75em 1.4em;
+      min-height: 44px;
       border: 1.5px solid var(--color-linen);
       border-radius: var(--radius-sm);
       background: transparent;
       color: var(--color-text-muted);
       cursor: pointer;
       transition: border-color var(--transition-base), color var(--transition-base), background var(--transition-base);
+      /* Touch target: 44px min-height for mobile tap comfort */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .menu__tab:hover {
@@ -1218,6 +1226,10 @@
       font-size: var(--fs-small);
       color: rgba(250, 245, 239, 0.6);
       transition: color var(--transition-base);
+      /* Touch target: 44px min-height for tappable footer links */
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
     }
 
     .footer__links a:hover {
@@ -1243,8 +1255,8 @@
     }
 
     .footer__social a {
-      width: 36px;
-      height: 36px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       border: 1px solid rgba(250, 245, 239, 0.12);
       display: flex;
