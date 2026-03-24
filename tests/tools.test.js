@@ -10,11 +10,12 @@
 
 import { describe, it, before, after, beforeEach } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
+import http from 'node:http';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TOOLS = join(__dirname, '..', 'bin', 'pixelslop-tools.cjs');
@@ -75,6 +76,58 @@ function createTestRepo(pkg = { name: 'test', scripts: { build: 'echo ok' } }) {
   return dir;
 }
 
+/**
+ * Wait for a local HTTP server to respond.
+ * @param {number} port - Local port
+ * @param {number} [timeoutMs=4000] - Timeout in milliseconds
+ * @returns {Promise<void>} Resolves when the server is reachable
+ */
+function waitForHttpServer(port, timeoutMs = 4000) {
+  const deadline = Date.now() + timeoutMs;
+
+  return new Promise((resolve, reject) => {
+    const attempt = () => {
+      const req = http.get(`http://127.0.0.1:${port}`, (res) => {
+        res.resume();
+        resolve();
+      });
+      req.on('error', () => {
+        if (Date.now() >= deadline) {
+          reject(new Error(`Timed out waiting for port ${port}`));
+          return;
+        }
+        setTimeout(attempt, 100);
+      });
+    };
+
+    attempt();
+  });
+}
+
+/**
+ * Start a small HTTP server from a specific repo directory.
+ * @param {string} dir - Working directory for the child process
+ * @param {number} port - Port to listen on
+ * @returns {import('node:child_process').ChildProcess} Child process handle
+ */
+function startFixtureServer(dir, port) {
+  const scriptPath = join(dir, 'fixture-server.js');
+  writeFileSync(scriptPath, `
+    const http = require('http');
+    const port = Number(process.argv[2]);
+    const server = http.createServer((req, res) => {
+      res.statusCode = 200;
+      res.end('ok');
+    });
+    server.listen(port, '127.0.0.1');
+  `);
+
+  return spawn(process.execPath, [scriptPath, String(port)], {
+    cwd: dir,
+    stdio: 'ignore'
+  });
+}
+
 // ─────────────────────────────────────────────
 // Tests: CLI basics
 // ─────────────────────────────────────────────
@@ -84,6 +137,7 @@ describe('pixelslop-tools CLI basics', () => {
     const { stdout } = run('', process.cwd());
     assert.ok(stdout.includes('Usage:'), 'should show usage text');
     assert.ok(stdout.includes('plan'), 'should list plan group');
+    assert.ok(stdout.includes('discover'), 'should list discover group');
   });
 
   it('fails on unknown group', () => {
@@ -121,10 +175,17 @@ describe('plan commands', () => {
     assert.equal(exitCode, 1);
   });
 
-  it('plan begin fails if plan already exists', () => {
+  it('plan begin fails if plan already exists without --force', () => {
     run('plan begin --url http://localhost:3000 --root .', dir);
     const { exitCode } = run('plan begin --url http://localhost:3000 --root . --raw', dir, true);
     assert.equal(exitCode, 1);
+  });
+
+  it('plan begin --force replaces existing plan', () => {
+    run('plan begin --url http://localhost:3000 --root .', dir);
+    const result = runJson('plan begin --url http://localhost:4000 --root . --force', dir);
+    assert.equal(result.status, 'created');
+    assert.equal(result.url, 'http://localhost:4000');
   });
 
   it('plan begin writes issues from JSON', () => {
@@ -144,6 +205,15 @@ describe('plan commands', () => {
     const content = readFileSync(join(dir, '.pixelslop-plan.md'), 'utf-8');
     assert.ok(content.includes('Hierarchy'));
     assert.ok(content.includes('| Pillar | Before | After |'));
+  });
+
+  it('plan begin writes into --root when invoked from another directory', () => {
+    const projectDir = createTestRepo();
+    const runnerDir = mkdtempSync(join(tmpdir(), 'pixelslop-runner-'));
+    run(`plan begin --url http://localhost:3000 --root "${projectDir}"`, runnerDir);
+    assert.ok(existsSync(join(projectDir, '.pixelslop-plan.md')), 'plan should be created in the project root');
+    assert.ok(!existsSync(join(runnerDir, '.pixelslop-plan.md')), 'runner directory should stay clean');
+    rmSync(runnerDir, { recursive: true, force: true });
   });
 
   it('plan update changes issue status', () => {
@@ -447,6 +517,290 @@ describe('init commands', () => {
     assert.equal(result.issue_id, 'contrast-cta');
     assert.equal(result.issue_pillar, 'accessibility');
     assert.ok(result.checkpoint_exists);
+  });
+});
+
+// ─────────────────────────────────────────────
+// Tests: Discover commands
+// ─────────────────────────────────────────────
+
+describe('discover commands', () => {
+  it('discover start-target finds a root dev script', () => {
+    const dir = createTestRepo({ name: 'test', scripts: { dev: 'vite' } });
+    const result = runJson('discover start-target --root .', dir);
+    assert.equal(result.targets.length, 1);
+    assert.equal(result.targets[0].path, '.');
+    assert.equal(result.targets[0].command, 'npm run dev');
+  });
+
+  it('discover start-target finds nested monorepo apps', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-mono-'));
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'mono' }));
+    writeFileSync(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - apps/*\n');
+    mkdirSync(join(dir, 'apps', 'web'), { recursive: true });
+    writeFileSync(
+      join(dir, 'apps', 'web', 'package.json'),
+      JSON.stringify({ name: 'web-app', scripts: { dev: 'next dev' } })
+    );
+    const result = runJson('discover start-target --root .', dir);
+    assert.equal(result.targets.length, 1);
+    assert.equal(result.targets[0].path, join('apps', 'web'));
+    assert.equal(result.targets[0].package_manager, 'pnpm');
+  });
+
+  it('discover server returns empty when nothing is listening', () => {
+    const dir = createTestRepo();
+    const result = runJson('discover server --root . --ports 65530', dir);
+    assert.deepEqual(result.servers, []);
+  });
+
+  it('discover server marks a repo-owned server as a match', async () => {
+    const dir = createTestRepo({ name: 'test', scripts: { dev: 'node fixture-server.js' } });
+    const child = startFixtureServer(dir, 4107);
+
+    try {
+      await waitForHttpServer(4107);
+      const result = runJson('discover server --root . --ports 4107', dir);
+      assert.equal(result.servers.length, 1);
+      assert.ok(result.servers[0].repo_match, 'expected repo_match=true');
+      assert.notEqual(result.servers[0].match_confidence, 'mismatch');
+    } finally {
+      child.kill('SIGTERM');
+    }
+  });
+
+  it('discover server rejects a server from another repo', async () => {
+    const ownerDir = createTestRepo({ name: 'owner', scripts: { build: 'echo ok' } });
+    const foreignDir = createTestRepo({ name: 'foreign', scripts: { dev: 'node fixture-server.js' } });
+    const child = startFixtureServer(foreignDir, 4108);
+
+    try {
+      await waitForHttpServer(4108);
+      const result = runJson('discover server --root . --ports 4108', ownerDir);
+      assert.equal(result.servers.length, 1);
+      assert.equal(result.servers[0].repo_match, false);
+    } finally {
+      child.kill('SIGTERM');
+    }
+  });
+});
+
+// ─────────────────────────────────────────────
+// Tests: Session logger
+// ─────────────────────────────────────────────
+
+describe('session logger', () => {
+  let dir;
+
+  beforeEach(() => {
+    dir = createTestRepo();
+  });
+
+  it('log write creates session log with timestamped entries', () => {
+    run('log write --agent orchestrator --level info --message "Started scan"', dir);
+    const result = runJson('log read', dir);
+    assert.equal(result.total, 1);
+    assert.ok(result.entries[0].includes('[orchestrator]'), 'entry should include agent name');
+    assert.ok(result.entries[0].includes('Started scan'), 'entry should include message');
+    assert.ok(result.entries[0].includes('●'), 'info level should use ● marker');
+  });
+
+  it('log write supports all levels', () => {
+    run('log write --agent test --level info --message "info"', dir);
+    run('log write --agent test --level warn --message "warn"', dir);
+    run('log write --agent test --level error --message "error"', dir);
+    run('log write --agent test --level debug --message "debug"', dir);
+    const result = runJson('log read', dir);
+    assert.equal(result.total, 4);
+    assert.ok(result.entries[0].includes('●'), 'info');
+    assert.ok(result.entries[1].includes('▲'), 'warn');
+    assert.ok(result.entries[2].includes('✖'), 'error');
+    assert.ok(result.entries[3].includes('○'), 'debug');
+  });
+
+  it('log write collapses multiline messages into one entry', () => {
+    run('log write --agent test --level error --message "first line\nsecond line"', dir);
+    const result = runJson('log read', dir);
+    assert.equal(result.total, 1);
+    assert.ok(result.entries[0].includes('first line | second line'));
+  });
+
+  it('log write respects --root when invoked from another directory', () => {
+    const targetDir = createTestRepo();
+    const runnerDir = mkdtempSync(join(tmpdir(), 'pixelslop-runner-'));
+    run(`log write --root "${targetDir}" --agent test --level info --message "remote log"`, runnerDir);
+    const result = runJson(`log read --root "${targetDir}"`, runnerDir);
+    assert.equal(result.total, 1);
+    assert.ok(result.entries[0].includes('remote log'));
+    assert.ok(!existsSync(join(runnerDir, '.pixelslop-session.log')), 'runner directory should not get a session log');
+    rmSync(runnerDir, { recursive: true, force: true });
+  });
+
+  it('log read --tail returns last N entries', () => {
+    for (let i = 0; i < 10; i++) {
+      run(`log write --agent test --level info --message "entry ${i}"`, dir);
+    }
+    const result = runJson('log read --tail 3', dir);
+    assert.equal(result.showing, 3);
+    assert.equal(result.total, 10);
+    assert.ok(result.entries[0].includes('entry 7'));
+    assert.ok(result.entries[2].includes('entry 9'));
+  });
+
+  it('log clear removes the session log', () => {
+    run('log write --agent test --level info --message "hello"', dir);
+    run('log clear', dir);
+    const result = runJson('log read', dir);
+    assert.ok(result.empty, 'log should be empty after clear');
+  });
+
+  it('log write fails without --message', () => {
+    const result = run('log write --agent test --level info', dir, true);
+    assert.ok(result.exitCode !== 0, 'should fail without message');
+  });
+
+  it('plan update auto-logs to session log when --debug is active', () => {
+    const issues = JSON.stringify([
+      { id: 'test-issue', priority: 'P0', category: 'accessibility', description: 'Test' }
+    ]);
+    run(`plan begin --url http://localhost:3000 --root . --issues '${issues}' --debug`, dir);
+    run('log clear', dir); // clear the plan begin auto-log
+    run('plan update test-issue fixed --debug', dir);
+    const result = runJson('log read', dir);
+    assert.ok(result.total >= 1, 'should have at least 1 auto-logged entry');
+    assert.ok(result.entries.some(e => e.includes('[orchestrator]') && e.includes('test-issue') && e.includes('fixed')),
+      'should auto-log plan update with issue id and status');
+  });
+
+  it('plan update does NOT auto-log without --debug', () => {
+    const issues = JSON.stringify([
+      { id: 'test-issue', priority: 'P0', category: 'accessibility', description: 'Test' }
+    ]);
+    run(`plan begin --url http://localhost:3000 --root . --issues '${issues}'`, dir);
+    run('log clear', dir);
+    run('plan update test-issue fixed', dir);
+    const result = runJson('log read', dir);
+    assert.ok(result.empty || result.total === 0, 'should NOT auto-log without --debug');
+  });
+
+  it('plan begin auto-logs to session log when --debug is active', () => {
+    run('log clear', dir);
+    run('plan begin --url http://localhost:3000 --root . --debug', dir);
+    const result = runJson('log read', dir);
+    assert.ok(result.total >= 1, 'plan begin should auto-log');
+    assert.ok(result.entries.some(e => e.includes('[orchestrator]') && e.includes('plan begin')),
+      'should auto-log plan creation');
+  });
+});
+
+// ─────────────────────────────────────────────
+// Tests: Static site detection + temp server
+// ─────────────────────────────────────────────
+
+describe('discover static-site', () => {
+  it('detects a folder with HTML files and no package.json', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-static-'));
+    writeFileSync(join(dir, 'index.html'), '<html><body>hello</body></html>');
+    const result = runJson(`discover static-site --root "${dir}"`, dir);
+    assert.ok(result.is_static, 'should detect as static site');
+    assert.ok(result.entry_points.includes('index.html'), 'should find index.html');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('prefers index.html as first entry point', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-static-'));
+    writeFileSync(join(dir, 'about.html'), '<html></html>');
+    writeFileSync(join(dir, 'index.html'), '<html></html>');
+    writeFileSync(join(dir, 'contact.html'), '<html></html>');
+    const result = runJson(`discover static-site --root "${dir}"`, dir);
+    assert.equal(result.entry_points[0], 'index.html', 'index.html should be first');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns is_static: false when package.json has dev script', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-static-'));
+    writeFileSync(join(dir, 'index.html'), '<html></html>');
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' } }));
+    const result = runJson(`discover static-site --root "${dir}"`, dir);
+    assert.ok(!result.is_static, 'should NOT detect as static when dev script exists');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns is_static: false when no HTML files exist', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-static-'));
+    writeFileSync(join(dir, 'readme.md'), '# Hello');
+    const result = runJson(`discover static-site --root "${dir}"`, dir);
+    assert.ok(!result.is_static, 'should NOT detect as static with no HTML');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('ignores hidden and resource-fork HTML files', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-static-'));
+    writeFileSync(join(dir, 'index.html'), '<html></html>');
+    writeFileSync(join(dir, '._index.html'), '<html></html>');
+    writeFileSync(join(dir, '.draft.html'), '<html></html>');
+    const result = runJson(`discover static-site --root "${dir}"`, dir);
+    assert.deepEqual(result.entry_points, ['index.html']);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('serve start/stop', () => {
+  it('starts a server and stops it cleanly', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-serve-'));
+    writeFileSync(join(dir, 'index.html'), '<html><body>test</body></html>');
+
+    // Start — need a brief wait for the detached process to bind
+    const startResult = runJson(`serve start --root "${dir}"`, dir);
+    assert.ok(startResult.url, 'should return a URL');
+    assert.ok(startResult.port > 0, 'should return a valid port');
+    assert.ok(startResult.pid > 0, 'should return a PID');
+    assert.ok(startResult.pid_file.includes(join(dir, '.pixelslop')), 'should store state under the project');
+
+    // Verify the server actually serves content
+    const response = await fetch(startResult.url);
+    assert.equal(response.status, 200, 'should serve 200');
+    const body = await response.text();
+    assert.ok(body.includes('test'), 'should serve the HTML content');
+
+    // Stop
+    const stopResult = runJson('serve stop', dir);
+    assert.ok(stopResult.stopped, 'should report stopped');
+    assert.equal(stopResult.port, startResult.port, 'should stop the right port');
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('serve stop reports no server when none is running', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-serve-'));
+    const result = runJson('serve stop', dir);
+    assert.ok(!result.stopped, 'should report not stopped');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('keeps temp server state isolated per project root', async () => {
+    const dirA = mkdtempSync(join(tmpdir(), 'pixelslop-serve-a-'));
+    const dirB = mkdtempSync(join(tmpdir(), 'pixelslop-serve-b-'));
+    writeFileSync(join(dirA, 'index.html'), '<html><body>alpha</body></html>');
+    writeFileSync(join(dirB, 'index.html'), '<html><body>beta</body></html>');
+
+    const startA = runJson(`serve start --root "${dirA}"`, dirA);
+    const startB = runJson(`serve start --root "${dirB}"`, dirB);
+
+    const beforeStop = await (await fetch(startB.url)).text();
+    assert.ok(beforeStop.includes('beta'));
+
+    const stopA = runJson(`serve stop --root "${dirA}"`, dirA);
+    assert.ok(stopA.stopped, 'should stop the first project server');
+
+    const afterStop = await (await fetch(startB.url)).text();
+    assert.ok(afterStop.includes('beta'), 'stopping dirA should not stop dirB');
+
+    const stopB = runJson(`serve stop --root "${dirB}"`, dirB);
+    assert.ok(stopB.stopped, 'should stop the second project server');
+
+    rmSync(dirA, { recursive: true, force: true });
+    rmSync(dirB, { recursive: true, force: true });
   });
 });
 

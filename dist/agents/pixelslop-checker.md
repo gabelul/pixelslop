@@ -42,7 +42,7 @@ You receive:
 - **metric** (required) — what specific thing to re-measure (e.g., "contrast ratio on .cta button")
 - **before_value** (required) — the scanner's original measurement (e.g., "2.5:1 contrast ratio")
 - **threshold** (required) — the target the fix should achieve (e.g., "4.5:1 for WCAG AA")
-- **URL** (required) — the page to check (should be a local dev server URL)
+- **URL** (required) — the page to check (should be a local dev server URL and must be provided explicitly)
 - **root_path** (required) — filesystem path to the project
 - **checkpoint_path** (required) — path to the checkpoint `.json` metadata
 

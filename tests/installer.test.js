@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync,
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir, homedir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 
 import { rewriteAgentPaths, writeJsonMcp, removeJsonMcp,
          writeTomlMcp, removeTomlMcp, calculateFileDiff,
@@ -34,6 +35,51 @@ function makeTempDir() {
   const dir = join(tmpdir(), `pixelslop-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * Resolve the npm executable for the current platform.
+ * @returns {string} npm executable name
+ */
+function npmBin() {
+  return process.platform === 'win32' ? 'npm.cmd' : 'npm';
+}
+
+/**
+ * Resolve the npx executable for the current platform.
+ * @returns {string} npx executable name
+ */
+function npxBin() {
+  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
+}
+
+/**
+ * Build a tarball for the current package and return its absolute path.
+ * @returns {string} Tarball path
+ */
+function packPackage() {
+  const stdout = execFileSync(npmBin(), ['pack', '--json'], {
+    cwd: PROJECT_ROOT,
+    encoding: 'utf8',
+  });
+  const [{ filename }] = JSON.parse(stdout);
+  return join(PROJECT_ROOT, filename);
+}
+
+/**
+ * Execute the packaged pixelslop binary via local tarball + npx.
+ * @param {string} tarballPath - Local .tgz path
+ * @param {string[]} args - pixelslop CLI arguments
+ * @param {string} cwd - Working directory
+ * @param {object} env - Extra environment variables
+ * @returns {string} Stdout output
+ */
+function runTarballCommand(tarballPath, args, cwd, env = {}) {
+  return execFileSync(npxBin(), ['--yes', '--package', tarballPath, 'pixelslop', ...args], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -736,5 +782,47 @@ describe('CLI flags', () => {
     assert.ok(output.includes('--project'), 'Help must show --project');
     assert.ok(output.includes('--global'), 'Help must show --global');
     assert.ok(output.includes('--copy'), 'Help must show --copy');
+  });
+});
+
+// ─────────────────────────────────────────────
+// Packaged artifact smoke tests
+// ─────────────────────────────────────────────
+
+describe('packaged artifact smoke', () => {
+  let tempHome, tempProject, tarballPath;
+
+  beforeEach(() => {
+    tempHome = makeTempDir();
+    tempProject = makeTempDir();
+    tarballPath = packPackage();
+  });
+
+  afterEach(() => {
+    if (tarballPath && existsSync(tarballPath)) {
+      rmSync(tarballPath, { force: true });
+    }
+    rmSync(tempProject, { recursive: true, force: true });
+    rmSync(tempHome, { recursive: true, force: true });
+  });
+
+  it('installs, verifies, reports status, and uninstalls via npx tarball', () => {
+    const env = { HOME: tempHome };
+
+    runTarballCommand(tarballPath, ['install', '--project'], tempProject, env);
+    assert.ok(existsSync(join(tempProject, '.claude', 'agents', 'pixelslop.md')));
+    assert.ok(existsSync(join(tempProject, '.claude', 'skills', 'pixelslop', 'SKILL.md')));
+    assert.ok(existsSync(join(tempProject, '.mcp.json')));
+
+    const doctorOutput = runTarballCommand(tarballPath, ['doctor'], tempProject, env);
+    assert.ok(doctorOutput.includes('All checks passed.'), 'doctor should report success');
+
+    const statusOutput = runTarballCommand(tarballPath, ['status'], tempProject, env);
+    assert.ok(statusOutput.includes('Scope: project'), 'status should report project scope');
+    assert.ok(statusOutput.includes('Claude Code'), 'status should mention installed client');
+
+    runTarballCommand(tarballPath, ['uninstall'], tempProject, env);
+    assert.ok(!existsSync(join(tempProject, '.claude', 'agents', 'pixelslop.md')));
+    assert.ok(!existsSync(join(tempProject, '.claude', 'skills', 'pixelslop')));
   });
 });

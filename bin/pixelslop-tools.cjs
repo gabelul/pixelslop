@@ -21,6 +21,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { execSync, execFileSync } = require('child_process');
 
 // ─────────────────────────────────────────────
@@ -30,6 +31,17 @@ const { execSync, execFileSync } = require('child_process');
 /** Global flags parsed from argv */
 let RAW = false;
 let CWD = process.cwd();
+let DEBUG = false;
+
+/**
+ * Resolve the project root for commands that manage project-local state.
+ * `--root` identifies the analyzed project; if omitted, use the current cwd.
+ * @param {string|undefined} root - Optional project root override
+ * @returns {string} Absolute project root
+ */
+function resolveProjectRoot(root) {
+  return path.resolve(CWD, root || '.');
+}
 
 /**
  * Output result to stdout. In raw mode, outputs JSON.
@@ -63,6 +75,126 @@ function fail(msg) {
   }
   process.exit(1);
 }
+
+// ─────────────────────────────────────────────
+// Session Logger
+// ─────────────────────────────────────────────
+
+/** Session log file lives next to the plan file in CWD */
+const SESSION_LOG = '.pixelslop-session.log';
+
+/**
+ * Resolve the session log file path.
+ * @returns {string} Absolute path to the session log
+ */
+function sessionLogPath(root) {
+  return path.join(resolveProjectRoot(root), SESSION_LOG);
+}
+
+/**
+ * Append a timestamped entry to the session log.
+ * Creates the file if it doesn't exist. Each entry is one line:
+ *   [HH:MM:SS] [AGENT] message
+ *
+ * @param {string} agent - Agent identifier (orchestrator, scanner, fixer, checker, setup, skill)
+ * @param {string} level - Log level (info, warn, error, debug)
+ * @param {string} message - What happened
+ */
+function sessionLog(agent, level, message, root) {
+  const now = new Date();
+  const ts = now.toISOString().slice(11, 19); // HH:MM:SS
+  const prefix = { info: '●', warn: '▲', error: '✖', debug: '○' }[level] || '●';
+  const line = `[${ts}] ${prefix} [${agent}] ${sanitizeLogField(message)}\n`;
+  fs.appendFileSync(sessionLogPath(root), line);
+}
+
+/**
+ * Auto-log: only writes when --debug is active.
+ * Used by plan update, checkpoint, gate, and init commands to trace
+ * orchestrator/subagent activity without cluttering non-debug sessions.
+ *
+ * @param {string} agent - Agent identifier
+ * @param {string} level - Log level
+ * @param {string} message - What happened
+ * @param {string} [root] - Optional project root
+ */
+function autoLog(agent, level, message, root) {
+  if (!DEBUG) return;
+  sessionLog(agent, level, message, root);
+}
+
+/**
+ * Normalize log values so each entry stays on a single line.
+ * @param {string} value - Raw log field value
+ * @returns {string} Single-line value safe for the session log
+ */
+function sanitizeLogField(value) {
+  return String(value || '')
+    .replace(/\r?\n+/g, ' | ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * CLI handler for `log write`.
+ * Agents call this to record what they're doing.
+ *
+ * Usage: pixelslop-tools log write --agent orchestrator --level info --message "Starting scan"
+ *        pixelslop-tools log write --agent fixer --level error --message "Checkpoint failed for contrast-cta"
+ *
+ * @param {object} args - CLI flags (--agent, --level, --message)
+ */
+function logWrite(args) {
+  const agent = sanitizeLogField(args.agent || 'unknown');
+  const level = args.level || 'info';
+  const message = sanitizeLogField(args.message || args.msg || '');
+  if (!message) fail('--message required');
+
+  sessionLog(agent, level, message, args.root);
+  output(RAW ? { logged: true, agent, level, message } : `Logged: [${agent}] ${message}`);
+}
+
+/**
+ * CLI handler for `log read`.
+ * Dump the session log for inspection.
+ *
+ * @param {object} args - CLI flags (--tail for last N lines)
+ */
+function logRead(args) {
+  const logFile = sessionLogPath(args.root);
+  if (!fs.existsSync(logFile)) {
+    output(RAW ? { entries: [], empty: true } : 'No session log found.');
+    return;
+  }
+
+  const content = fs.readFileSync(logFile, 'utf-8');
+  const lines = content.trim().split('\n').filter(Boolean);
+
+  if (args.tail) {
+    const n = parseInt(args.tail, 10) || 20;
+    const tail = lines.slice(-n);
+    output(RAW ? { entries: tail, total: lines.length, showing: tail.length } : tail.join('\n'));
+  } else {
+    output(RAW ? { entries: lines, total: lines.length } : content);
+  }
+}
+
+/**
+ * CLI handler for `log clear`.
+ * Wipe the session log (e.g., at the start of a new scan).
+ * @param {object} args - CLI flags (--root)
+ */
+function logClear(args = {}) {
+  const logFile = sessionLogPath(args.root);
+  if (fs.existsSync(logFile)) {
+    fs.unlinkSync(logFile);
+  }
+  output(RAW ? { cleared: true } : 'Session log cleared.');
+}
+
+// ─────────────────────────────────────────────
+// Shell Helpers
+// ─────────────────────────────────────────────
 
 /**
  * Run a shell command synchronously, return stdout.
@@ -204,10 +336,11 @@ function serializeFrontmatter(meta) {
 
 /**
  * Read the plan file (.pixelslop-plan.md).
+ * @param {string|undefined} root - Optional project root override
  * @returns {{ meta: object, body: string, raw: string, path: string }}
  */
-function readPlan() {
-  const planPath = path.join(CWD, '.pixelslop-plan.md');
+function readPlan(root) {
+  const planPath = path.join(resolveProjectRoot(root), '.pixelslop-plan.md');
   if (!fs.existsSync(planPath)) fail('No .pixelslop-plan.md found. Run "plan begin" first.');
   const raw = fs.readFileSync(planPath, 'utf-8');
   const { meta, body } = parseFrontmatter(raw);
@@ -218,9 +351,10 @@ function readPlan() {
  * Write the plan file with updated frontmatter and/or body.
  * @param {object} meta - Frontmatter fields
  * @param {string} body - Markdown body
+ * @param {string|undefined} root - Optional project root override
  */
-function writePlan(meta, body) {
-  const planPath = path.join(CWD, '.pixelslop-plan.md');
+function writePlan(meta, body, root) {
+  const planPath = path.join(resolveProjectRoot(root || meta.root), '.pixelslop-plan.md');
   const content = `---\n${serializeFrontmatter(meta)}\n---\n${body}`;
   fs.writeFileSync(planPath, normalizeMd(content));
 }
@@ -257,8 +391,15 @@ function parseIssues(body) {
  * @param {object} args - Parsed arguments (url, root, mode, gate, issues, scores)
  */
 function planBegin(args) {
-  const planPath = path.join(CWD, '.pixelslop-plan.md');
-  if (fs.existsSync(planPath)) fail('.pixelslop-plan.md already exists. Delete it or use plan update.');
+  const projectRoot = resolveProjectRoot(args.root);
+  const planPath = path.join(projectRoot, '.pixelslop-plan.md');
+  if (fs.existsSync(planPath)) {
+    if (args.force) {
+      fs.unlinkSync(planPath);
+    } else {
+      fail('.pixelslop-plan.md already exists. Use --force to replace it, or plan update to modify.');
+    }
+  }
 
   const meta = {
     url: args.url || fail('--url required'),
@@ -300,7 +441,10 @@ function planBegin(args) {
   }
 
   const body = `\n## Issues\n\n${issuesMd || '(none yet)'}\n\n## Scores\n\n${scoresMd || '(no scores yet)'}\n`;
-  writePlan(meta, body);
+  writePlan(meta, body, args.root);
+  // Auto-log plan creation
+  const issueCount = issuesMd ? issuesMd.split('\n').filter(l => l.startsWith('- [')).length : 0;
+  autoLog('orchestrator', 'info', `plan begin: ${issueCount} issues, url=${meta.url}, mode=${meta.mode}`, args.root);
   output(RAW ? { status: 'created', path: planPath, ...meta } : `Plan created: ${planPath}`);
 }
 
@@ -309,17 +453,19 @@ function planBegin(args) {
  * @param {string} issueId - The issue ID to update
  * @param {string} newStatus - New status (fixed, failed, skipped, partial, pending)
  */
-function planUpdate(issueId, newStatus) {
+function planUpdate(issueId, newStatus, args = {}) {
   if (!issueId || !newStatus) fail('Usage: plan update <issue-id> <status>');
   const validStatuses = ['pending', 'fixed', 'failed', 'skipped', 'partial', 'in-progress'];
   if (!validStatuses.includes(newStatus)) fail(`Invalid status: ${newStatus}. Valid: ${validStatuses.join(', ')}`);
 
-  const { meta, body } = readPlan();
+  const { meta, body } = readPlan(args.root);
   // Regex replacement on the status marker — not full file rewrite
   const pattern = new RegExp(`(- \\[)[\\w-]+(\\]\\s+${escapeRegex(issueId)}\\s)`);
   if (!pattern.test(body)) fail(`Issue not found: ${issueId}`);
   const newBody = body.replace(pattern, `$1${newStatus}$2`);
-  writePlan(meta, newBody);
+  writePlan(meta, newBody, args.root);
+  // Auto-log status transitions so the session log captures orchestrator activity
+  autoLog('orchestrator', 'info', `plan update: ${issueId} → ${newStatus}`, args.root);
   output(RAW ? { status: 'updated', issue: issueId, new_status: newStatus } : `Updated ${issueId} → ${newStatus}`);
 }
 
@@ -327,9 +473,9 @@ function planUpdate(issueId, newStatus) {
  * Batch update multiple issues.
  * @param {object} updates - Map of issueId → status from --id flags
  */
-function planPatch(updates) {
+function planPatch(updates, args = {}) {
   if (!updates || Object.keys(updates).length === 0) fail('Usage: plan patch --id1 done --id2 failed');
-  const { meta, body } = readPlan();
+  const { meta, body } = readPlan(args.root);
   let newBody = body;
   const results = [];
 
@@ -343,7 +489,7 @@ function planPatch(updates) {
     }
   }
 
-  writePlan(meta, newBody);
+  writePlan(meta, newBody, args.root);
   output(RAW ? { status: 'patched', results } : results.map(r => `${r.id}: ${r.ok ? r.status : 'NOT FOUND'}`).join('\n'));
 }
 
@@ -351,8 +497,8 @@ function planPatch(updates) {
  * Read a plan field or section.
  * @param {string} field - Field name (frontmatter key or 'issues' or 'scores')
  */
-function planGet(field) {
-  const { meta, body } = readPlan();
+function planGet(field, args = {}) {
+  const { meta, body } = readPlan(args.root);
   if (!field) {
     output(RAW ? meta : Object.entries(meta).map(([k, v]) => `${k}: ${v}`).join('\n'));
     return;
@@ -379,8 +525,8 @@ function planGet(field) {
  * Advance to the next pending issue.
  * Updates current_category and returns the next issue.
  */
-function planAdvance() {
-  const { meta, body } = readPlan();
+function planAdvance(args = {}) {
+  const { meta, body } = readPlan(args.root);
   const issues = parseIssues(body);
   const next = issues.find(i => i.status === 'pending');
   if (!next) {
@@ -388,15 +534,15 @@ function planAdvance() {
     return;
   }
   meta.current_category = next.category;
-  writePlan(meta, body);
+  writePlan(meta, body, args.root);
   output(RAW ? { status: 'advanced', next_issue: next } : `Next: ${next.id} [${next.category}] ${next.description}`);
 }
 
 /**
  * Full plan state as JSON — everything an agent needs in one call.
  */
-function planSnapshot() {
-  const { meta, body, path: planPath } = readPlan();
+function planSnapshot(args = {}) {
+  const { meta, body, path: planPath } = readPlan(args.root);
   const issues = parseIssues(body);
   const summary = {
     pending: issues.filter(i => i.status === 'pending').length,
@@ -412,8 +558,8 @@ function planSnapshot() {
 /**
  * Plan frontmatter as JSON.
  */
-function planJson() {
-  const { meta } = readPlan();
+function planJson(args = {}) {
+  const { meta } = readPlan(args.root);
   output(meta, true);
 }
 
@@ -474,6 +620,7 @@ function checkpointCreate(issueId, files) {
     fs.copyFileSync(path.join(CWD, f), dest);
   }
 
+  autoLog('fixer', 'info', `checkpoint create: ${issueId} (${files.length} files: ${files.join(', ')})`);
   output(RAW ? { status: 'created', checkpoint_id: cpId, ...metadata } : `Checkpoint created: ${cpId}`);
 }
 
@@ -514,6 +661,7 @@ function checkpointRevert(issueId) {
   metadata.reverted_at = new Date().toISOString();
   fs.writeFileSync(metaPath, JSON.stringify(metadata, null, 2));
 
+  autoLog('checker', 'warn', `checkpoint revert: ${issueId} (${metadata.files.join(', ')})`);
   output(RAW
     ? { status: 'reverted', issue_id: issueId, files: metadata.files, clean: !stillDirty }
     : `Reverted ${issueId}: ${metadata.files.join(', ')}${stillDirty ? ' (warning: some files still dirty)' : ''}`
@@ -647,11 +795,13 @@ function gateRun(args) {
 
   try {
     const stdout = exec(command, { stdio: ['pipe', 'pipe', 'pipe'] });
+    autoLog('orchestrator', 'info', `gate PASS: ${command}`, args.root);
     output(RAW
       ? { pass: true, exit_code: 0, command, source, package_manager, output: stdout.slice(0, 2000) }
       : `Gate PASS: ${command}`
     );
   } catch (e) {
+    autoLog('orchestrator', 'error', `gate FAIL: ${command}`, args.root);
     output(RAW
       ? { pass: false, exit_code: e.status || 1, command, source, package_manager, output: (e.stdout || e.stderr || '').slice(0, 2000) }
       : `Gate FAIL: ${command}\n${e.stdout || e.stderr || ''}`
@@ -677,12 +827,12 @@ function gateBaseline(args) {
   }
 
   // If plan exists, update it with baseline info
-  const planPath = path.join(CWD, '.pixelslop-plan.md');
+  const planPath = path.join(resolveProjectRoot(args.root), '.pixelslop-plan.md');
   if (fs.existsSync(planPath)) {
-    const { meta, body } = readPlan();
+    const { meta, body } = readPlan(args.root);
     meta.gate_command = command || 'none';
     meta.gate_baseline = pass ? 'pass' : 'fail';
-    writePlan(meta, body);
+    writePlan(meta, body, args.root);
   }
 
   output(RAW
@@ -700,7 +850,7 @@ function gateBaseline(args) {
  * @param {object} args - Config fields (audience, brand, aesthetic, principles, off-limits, build-cmd)
  */
 function configWrite(args) {
-  const configPath = path.join(CWD, '.pixelslop.md');
+  const configPath = path.join(resolveProjectRoot(args.root), '.pixelslop.md');
   const sections = [];
 
   sections.push('# Pixelslop — Project Design Context\n');
@@ -718,8 +868,8 @@ function configWrite(args) {
 /**
  * Read .pixelslop.md as structured data.
  */
-function configRead() {
-  const configPath = path.join(CWD, '.pixelslop.md');
+function configRead(args = {}) {
+  const configPath = path.join(resolveProjectRoot(args.root), '.pixelslop.md');
   if (!fs.existsSync(configPath)) fail('No .pixelslop.md found.');
 
   const content = fs.readFileSync(configPath, 'utf-8');
@@ -743,9 +893,747 @@ function configRead() {
 /**
  * Check if .pixelslop.md exists.
  */
-function configExists() {
-  const exists = fs.existsSync(path.join(CWD, '.pixelslop.md'));
+function configExists(args = {}) {
+  const exists = fs.existsSync(path.join(resolveProjectRoot(args.root), '.pixelslop.md'));
   output(RAW ? { exists } : exists ? 'Config exists' : 'No config');
+}
+
+// ─────────────────────────────────────────────
+// Discovery Commands
+// ─────────────────────────────────────────────
+
+/** Common local dev server ports to probe when no explicit URL is given. */
+const DEFAULT_DISCOVERY_PORTS = [3000, 3001, 4173, 4321, 5173, 8000, 8080];
+
+/**
+ * Detect the package manager for a directory, walking up to a boundary.
+ * @param {string} dir - Directory to inspect
+ * @param {string} [boundary=dir] - Highest directory to inspect
+ * @returns {string} Package manager command
+ */
+function detectPackageManagerAt(dir, boundary = dir) {
+  let current = path.resolve(dir);
+  const limit = path.resolve(boundary);
+
+  while (true) {
+    if (fs.existsSync(path.join(current, 'pnpm-workspace.yaml'))) return 'pnpm';
+    if (fs.existsSync(path.join(current, 'pnpm-lock.yaml'))) return 'pnpm';
+    if (fs.existsSync(path.join(current, 'bun.lock'))) return 'bun';
+    if (fs.existsSync(path.join(current, 'yarn.lock'))) return 'yarn';
+    if (fs.existsSync(path.join(current, 'package-lock.json'))) return 'npm';
+    if (current === limit) break;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return 'npm';
+}
+
+/**
+ * Parse a comma-separated ports flag or return defaults.
+ * @param {string|boolean|undefined} value - Raw --ports flag
+ * @returns {number[]} Ports to probe
+ */
+function parseDiscoveryPorts(value) {
+  if (!value || value === true) return DEFAULT_DISCOVERY_PORTS.slice();
+  return String(value)
+    .split(',')
+    .map(v => parseInt(v.trim(), 10))
+    .filter(v => Number.isInteger(v) && v > 0 && v <= 65535);
+}
+
+/**
+ * Normalize a path for cross-platform comparison.
+ * @param {string|null|undefined} value - Raw filesystem path
+ * @returns {string|null} Normalized path
+ */
+function normalizeComparePath(value) {
+  if (!value) return null;
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+/**
+ * Check whether one path is equal to or nested under another.
+ * @param {string} candidate - Candidate child path
+ * @param {string} base - Base directory path
+ * @returns {boolean} True if equal or nested
+ */
+function isSameOrNestedPath(candidate, base) {
+  return candidate === base || candidate.startsWith(`${base}${path.sep}`);
+}
+
+/**
+ * Safely run a command and return trimmed stdout, or null on failure.
+ * @param {string} file - Executable name
+ * @param {string[]} args - Argument list
+ * @returns {string|null} Trimmed stdout
+ */
+function tryExecFile(file, args) {
+  try {
+    return execFileSync(file, args, { cwd: CWD, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sleep synchronously for a short interval in a cross-platform way.
+ * Uses Atomics.wait when available to avoid shelling out to platform-specific tools.
+ * @param {number} ms - Milliseconds to block
+ */
+function sleepSync(ms) {
+  const waitMs = Math.max(0, Number(ms) || 0);
+  if (waitMs === 0) return;
+
+  try {
+    const signal = new Int32Array(new SharedArrayBuffer(4));
+    Atomics.wait(signal, 0, 0, waitMs);
+  } catch {
+    const end = Date.now() + waitMs;
+    while (Date.now() < end) {
+      // Busy wait only as a last resort.
+    }
+  }
+}
+
+/**
+ * Probe a local HTTP endpoint using a short-lived Node subprocess.
+ * @param {string} url - URL to probe
+ * @param {number} [timeoutMs=1200] - Timeout in milliseconds
+ * @returns {{ reachable: boolean, status_code: number|null }}
+ */
+function probeUrl(url, timeoutMs = 1200) {
+  const script = `
+    const target = process.argv[1];
+    const timeout = Number(process.argv[2] || 1200);
+    const lib = target.startsWith('https:') ? require('https') : require('http');
+    const req = lib.get(target, (res) => {
+      process.stdout.write(JSON.stringify({ reachable: true, status_code: res.statusCode || null }));
+      res.destroy();
+    });
+    req.on('error', () => process.exit(2));
+    req.setTimeout(timeout, () => req.destroy(new Error('timeout')));
+  `;
+
+  try {
+    const stdout = execFileSync(process.execPath, ['-e', script, url, String(timeoutMs)], {
+      cwd: CWD,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    }).trim();
+    return JSON.parse(stdout);
+  } catch {
+    return { reachable: false, status_code: null };
+  }
+}
+
+/**
+ * Get a process command line on POSIX systems.
+ * @param {number} pid - Process ID
+ * @returns {string|null} Command line
+ */
+function getPosixCommandLine(pid) {
+  return tryExecFile('ps', ['-p', String(pid), '-o', 'command=']) || null;
+}
+
+/**
+ * Get a process working directory on POSIX systems.
+ * @param {number} pid - Process ID
+ * @returns {string|null} Working directory
+ */
+function getPosixCwd(pid) {
+  if (process.platform === 'linux') {
+    try {
+      return fs.realpathSync(`/proc/${pid}/cwd`);
+    } catch {
+      // Fall through to lsof-based lookup.
+    }
+  }
+
+  const outputText = tryExecFile('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn']);
+  if (!outputText) return null;
+  const line = outputText.split('\n').find(entry => entry.startsWith('n'));
+  return line ? line.slice(1) : null;
+}
+
+/**
+ * Get process metadata for a listening port on POSIX systems.
+ * @param {number} port - Listening port
+ * @returns {{ pid:number, process_name:string|null, command:string|null, cwd:string|null }|null}
+ */
+function getPosixPortProcessInfo(port) {
+  const lsofOutput = tryExecFile('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-Fpnc']);
+  if (!lsofOutput) return null;
+
+  let pid = null;
+  let processName = null;
+  for (const line of lsofOutput.split('\n')) {
+    if (line.startsWith('p') && !pid) pid = parseInt(line.slice(1), 10);
+    if (line.startsWith('c') && !processName) processName = line.slice(1);
+  }
+  if (!Number.isInteger(pid)) return null;
+
+  return {
+    pid,
+    process_name: processName || null,
+    command: getPosixCommandLine(pid) || processName || null,
+    cwd: getPosixCwd(pid)
+  };
+}
+
+/**
+ * Run a PowerShell script and parse JSON output.
+ * @param {string} script - PowerShell script
+ * @returns {object|null} Parsed JSON result
+ */
+function runPowerShellJson(script) {
+  for (const shell of ['powershell.exe', 'pwsh']) {
+    const stdout = tryExecFile(shell, ['-NoProfile', '-Command', script]);
+    if (!stdout) continue;
+    try {
+      return JSON.parse(stdout);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Get process metadata for a listening port on Windows.
+ * @param {number} port - Listening port
+ * @returns {{ pid:number, process_name:string|null, command:string|null, cwd:string|null }|null}
+ */
+function getWindowsPortProcessInfo(port) {
+  const script = `
+    $conn = Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue | Select-Object -First 1;
+    if (-not $conn) { return }
+    $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningProcess)" -ErrorAction SilentlyContinue;
+    if (-not $proc) { return }
+    [PSCustomObject]@{
+      pid = [int]$conn.OwningProcess
+      process_name = $proc.Name
+      command = $proc.CommandLine
+      cwd = $null
+    } | ConvertTo-Json -Compress
+  `;
+
+  return runPowerShellJson(script);
+}
+
+/**
+ * Get process metadata for a listening port.
+ * @param {number} port - Listening port
+ * @returns {{ pid:number, process_name:string|null, command:string|null, cwd:string|null }|null}
+ */
+function getPortProcessInfo(port) {
+  if (process.platform === 'win32') {
+    return getWindowsPortProcessInfo(port);
+  }
+  return getPosixPortProcessInfo(port);
+}
+
+/**
+ * Assess whether a discovered process belongs to the current repo.
+ * @param {{ cwd?:string|null, command?:string|null }} processInfo - Process metadata
+ * @param {string} resolvedRoot - Absolute project root
+ * @returns {{ repo_match:boolean, match_confidence:string }}
+ */
+function assessRepoMatch(processInfo, resolvedRoot) {
+  const normalizedRoot = normalizeComparePath(resolvedRoot);
+  if (!normalizedRoot || !processInfo) {
+    return { repo_match: false, match_confidence: 'unknown' };
+  }
+
+  const cwd = normalizeComparePath(processInfo.cwd);
+  if (cwd) {
+    if (cwd === normalizedRoot) return { repo_match: true, match_confidence: 'exact' };
+    if (isSameOrNestedPath(cwd, normalizedRoot) || isSameOrNestedPath(normalizedRoot, cwd)) {
+      return { repo_match: true, match_confidence: 'ancestor' };
+    }
+    return { repo_match: false, match_confidence: 'mismatch' };
+  }
+
+  const command = processInfo.command ? String(processInfo.command) : '';
+  const normalizedCommand = process.platform === 'win32' ? command.toLowerCase() : command;
+  if (normalizedCommand && normalizedCommand.includes(normalizedRoot)) {
+    return { repo_match: true, match_confidence: 'ancestor' };
+  }
+
+  if (normalizedCommand) {
+    return { repo_match: false, match_confidence: 'mismatch' };
+  }
+
+  return { repo_match: false, match_confidence: 'unknown' };
+}
+
+/**
+ * Recursively collect package directories up to a small depth.
+ * @param {string} rootDir - Repo root
+ * @param {number} [maxDepth=3] - Maximum search depth
+ * @returns {string[]} Candidate package directories
+ */
+function collectPackageDirs(rootDir, maxDepth = 3) {
+  const found = new Set();
+
+  function walk(dir, depth) {
+    const pkgPath = path.join(dir, 'package.json');
+    if (fs.existsSync(pkgPath)) found.add(dir);
+    if (depth >= maxDepth) return;
+
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+      walk(path.join(dir, entry.name), depth + 1);
+    }
+  }
+
+  walk(rootDir, 0);
+  return Array.from(found);
+}
+
+/**
+ * Discover likely dev-server start targets from the repo root.
+ * @param {string} resolvedRoot - Absolute project root
+ * @returns {Array<object>} Candidate app targets
+ */
+function discoverStartTargets(resolvedRoot) {
+  if (!fs.existsSync(resolvedRoot) || !fs.statSync(resolvedRoot).isDirectory()) return [];
+
+  const targets = [];
+  for (const dir of collectPackageDirs(resolvedRoot, 3)) {
+    const pkgPath = path.join(dir, 'package.json');
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      if (!pkg.scripts || !pkg.scripts.dev) continue;
+      const pm = detectPackageManagerAt(dir, resolvedRoot);
+      const relativeDir = path.relative(resolvedRoot, dir) || '.';
+      targets.push({
+        name: pkg.name || path.basename(dir),
+        path: relativeDir,
+        cwd: dir,
+        package_manager: pm,
+        command: `${pm} run dev`,
+        dev_script: pkg.scripts.dev
+      });
+    } catch {
+      // Ignore invalid package.json files.
+    }
+  }
+
+  targets.sort((a, b) => a.path.localeCompare(b.path));
+  return targets;
+}
+
+/**
+ * Resolve the per-project temp-server state file path.
+ * @param {string} resolvedRoot - Absolute project root
+ * @returns {string} Absolute path to the temp-server state file
+ */
+function serveStatePath(resolvedRoot) {
+  return path.join(resolvedRoot, '.pixelslop', 'temp-server.json');
+}
+
+/**
+ * Read temp-server state for a project.
+ * @param {string} resolvedRoot - Absolute project root
+ * @returns {object|null} Parsed state or null
+ */
+function readServeState(resolvedRoot) {
+  const statePath = serveStatePath(resolvedRoot);
+  if (!fs.existsSync(statePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check whether a process is still alive.
+ * @param {number} pid - Process identifier
+ * @returns {boolean} True when the process can still be signalled
+ */
+function isProcessAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remove temp-server bookkeeping files.
+ * @param {string} resolvedRoot - Absolute project root
+ * @param {object|null} state - Parsed server state
+ */
+function cleanupServeState(resolvedRoot, state) {
+  const statePath = serveStatePath(resolvedRoot);
+  if (state && state.script) {
+    try { fs.unlinkSync(state.script); } catch {}
+  }
+  try { fs.unlinkSync(statePath); } catch {}
+}
+
+/**
+ * Detect static HTML sites — folders with .html files but no package.json dev script.
+ * Returns entry points (index.html preferred) and the folder to serve.
+ *
+ * This fills the gap where `discover start-target` finds nothing because
+ * there's no package.json, but there IS a perfectly scannable HTML page
+ * sitting right there.
+ *
+ * @param {string} resolvedRoot - Absolute project root
+ * @returns {{ is_static: boolean, entry_points: string[], serve_dir: string }|null}
+ */
+function detectStaticSite(resolvedRoot) {
+  if (!fs.existsSync(resolvedRoot) || !fs.statSync(resolvedRoot).isDirectory()) return null;
+
+  // If there's a package.json with a dev script, this isn't a "static site" —
+  // it's a project with a build pipeline. Let start-target handle it.
+  const pkgPath = path.join(resolvedRoot, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      if (pkg.scripts && (pkg.scripts.dev || pkg.scripts.start || pkg.scripts.serve)) {
+        return null;
+      }
+    } catch { /* malformed package.json — treat as static */ }
+  }
+
+  // Look for HTML files in the root (don't recurse into node_modules etc.)
+  const htmlFiles = [];
+  try {
+    for (const entry of fs.readdirSync(resolvedRoot)) {
+      if (entry.startsWith('.')) continue;
+      if (entry.toLowerCase().endsWith('.html')) htmlFiles.push(entry);
+    }
+  } catch { return null; }
+
+  if (htmlFiles.length === 0) return null;
+
+  // Prefer index.html as the entry point, then sort the rest alphabetically
+  const sorted = htmlFiles.sort((a, b) => {
+    if (a.toLowerCase() === 'index.html') return -1;
+    if (b.toLowerCase() === 'index.html') return 1;
+    return a.localeCompare(b);
+  });
+
+  return {
+    is_static: true,
+    entry_points: sorted,
+    serve_dir: resolvedRoot
+  };
+}
+
+/**
+ * CLI handler for `discover static-site`.
+ * Detects HTML files suitable for temp-server scanning.
+ * @param {object} args - CLI flags (--root)
+ */
+function discoverStaticSite(args) {
+  const root = args.root || '.';
+  const resolvedRoot = path.resolve(CWD, root);
+  const rootValid = fs.existsSync(resolvedRoot) && fs.statSync(resolvedRoot).isDirectory();
+  const detection = rootValid ? detectStaticSite(resolvedRoot) : null;
+
+  const result = {
+    root,
+    root_resolved: resolvedRoot,
+    root_valid: rootValid,
+    ...(detection || { is_static: false, entry_points: [], serve_dir: null })
+  };
+
+  output(RAW
+    ? result
+    : detection
+      ? `Static site: ${detection.entry_points.join(', ')} in ${resolvedRoot}`
+      : 'No static HTML site detected.'
+  );
+}
+
+/**
+ * Start a zero-dependency Node HTTP server for static file serving.
+ * Picks a free port, writes a PID file so `serve stop` can clean up,
+ * and detaches so the agent can keep working.
+ *
+ * No npm install needed — uses Node's built-in http + fs modules.
+ *
+ * @param {object} args - CLI flags (--root, --port)
+ */
+function serveStart(args) {
+  const root = args.root || '.';
+  const resolvedRoot = path.resolve(CWD, root);
+  const port = parseInt(args.port, 10) || 0; // 0 = let OS pick a free port
+
+  if (!fs.existsSync(resolvedRoot) || !fs.statSync(resolvedRoot).isDirectory()) {
+    fail(`Not a directory: ${resolvedRoot}`);
+  }
+
+  const existingState = readServeState(resolvedRoot);
+  if (existingState && isProcessAlive(existingState.pid)) {
+    output(RAW
+      ? {
+          url: `http://localhost:${existingState.port}`,
+          port: existingState.port,
+          pid: existingState.pid,
+          root: resolvedRoot,
+          pid_file: serveStatePath(resolvedRoot),
+          reused: true
+        }
+      : `Already serving ${resolvedRoot} at http://localhost:${existingState.port} (pid ${existingState.pid})`
+    );
+    return;
+  }
+
+  if (existingState) cleanupServeState(resolvedRoot, existingState);
+
+  // Inline server script — spawned as a detached child process.
+  // Kept minimal: serve files, set Content-Type, handle 404s, log to stderr.
+  const serverScript = `
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const MIME = {
+  '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
+  '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon', '.webp': 'image/webp', '.woff': 'font/woff',
+  '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.eot': 'application/vnd.ms-fontobject',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.pdf': 'application/pdf'
+};
+
+const ROOT = ${JSON.stringify(resolvedRoot)};
+
+const server = http.createServer((req, res) => {
+  let filePath = path.join(ROOT, decodeURIComponent(req.url.split('?')[0]));
+  if (filePath.endsWith('/')) filePath = path.join(filePath, 'index.html');
+
+  // Basic security: don't serve outside ROOT
+  if (!filePath.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
+
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      // Try index.html for directory requests
+      if (err.code === 'EISDIR') {
+        filePath = path.join(filePath, 'index.html');
+        fs.readFile(filePath, (err2, data2) => {
+          if (err2) { res.writeHead(404); res.end('Not found'); return; }
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(data2);
+        });
+        return;
+      }
+      res.writeHead(404); res.end('Not found'); return;
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.end(data);
+  });
+});
+
+server.listen(${port}, '127.0.0.1', () => {
+  const addr = server.address();
+  // Write the actual port to stdout so the parent can read it
+  process.stdout.write(JSON.stringify({ port: addr.port, pid: process.pid, root: ROOT }));
+  process.stderr.write('pixelslop-serve running on port ' + addr.port + '\\n');
+});
+
+// Graceful shutdown on SIGTERM
+process.on('SIGTERM', () => { server.close(); process.exit(0); });
+`;
+
+  // The child writes its port/pid info to a temp "ready" file.
+  // We poll for it synchronously — avoids async callbacks that keep
+  // the parent process alive.
+  const readyFile = path.join(os.tmpdir(), `pixelslop-serve-ready-${Date.now()}.json`);
+  const tmpScript = path.join(os.tmpdir(), `pixelslop-serve-${Date.now()}.cjs`);
+
+  // Append the ready-file write to the server script
+  const fullScript = serverScript.replace(
+    `process.stderr.write('pixelslop-serve running on port ' + addr.port + '\\n');`,
+    `require('fs').writeFileSync(${JSON.stringify(readyFile)}, JSON.stringify({ port: addr.port, pid: process.pid, root: ROOT }));`
+  );
+
+  fs.writeFileSync(tmpScript, fullScript);
+
+  const { spawn } = require('child_process');
+  const child = spawn(process.execPath, [tmpScript], {
+    detached: true,
+    stdio: 'ignore'
+  });
+  child.unref();
+
+  // Poll for the ready file (sync, max ~3s)
+  let info = null;
+  for (let i = 0; i < 30; i++) {
+    sleepSync(100);
+    if (fs.existsSync(readyFile)) {
+      try {
+        info = JSON.parse(fs.readFileSync(readyFile, 'utf-8'));
+        fs.unlinkSync(readyFile);
+        break;
+      } catch { /* not fully written yet */ }
+    }
+  }
+
+  if (!info) {
+    try { process.kill(child.pid, 'SIGTERM'); } catch {}
+    try { fs.unlinkSync(readyFile); } catch {}
+    try { fs.unlinkSync(tmpScript); } catch {}
+    fail('Server failed to start within 3 seconds');
+  }
+
+  // Save project-scoped state so concurrent sessions do not stomp each other.
+  const pidFile = serveStatePath(resolvedRoot);
+  fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+  fs.writeFileSync(pidFile, JSON.stringify({
+    pid: info.pid,
+    port: info.port,
+    root: resolvedRoot,
+    script: tmpScript,
+    started_at: new Date().toISOString()
+  }));
+
+  const result = {
+    url: `http://localhost:${info.port}`,
+    port: info.port,
+    pid: info.pid,
+    root: resolvedRoot,
+    pid_file: pidFile
+  };
+
+  output(RAW
+    ? result
+    : `Serving ${resolvedRoot} at http://localhost:${info.port} (pid ${info.pid})`
+  );
+}
+
+/**
+ * Stop a previously started pixelslop temp server.
+ * Reads the PID file, kills the process, cleans up.
+ */
+function serveStop(args = {}) {
+  const root = args.root || '.';
+  const resolvedRoot = path.resolve(CWD, root);
+  const pidFile = serveStatePath(resolvedRoot);
+  if (!fs.existsSync(pidFile)) {
+    output(RAW ? { stopped: false, reason: 'no_pid_file' } : 'No running server found.');
+    return;
+  }
+
+  let info;
+  try {
+    info = JSON.parse(fs.readFileSync(pidFile, 'utf-8'));
+  } catch {
+    fs.unlinkSync(pidFile);
+    fail('Corrupt PID file — removed it');
+  }
+
+  // Kill the server process
+  try {
+    process.kill(info.pid, 'SIGTERM');
+  } catch {
+    // Already dead? That's fine.
+  }
+
+  cleanupServeState(resolvedRoot, info);
+
+  output(RAW
+    ? { stopped: true, pid: info.pid, port: info.port, root: resolvedRoot }
+    : `Stopped server on port ${info.port} (pid ${info.pid})`
+  );
+}
+
+/**
+ * Discover running local servers on common dev ports.
+ * @param {object} args - CLI flags
+ */
+function discoverServer(args) {
+  const root = args.root || '.';
+  const resolvedRoot = path.resolve(CWD, root);
+  const rootValid = fs.existsSync(resolvedRoot) && fs.statSync(resolvedRoot).isDirectory();
+  const ports = parseDiscoveryPorts(args.ports);
+  const servers = [];
+
+  for (const port of ports) {
+    const url = `http://127.0.0.1:${port}`;
+    const probe = probeUrl(url);
+    if (!probe.reachable) continue;
+
+    const processInfo = getPortProcessInfo(port);
+    const match = rootValid
+      ? assessRepoMatch(processInfo, resolvedRoot)
+      : { repo_match: false, match_confidence: 'unknown' };
+
+    servers.push({
+      url: `http://localhost:${port}`,
+      port,
+      reachable: true,
+      status_code: probe.status_code,
+      pid: processInfo?.pid || null,
+      process_name: processInfo?.process_name || null,
+      command: processInfo?.command || null,
+      cwd: processInfo?.cwd || null,
+      repo_match: match.repo_match,
+      match_confidence: match.match_confidence
+    });
+  }
+
+  const result = {
+    root,
+    root_resolved: resolvedRoot,
+    root_valid: rootValid,
+    ports,
+    servers
+  };
+
+  output(RAW
+    ? result
+    : servers.length === 0
+      ? 'No running local servers found on common dev ports.'
+      : servers.map(server => {
+          const owner = server.cwd || server.command || server.process_name || 'unknown process';
+          return `${server.url} [${server.match_confidence}] ${owner}`;
+        }).join('\n')
+  );
+}
+
+/**
+ * Discover likely start targets for this repo.
+ * @param {object} args - CLI flags
+ */
+function discoverStartTarget(args) {
+  const root = args.root || '.';
+  const resolvedRoot = path.resolve(CWD, root);
+  const rootValid = fs.existsSync(resolvedRoot) && fs.statSync(resolvedRoot).isDirectory();
+  const targets = rootValid ? discoverStartTargets(resolvedRoot) : [];
+
+  const result = {
+    root,
+    root_resolved: resolvedRoot,
+    root_valid: rootValid,
+    targets
+  };
+
+  output(RAW
+    ? result
+    : targets.length === 0
+      ? 'No start targets detected.'
+      : targets.map(target => `${target.path} → ${target.command}`).join('\n')
+  );
 }
 
 // ─────────────────────────────────────────────
@@ -792,32 +1680,13 @@ function initScan(args) {
       }
     }
 
-    // If monorepo, scan for nested apps with dev scripts
-    if (monorepo) {
-      try {
-        const entries = fs.readdirSync(resolvedRoot, { withFileTypes: true });
-        for (const entry of entries) {
-          if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-          // Check common monorepo app directories
-          const dirs = [entry.name, path.join(entry.name, 'apps'), path.join(entry.name, 'packages')];
-          for (const dir of [entry.name]) {
-            const nestedPkg = path.join(resolvedRoot, dir, 'package.json');
-            if (fs.existsSync(nestedPkg)) {
-              try {
-                const pkg = JSON.parse(fs.readFileSync(nestedPkg, 'utf-8'));
-                if (pkg.scripts && pkg.scripts.dev) {
-                  detectedApps.push({
-                    name: pkg.name || dir,
-                    path: dir,
-                    devScript: pkg.scripts.dev,
-                  });
-                }
-              } catch { /* invalid package.json */ }
-            }
-          }
-        }
-      } catch { /* readdir failed */ }
-    }
+    detectedApps = discoverStartTargets(resolvedRoot).map(target => ({
+      name: target.name,
+      path: target.path,
+      devScript: target.dev_script,
+      command: target.command,
+      package_manager: target.package_manager
+    }));
   }
 
   // Determine URL type
@@ -897,6 +1766,7 @@ function initScan(args) {
     pixelslop_config: pixelslopConfig
   };
 
+  autoLog('orchestrator', 'info', `init scan: url=${url} mode=${mode} root=${resolvedRoot}`, root);
   output(result, true);
 }
 
@@ -956,8 +1826,8 @@ function initCheck(args) {
 /**
  * Verify .pixelslop-plan.md structure is valid.
  */
-function verifyPlan() {
-  const { meta, body } = readPlan();
+function verifyPlan(args = {}) {
+  const { meta, body } = readPlan(args.root);
   const issues = [];
 
   // Check required frontmatter fields
@@ -991,8 +1861,8 @@ function verifyPlan() {
 /**
  * Verify all issues have outcomes (no pending remaining).
  */
-function verifySession() {
-  const { body } = readPlan();
+function verifySession(args = {}) {
+  const { body } = readPlan(args.root);
   const issues = parseIssues(body);
   const pending = issues.filter(i => i.status === 'pending');
   const complete = pending.length === 0;
@@ -1008,8 +1878,8 @@ function verifySession() {
 /**
  * Verify screenshots exist for claimed viewports.
  */
-function verifyScreenshots() {
-  const ssDir = path.join(CWD, '.pixelslop', 'screenshots');
+function verifyScreenshots(args = {}) {
+  const ssDir = path.join(resolveProjectRoot(args.root), '.pixelslop', 'screenshots');
   if (!fs.existsSync(ssDir)) {
     output(RAW ? { valid: false, error: 'no screenshot directory' } : 'No screenshots directory');
     return;
@@ -1030,8 +1900,8 @@ function verifyScreenshots() {
 /**
  * Verify checkpoint patch files are valid.
  */
-function verifyCheckpoints() {
-  const cpDir = path.join(CWD, '.pixelslop', 'checkpoints');
+function verifyCheckpoints(args = {}) {
+  const cpDir = path.join(resolveProjectRoot(args.root), '.pixelslop', 'checkpoints');
   if (!fs.existsSync(cpDir)) {
     output(RAW ? { valid: true, count: 0 } : 'No checkpoints to verify');
     return;
@@ -1089,6 +1959,8 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '--raw') {
       RAW = true;
+    } else if (arg === '--debug') {
+      DEBUG = true;
     } else if (arg === '--cwd') {
       CWD = path.resolve(argv[++i] || '.');
     } else if (arg.startsWith('--')) {
@@ -1127,8 +1999,22 @@ function main() {
 
   if (!group) {
     console.log('Usage: pixelslop-tools <group> <command> [options]');
-    console.log('Groups: plan, checkpoint, gate, config, init, verify');
-    console.log('Flags: --raw (JSON output), --cwd <path> (working directory)');
+    console.log('Groups: plan, checkpoint, gate, config, log, discover, serve, init, verify');
+    console.log('Global flags: --raw (JSON output), --cwd <path> (working directory), --debug (enable session logging)');
+    console.log('Command flags:');
+    console.log('  log write [--root <path>] --agent <name> --level <info|warn|error|debug> --message "..."');
+    console.log('  log read [--root <path>] [--tail <n>]');
+    console.log('  log clear [--root <path>]');
+    console.log('  discover server [--root <path>] [--ports <csv>]');
+    console.log('  discover start-target [--root <path>]');
+    console.log('  discover static-site [--root <path>]');
+    console.log('  serve start [--root <path>] [--port <n>]');
+    console.log('  serve stop [--root <path>]');
+    console.log('  init scan --url <url> [--root <path>] [--build-cmd <cmd>]');
+    console.log('  plan begin --url <url> [--root <path>] [--issues <json>] [--scores <json>]');
+    console.log('  plan update <issue-id> <status> [--root <path>]');
+    console.log('  plan snapshot [--root <path>]');
+    console.log('  --root identifies the project being analyzed; --cwd only changes where pixelslop-tools runs.');
     process.exit(0);
   }
 
@@ -1136,19 +2022,19 @@ function main() {
     case 'plan':
       switch (command) {
         case 'begin': return planBegin(flags);
-        case 'update': return planUpdate(positional[2], positional[3] || flags.status);
+        case 'update': return planUpdate(positional[2], positional[3] || flags.status, flags);
         case 'patch': {
           // Collect --id pairs: remaining flags as id→status map
           const updates = {};
           for (const [k, v] of Object.entries(flags)) {
-            if (k !== 'raw' && k !== 'cwd') updates[k] = v;
+            if (k !== 'raw' && k !== 'cwd' && k !== 'root') updates[k] = v;
           }
-          return planPatch(updates);
+          return planPatch(updates, flags);
         }
-        case 'get': return planGet(positional[2] || flags.field);
-        case 'advance': return planAdvance();
-        case 'snapshot': return planSnapshot();
-        case 'json': return planJson();
+        case 'get': return planGet(positional[2] || flags.field, flags);
+        case 'advance': return planAdvance(flags);
+        case 'snapshot': return planSnapshot(flags);
+        case 'json': return planJson(flags);
         default: fail(`Unknown plan command: ${command}. Valid: begin, update, patch, get, advance, snapshot, json`);
       }
       break;
@@ -1175,9 +2061,35 @@ function main() {
     case 'config':
       switch (command) {
         case 'write': return configWrite(flags);
-        case 'read': return configRead();
-        case 'exists': return configExists();
+        case 'read': return configRead(flags);
+        case 'exists': return configExists(flags);
         default: fail(`Unknown config command: ${command}. Valid: write, read, exists`);
+      }
+      break;
+
+    case 'log':
+      switch (command) {
+        case 'write': return logWrite(flags);
+        case 'read': return logRead(flags);
+        case 'clear': return logClear(flags);
+        default: fail(`Unknown log command: ${command}. Valid: write, read, clear`);
+      }
+      break;
+
+    case 'discover':
+      switch (command) {
+        case 'server': return discoverServer(flags);
+        case 'start-target': return discoverStartTarget(flags);
+        case 'static-site': return discoverStaticSite(flags);
+        default: fail(`Unknown discover command: ${command}. Valid: server, start-target, static-site`);
+      }
+      break;
+
+    case 'serve':
+      switch (command) {
+        case 'start': return serveStart(flags);
+        case 'stop': return serveStop(flags);
+        default: fail(`Unknown serve command: ${command}. Valid: start, stop`);
       }
       break;
 
@@ -1191,16 +2103,16 @@ function main() {
 
     case 'verify':
       switch (command) {
-        case 'plan': return verifyPlan();
-        case 'session': return verifySession();
-        case 'screenshots': return verifyScreenshots();
-        case 'checkpoints': return verifyCheckpoints();
+        case 'plan': return verifyPlan(flags);
+        case 'session': return verifySession(flags);
+        case 'screenshots': return verifyScreenshots(flags);
+        case 'checkpoints': return verifyCheckpoints(flags);
         default: fail(`Unknown verify command: ${command}. Valid: plan, session, screenshots, checkpoints`);
       }
       break;
 
     default:
-      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, init, verify`);
+      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, log, discover, serve, init, verify`);
   }
 }
 

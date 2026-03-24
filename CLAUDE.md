@@ -77,7 +77,7 @@ dev_docs/                          # Internal planning (gitignored)
 ## Testing
 
 ```bash
-npm test                 # Full suite (443 tests)
+npm test                 # Full suite (470 tests)
 npm run validate         # Resource file structure + cross-file consistency only
 npm run test:detection   # Detection logic only
 npm run test:format      # Report format only
@@ -125,7 +125,7 @@ Conventional commits. Always. See the global CLAUDE.md for the full format refer
 - **Checkpoint before edit.** The fixer always creates a checkpoint via `pixelslop-tools` before modifying files. No exceptions.
 - **Build gate is non-negotiable.** If the build breaks after a fix, automatic rollback. No "but the design fix was correct."
 - **Max one retry on PARTIAL.** Keep the improvement and move on. Don't loop forever.
-- **Run tests before committing.** `npm test` — 443 tests, zero dependencies, takes ~10s.
+- **Run tests before committing.** `npm test` — 470 tests, zero dependencies, takes ~10s.
 - **Path rewriting is fragile.** If you rename `bin/pixelslop-tools.cjs` or move `dist/skill/resources/`, update `rewriteAgentPaths()` in `bin/pixelslop.mjs`. The installer tests catch drift.
 
 ## Playwright MCP

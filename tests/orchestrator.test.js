@@ -127,27 +127,26 @@ describe('orchestrator agent spec (pixelslop.md)', () => {
 
   it('has protocol steps', () => {
     const steps = body.match(/### Step \d+/g) || [];
-    assert.ok(steps.length >= 8, `should have at least 8 protocol steps, found ${steps.length}`);
+    assert.ok(steps.length >= 6, `should have at least 6 protocol steps, found ${steps.length}`);
   });
 
-  it('includes user interaction points', () => {
-    assert.ok(body.includes('strategy') || body.includes('How would you like to proceed'),
-      'should ask user for strategy');
+  it('delegates discovery to parent session', () => {
+    assert.ok(body.includes('parent session') || body.includes('parent'),
+      'should reference parent session handling discovery');
+    assert.ok(body.includes('URL is always provided') || body.includes('receives a URL'),
+      'should expect URL to be pre-resolved');
+  });
+
+  it('handles scan results and fix strategy', () => {
+    assert.ok(body.includes('fix strategy') || body.includes('strategy'),
+      'should handle fix strategy from parent');
     assert.ok(body.includes('PARTIAL'), 'should handle PARTIAL results');
-    assert.ok(body.includes('Continue'), 'should pause between categories');
   });
 
   it('documents mode selection', () => {
     assert.ok(body.includes('visual-editable'), 'should document visual-editable mode');
     assert.ok(body.includes('visual-report-only'), 'should document report-only mode');
     assert.ok(body.includes('code-check'), 'should document code-check mode');
-  });
-
-  it('documents PARTIAL handling with max one retry', () => {
-    assert.ok(body.includes('retry') || body.includes('Retry'),
-      'should mention retry for PARTIAL');
-    assert.ok(body.includes('one retry') || body.includes('Max one'),
-      'should limit retries');
   });
 
   it('documents --personas flag', () => {
@@ -281,5 +280,15 @@ describe('agent cross-references', () => {
   it('SKILL.md references pixelslop-tools', () => {
     const skill = readDist('skill/SKILL.md');
     assert.ok(skill.includes('pixelslop-tools'), 'SKILL should reference pixelslop-tools');
+  });
+
+  it('SKILL.md handles discovery and server startup before orchestrator', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(skill.includes('discover server'), 'SKILL should handle server discovery');
+    assert.ok(skill.includes('discover start-target'), 'SKILL should handle start-target discovery');
+    assert.ok(skill.includes('discover static-site'), 'SKILL should handle static-site discovery');
+    assert.ok(skill.includes('serve start'), 'SKILL should handle temp server startup');
+    assert.ok(skill.includes('serve stop'), 'SKILL should handle temp server cleanup');
+    assert.ok(skill.includes('AskUserQuestion'), 'SKILL should use AskUserQuestion for user prompts');
   });
 });
