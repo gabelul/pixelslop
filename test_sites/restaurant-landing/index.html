@@ -1656,8 +1656,7 @@
   <section class="gallery" aria-label="Restaurant gallery">
     <p class="sr-only">Gallery showcasing our restaurant: warm interior lighting, colorful appetizer plating, fresh pasta preparation, wood-fired oven with flames, seasonal vegetable salad, and wine service.</p>
     <div class="gallery__track" aria-hidden="true">
-      <!-- Duplicated set for seamless loop -->
-      <div class="gallery__item">
+            <div class="gallery__item">
         <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&q=75&auto=format" alt="Restaurant interior with warm lighting" loading="lazy">
       </div>
       <div class="gallery__item">
@@ -1675,25 +1674,7 @@
       <div class="gallery__item">
         <img src="https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=75&auto=format" alt="Wine glasses on a table" loading="lazy">
       </div>
-      <!-- Duplicated for loop -->
-      <div class="gallery__item">
-        <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&q=75&auto=format" alt="Restaurant interior with warm lighting" loading="lazy">
-      </div>
-      <div class="gallery__item">
-        <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=75&auto=format" alt="Colorful appetizer plating" loading="lazy">
-      </div>
-      <div class="gallery__item">
-        <img src="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=75&auto=format" alt="Fresh pasta preparation" loading="lazy">
-      </div>
-      <div class="gallery__item">
-        <img src="https://images.unsplash.com/photo-1551218808-94e220e084d2?w=600&q=75&auto=format" alt="Wood-fired oven with flames" loading="lazy">
-      </div>
-      <div class="gallery__item">
-        <img src="https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=600&q=75&auto=format" alt="Fresh salad with seasonal vegetables" loading="lazy">
-      </div>
-      <div class="gallery__item">
-        <img src="https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=75&auto=format" alt="Wine glasses on a table" loading="lazy">
-      </div>
+
     </div>
   </section>
 
@@ -2045,6 +2026,21 @@
        menu tabs, reservation handler
        ════════════════════════════════════════════════ -->
   <script>
+    /**
+     * Gallery loop cloner — duplicates gallery items at runtime
+     * so the HTML ships 6 images instead of 12. The clones share
+     * browser cache with the originals, cutting initial load weight.
+     */
+    (function initGalleryLoop() {
+      const track = document.querySelector('.gallery__track');
+      if (!track) return;
+      const items = Array.from(track.children);
+      items.forEach(item => {
+        const clone = item.cloneNode(true);
+        track.appendChild(clone);
+      });
+    })();
+
     /**
      * Navigation scroll effect — adds 'scrolled' class for
      * background blur and compact padding on scroll
