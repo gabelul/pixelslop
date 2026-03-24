@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" fill="none">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f0f"/>
+      <stop offset="100%" style="stop-color:#1a1a2e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="url(#bg2)"/>
+
+  <!-- Title -->
+  <text x="640" y="160" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="800" fill="white" text-anchor="middle">Pixelslop</text>
+
+  <!-- Subtitle -->
+  <text x="640" y="215" font-family="system-ui, -apple-system, sans-serif" font-size="24" fill="#aaa" text-anchor="middle" font-weight="400">Browser-first design quality scanner for AI-generated UIs</text>
+
+  <!-- Divider -->
+  <line x1="400" y1="250" x2="880" y2="250" stroke="#ffffff15"/>
+
+  <!-- 4 key stats -->
+  <text x="200" y="320" font-family="ui-monospace, monospace" font-size="42" fill="#ff6b6b" text-anchor="middle" font-weight="700">25</text>
+  <text x="200" y="350" font-family="system-ui, sans-serif" font-size="16" fill="#888" text-anchor="middle">slop patterns</text>
+
+  <text x="440" y="320" font-family="ui-monospace, monospace" font-size="42" fill="#ffa36b" text-anchor="middle" font-weight="700">5</text>
+  <text x="440" y="350" font-family="system-ui, sans-serif" font-size="16" fill="#888" text-anchor="middle">design pillars</text>
+
+  <text x="680" y="320" font-family="ui-monospace, monospace" font-size="42" fill="#51cf66" text-anchor="middle" font-weight="700">8</text>
+  <text x="680" y="350" font-family="system-ui, sans-serif" font-size="16" fill="#888" text-anchor="middle">user personas</text>
+
+  <text x="920" y="320" font-family="ui-monospace, monospace" font-size="42" fill="#69db7c" text-anchor="middle" font-weight="700">470+</text>
+  <text x="920" y="350" font-family="system-ui, sans-serif" font-size="16" fill="#888" text-anchor="middle">tests</text>
+
+  <!-- Before/after teaser -->
+  <text x="640" y="440" font-family="ui-monospace, monospace" font-size="16" fill="#ff6b6b" text-anchor="middle">11/20 &#183; SLOPPY &#183; gradient text, glass cards, 2.28:1 contrast</text>
+  <text x="640" y="470" font-family="system-ui, sans-serif" font-size="22" fill="#555" text-anchor="middle">&#8595;</text>
+  <text x="640" y="500" font-family="ui-monospace, monospace" font-size="16" fill="#51cf66" text-anchor="middle">18/20 &#183; CLEAN &#183; AA contrast, distinct sections, real typography</text>
+
+  <!-- Footer -->
+  <text x="640" y="600" font-family="system-ui, sans-serif" font-size="14" fill="#555" text-anchor="middle">gabelul/pixelslop  &#183;  Apache 2.0  &#183;  Booplex</text>
+</svg>

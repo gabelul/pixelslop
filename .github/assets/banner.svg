@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f0f"/>
+      <stop offset="100%" style="stop-color:#1a1a2e"/>
+    </linearGradient>
+    <linearGradient id="accent1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ff6b6b"/>
+      <stop offset="100%" style="stop-color:#ffa36b"/>
+    </linearGradient>
+    <linearGradient id="accent2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#51cf66"/>
+      <stop offset="100%" style="stop-color:#69db7c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="400" fill="url(#bg)" rx="12"/>
+
+  <!-- Title -->
+  <text x="60" y="80" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" fill="white">Pixelslop</text>
+  <text x="60" y="115" font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#888" font-weight="400">Browser-first design quality scanner &#183; catches AI slop patterns &#183; fixes what it finds</text>
+
+  <!-- Left panel: before (sloppy scan) -->
+  <rect x="60" y="145" width="520" height="200" rx="8" fill="#1e1e2e" stroke="#ff6b6b44" stroke-width="1"/>
+  <text x="80" y="175" font-family="ui-monospace, monospace" font-size="13" fill="#ff6b6b" font-weight="600">SCAN RESULT</text>
+  <line x1="80" y1="188" x2="560" y2="188" stroke="#ffffff11"/>
+  <text x="80" y="212" font-family="ui-monospace, monospace" font-size="12.5" fill="#666">Score: 11/20 &#8212; Needs Work</text>
+  <text x="80" y="237" font-family="ui-monospace, monospace" font-size="12.5" fill="#ff6b6b">AI Slop: SLOPPY &#8212; 8 patterns detected</text>
+  <text x="80" y="262" font-family="ui-monospace, monospace" font-size="12.5" fill="#666">[P0] contrast-cta &#8212; 2.28:1 (needs 4.5:1)</text>
+  <text x="80" y="287" font-family="ui-monospace, monospace" font-size="12.5" fill="#666">[P0] gradient-text &#8212; unreadable on mobile</text>
+  <text x="80" y="312" font-family="ui-monospace, monospace" font-size="12.5" fill="#666">[P1] glass-cards &#8212; identical 3-column grid</text>
+  <text x="80" y="330" font-family="ui-monospace, monospace" font-size="11" fill="#555">+ 5 more issues across 4 categories</text>
+
+  <!-- Arrow -->
+  <text x="600" y="255" font-family="system-ui, sans-serif" font-size="28" fill="#888">&#8594;</text>
+
+  <!-- Right panel: after (fixed) -->
+  <rect x="640" y="145" width="500" height="200" rx="8" fill="#1e1e2e" stroke="#51cf6644" stroke-width="1"/>
+  <text x="660" y="175" font-family="ui-monospace, monospace" font-size="13" fill="#51cf66" font-weight="600">AFTER FIXES</text>
+  <line x1="660" y1="188" x2="1120" y2="188" stroke="#ffffff11"/>
+  <text x="660" y="212" font-family="ui-monospace, monospace" font-size="12.5" fill="#c8c8c8">Score: 18/20 &#8212; Excellent</text>
+  <text x="660" y="237" font-family="ui-monospace, monospace" font-size="12.5" fill="#51cf66">AI Slop: CLEAN &#8212; 0 patterns</text>
+  <text x="660" y="262" font-family="ui-monospace, monospace" font-size="12.5" fill="#c8c8c8">Fixed: 6 &#183; Partial: 1 &#183; Failed: 0</text>
+  <text x="660" y="287" font-family="ui-monospace, monospace" font-size="12.5" fill="#c8c8c8">Contrast: 2.28:1 &#8594; 4.72:1 (AA pass)</text>
+  <text x="660" y="312" font-family="ui-monospace, monospace" font-size="12.5" fill="#c8c8c8">Touch targets: 19 fails &#8594; 0 fails</text>
+
+  <!-- Bottom stats bar -->
+  <rect x="60" y="360" width="1080" height="28" rx="4" fill="#ffffff08"/>
+  <text x="80" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#888">5 pillars</text>
+  <text x="195" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#555">|</text>
+  <text x="215" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#888">25 slop patterns</text>
+  <text x="390" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#555">|</text>
+  <text x="410" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#888">8 personas</text>
+  <text x="530" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#555">|</text>
+  <text x="550" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#888">3 viewports</text>
+  <text x="680" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#555">|</text>
+  <text x="700" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#888">auto checkpoint + rollback</text>
+  <text x="920" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#555">|</text>
+  <text x="940" y="379" font-family="ui-monospace, monospace" font-size="12" fill="#888">470+ tests</text>
+</svg>

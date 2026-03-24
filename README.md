@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/assets/banner.svg" width="100%"/></p>
+
 # Pixelslop
 
 [![CI](https://github.com/gabelul/pixelslop/actions/workflows/ci.yml/badge.svg)](https://github.com/gabelul/pixelslop/actions/workflows/ci.yml)
@@ -67,10 +69,15 @@ npm run validate         # resource file structure checks
 
 Automated via [release-please](https://github.com/googleapis/release-please). Conventional commits, auto-changelog, npm publish with OIDC provenance. `feat:` bumps minor, `fix:` bumps patch.
 
+## Related
+
+- **[stitch-kit](https://github.com/gabelul/stitch-kit)** — 35 skills that teach AI agents to generate beautiful UIs with Google Stitch. Pixelslop catches what slips through.
+- **[slopbuster](https://github.com/gabelul/slopbuster)** — strips AI patterns from text and code. Same philosophy, different domain — pixelslop catches visual slop, slopbuster catches written slop.
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ---
 
-Built by [Gabi](https://booplex.com) @ [Booplex](https://booplex.com) — because AI agents are getting scary good at generating UIs, and someone needs to make sure "generated" doesn't become synonymous with "generic." Apache 2.0.
+Built by [Gabi](https://booplex.com) @ [Booplex](https://booplex.com) — because AI agents are getting scary good at generating UIs, and someone needs to make sure "generated" doesn't mean "generic." Apache 2.0.
