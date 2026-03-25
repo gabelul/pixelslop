@@ -441,10 +441,10 @@ describe('package configuration', () => {
     assert.ok(existsSync(join(PROJECT_ROOT, 'bin', 'pixelslop.mjs')), 'Installer must exist');
   });
 
-  it('has engines field requiring Node >= 18', () => {
+  it('has engines field requiring Node >= 20', () => {
     assert.ok(pkg.engines, 'package.json must have engines');
     assert.ok(pkg.engines.node, 'engines must specify node');
-    assert.ok(pkg.engines.node.includes('18'), 'engines.node must require 18+');
+    assert.ok(pkg.engines.node.includes('20'), 'engines.node must require 20+');
   });
 
   it('has homepage pointing to GitHub', () => {

@@ -1,5 +1,5 @@
 # CI — runs tests on every push and PR to main.
-# Matrix: Node 18, 20, 22 to match engines field.
+# Matrix: Node 20, 22 (active LTS + current). Node 18 EOL'd April 2025.
 
 name: CI
 
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20, 22]
+        node-version: [20, 22]
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
