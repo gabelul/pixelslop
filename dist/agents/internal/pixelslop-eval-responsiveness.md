@@ -77,7 +77,7 @@ Return exactly this structure. Nothing else.
       "criterion": "spacing-adaptation",
       "status": "fail",
       "detail": "section padding stays at 80px on mobile — same as desktop, too much dead space at 375px",
-      "evidence": "viewports.desktop.spacing vs viewports.mobile cross-comparison"
+      "evidence": "viewports.desktop.spacing shows 80px section padding; mobile screenshot shows same padding at 375px width (visual observation)"
     }
   ]
 }

@@ -19,7 +19,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync,
-         readdirSync, rmSync, existsSync, lstatSync, symlinkSync,
+         readdirSync, rmSync, rmdirSync, existsSync, lstatSync, symlinkSync,
          chmodSync, statSync } from 'fs';
 import { join, dirname, resolve, relative } from 'path';
 import { fileURLToPath } from 'url';
@@ -1069,10 +1069,17 @@ function uninstall() {
       }
     }
 
-    // Remove internal evaluator agents
+    // Remove internal evaluator agents (only pixelslop-eval-* files, not the whole directory)
     const internalDir = join(client.agentDir, 'internal');
     if (existsSync(internalDir)) {
-      rmSync(internalDir, { recursive: true, force: true });
+      for (const file of readdirSync(internalDir).filter(f => f.startsWith('pixelslop-eval-') && f.endsWith('.md'))) {
+        rmSync(join(internalDir, file));
+      }
+      // Remove the directory only if it's empty (don't nuke other tools' files)
+      try {
+        const remaining = readdirSync(internalDir).filter(f => !f.startsWith('.'));
+        if (remaining.length === 0) rmdirSync(internalDir);
+      } catch { /* directory not empty or already gone — fine */ }
     }
 
     // Remove skill

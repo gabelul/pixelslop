@@ -70,7 +70,9 @@ browser_resize({ width: 1440, height: 900 })
 browser_take_screenshot()
 ```
 
-Save the screenshot reference. Then run ALL extraction snippets from visual-eval.md Section 3:
+Save the screenshot reference. Capture the page title via `browser_evaluate(() => document.title)` — store it as the `title` field in the evidence bundle.
+
+Then run ALL extraction snippets from visual-eval.md Section 3:
 
 1. **Typography extraction** — font families, sizes, weights, line-heights on key elements
 2. **Color extraction** — backgrounds, text colors, borders, gradients on key elements

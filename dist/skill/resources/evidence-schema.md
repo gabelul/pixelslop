@@ -11,6 +11,7 @@ This schema is the contract. If the collector writes it and the specialist reads
 ```json
 {
   "url": "http://localhost:3000",
+  "title": "My App — Dashboard",
   "timestamp": "2026-03-25T16:30:00.000Z",
   "root": "/path/to/project",
   "confidence": {
@@ -46,18 +47,24 @@ Three viewports, each with different evidence depth.
   "width": 1440,
   "height": 900,
   "screenshot": "/tmp/pixelslop-screenshots/desktop.png",
-  "typography": [
-    {
-      "tag": "h1",
-      "classes": "text-5xl font-bold",
+  "typography": {
+    "h1": {
       "fontFamily": "'DM Sans', sans-serif",
       "fontSize": "48px",
       "fontWeight": "700",
       "lineHeight": "56px",
       "letterSpacing": "normal",
       "color": "rgb(17, 24, 39)"
+    },
+    "p": {
+      "fontFamily": "'DM Sans', sans-serif",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "lineHeight": "24px",
+      "letterSpacing": "normal",
+      "color": "rgb(75, 85, 99)"
     }
-  ],
+  },
   "colors": [
     {
       "tag": "section",
@@ -210,13 +217,21 @@ Pre-collected data that persona evaluation needs. Run during the desktop pass so
     "missing": []
   },
   "skipNav": {
-    "exists": false,
-    "target": null
+    "check": "skip-navigation-link",
+    "found": false,
+    "text": null,
+    "passed": false
   },
   "aboveFoldCta": {
-    "exists": true,
-    "text": "Get Started",
-    "visible": true
+    "check": "above-fold-cta",
+    "aboveFold": 2,
+    "belowFold": 1,
+    "viewportHeight": 900,
+    "passed": true,
+    "details": {
+      "aboveFold": [{ "tag": "a", "text": "Get Started", "top": 420 }],
+      "belowFold": [{ "tag": "a", "text": "Learn More", "top": 1200 }]
+    }
   },
   "readingLevel": {
     "check": "reading-level-estimate",
@@ -228,10 +243,11 @@ Pre-collected data that persona evaluation needs. Run during the desktop pass so
     "sample": ["first sentence...", "second sentence...", "third sentence..."]
   },
   "imageOptimization": {
+    "check": "image-optimization-check",
     "totalImages": 6,
-    "withoutDimensions": 2,
-    "withoutLazy": 4,
-    "largeImages": [{ "src": "/hero.png", "estimatedSize": "2.4MB" }]
+    "oversized": 1,
+    "issues": [{ "src": "/hero.png", "natural": "3200x1800", "displayed": "800x450", "ratio": 4.0, "hasSrcset": false }],
+    "passed": false
   },
   "cognitiveDensity": {
     "check": "cognitive-density-scan",
