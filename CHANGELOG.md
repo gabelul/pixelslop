@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.2...pixelslop-v0.2.3) (2026-03-25)
+
+
+### Features
+
+* add interactive multi-runtime installer ([58afd63](https://github.com/gabelul/pixelslop/commit/58afd635253abaec37716cafe51ba3594a8139ab))
+
 ## [0.2.2](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.1...pixelslop-v0.2.2) (2026-03-25)
 
 
