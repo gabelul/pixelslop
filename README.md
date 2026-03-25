@@ -23,6 +23,15 @@ Auto-detects Claude Code and Codex CLI, copies agent specs, configures Playwrigh
 
 > **Need:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex CLI](https://github.com/openai/codex) installed first.
 
+### Update, check health, remove
+
+```bash
+npx pixelslop@latest update     # upgrade to latest — backs up old files, shows diff
+npx pixelslop doctor             # verify installation health
+npx pixelslop status             # show what's installed and where
+npx pixelslop uninstall          # remove everything cleanly
+```
+
 ## Use it
 
 ```
@@ -57,7 +66,7 @@ I built [stitch-kit](https://github.com/gabelul/stitch-kit) to teach AI agents h
 ## Tests
 
 ```bash
-npm test                 # 535+ tests, zero dependencies
+npm test                 # 538 tests, zero dependencies
 npm run test:tools       # pixelslop-tools CLI
 npm run test:installer   # installer unit tests
 npm run test:orchestrator # agent spec validation
