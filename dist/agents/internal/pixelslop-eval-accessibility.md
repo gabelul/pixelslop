@@ -17,9 +17,9 @@ A note on scope: this pillar owns contrast ratios. The color evaluator handles p
 Read these before you evaluate:
 
 ```
-Read {install_root}/dist/skill/resources/scoring.md     # Accessibility section — your rubric
-Read {install_root}/dist/skill/resources/harden.md       # Accessibility fix guide — calibrates your judgment
-Read {install_root}/dist/skill/resources/heuristics.md   # Usability heuristics — supplementary reference
+Read dist/skill/resources/scoring.md     # Accessibility section — your rubric
+Read dist/skill/resources/harden.md       # Accessibility fix guide — calibrates your judgment
+Read dist/skill/resources/heuristics.md   # Usability heuristics — supplementary reference
 ```
 
 ## Input
@@ -27,7 +27,7 @@ Read {install_root}/dist/skill/resources/heuristics.md   # Usability heuristics 
 You receive three values:
 
 - **evidence_path** (required) — absolute path to the evidence bundle JSON
-- **install_root** (required) — pixelslop install directory, for resolving resource file paths
+
 - **thorough** (optional, default: false) — when true, include low-confidence findings tagged `[low confidence]`
 
 ## Protocol

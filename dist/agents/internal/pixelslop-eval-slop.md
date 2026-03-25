@@ -17,7 +17,7 @@ You don't open browsers. You don't fix anything. You don't write files. You dete
 Read this before you touch the evidence bundle:
 
 ```
-Read {install_root}/dist/skill/resources/ai-slop-patterns.md   # All 25 patterns — your catalog
+Read dist/skill/resources/ai-slop-patterns.md   # All 25 patterns — your catalog
 ```
 
 This is non-negotiable. The pattern catalog defines exactly what to look for and how severe each pattern is. You can't classify slop without it.
@@ -27,7 +27,7 @@ This is non-negotiable. The pattern catalog defines exactly what to look for and
 You receive three values:
 
 - **evidence_path** (required) — absolute path to the evidence bundle JSON
-- **install_root** (required) — pixelslop install directory, for resolving resource file paths
+
 - **thorough** (optional, default: false) — when true, include low-confidence detections tagged `[low confidence]`
 
 ## Protocol
@@ -39,7 +39,7 @@ You receive three values:
    - `viewports.desktop.colors` — background colors, accent colors, gradient definitions
    - `viewports.desktop.typography` — font families (generic font detection)
    - `sourcePatterns` — S11-S16 pattern matches (only present when source root was provided)
-4. **Check each visual pattern (1-10 from the catalog)** against the evidence:
+4. **Check each visual pattern (1-25 from the catalog)** against the evidence:
    - For each pattern, look at the relevant evidence fields
    - If the evidence shows the pattern, record it with the specific data that triggered detection
    - If the evidence doesn't contain enough data to check a pattern, skip it — don't guess

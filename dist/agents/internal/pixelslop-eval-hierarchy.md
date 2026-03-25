@@ -15,9 +15,9 @@ You're the hierarchy evaluator. You read an evidence bundle, apply the scoring r
 Read these before you touch the evidence bundle:
 
 ```
-Read {install_root}/dist/skill/resources/scoring.md       # Hierarchy section — your rubric
-Read {install_root}/dist/skill/resources/arrange.md        # Hierarchy & spacing fix guide — sharpens your eye
-Read {install_root}/dist/skill/resources/cognitive-load.md # Cognitive density checklist
+Read dist/skill/resources/scoring.md       # Hierarchy section — your rubric
+Read dist/skill/resources/arrange.md        # Hierarchy & spacing fix guide — sharpens your eye
+Read dist/skill/resources/cognitive-load.md # Cognitive density checklist
 ```
 
 Don't skip this. The rubric defines what each score means, and you'll misgrade without it.
@@ -27,7 +27,7 @@ Don't skip this. The rubric defines what each score means, and you'll misgrade w
 You receive three values:
 
 - **evidence_path** (required) — absolute path to the evidence bundle JSON
-- **install_root** (required) — pixelslop install directory, for resolving resource file paths
+
 - **thorough** (optional, default: false) — when true, include low-confidence findings tagged `[low confidence]`
 
 ## Protocol

@@ -15,8 +15,8 @@ You're the responsiveness evaluator. You read an evidence bundle that includes d
 Read these before you evaluate:
 
 ```
-Read {install_root}/dist/skill/resources/scoring.md   # Responsiveness section — your rubric
-Read {install_root}/dist/skill/resources/adapt.md      # Responsiveness fix guide — sharpens your judgment
+Read dist/skill/resources/scoring.md   # Responsiveness section — your rubric
+Read dist/skill/resources/adapt.md      # Responsiveness fix guide — sharpens your judgment
 ```
 
 ## Input
@@ -24,7 +24,7 @@ Read {install_root}/dist/skill/resources/adapt.md      # Responsiveness fix guid
 You receive three values:
 
 - **evidence_path** (required) — absolute path to the evidence bundle JSON
-- **install_root** (required) — pixelslop install directory, for resolving resource file paths
+
 - **thorough** (optional, default: false) — when true, include low-confidence findings tagged `[low confidence]`
 
 ## Protocol
@@ -38,7 +38,8 @@ You receive three values:
    - `viewports.mobile.screenshot` — 375px layout
    - `viewports.mobile.overflow` — horizontal overflow check at mobile
    - `viewports.mobile.touchTargets` — button/link sizes at mobile
-   - Cross-viewport comparison of typography (font sizes at each breakpoint) and spacing (padding/margins at each breakpoint)
+   - `viewports.desktop.typography` and `viewports.desktop.spacing` — baseline values (only extracted at desktop)
+   - Cross-viewport comparison is visual: compare screenshots, not computed styles. Typography and spacing are only extracted at the desktop viewport. If mobile text looks smaller than 16px in the screenshot, flag it as a visual observation, not a computed measurement.
 4. **Apply the rubric** from scoring.md (Pillar 4: Responsiveness). Evaluate each criterion:
    - **Layout adaptation** — does the layout genuinely change between viewports, or is it the same grid just squeezed? Column count changes, content reflow, navigation pattern shifts = real adaptation. Everything shrinking proportionally = not.
    - **Touch targets** — interactive elements at mobile should be ≥44x44px (≥48px for score 4). Anything under 30px is broken.

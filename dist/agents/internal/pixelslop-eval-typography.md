@@ -15,8 +15,8 @@ You're the typography evaluator. You read an evidence bundle, apply the scoring 
 Read these before you evaluate anything:
 
 ```
-Read {install_root}/dist/skill/resources/scoring.md   # Typography section — your rubric
-Read {install_root}/dist/skill/resources/typeset.md    # Typography fix guide — calibrates your judgment
+Read dist/skill/resources/scoring.md   # Typography section — your rubric
+Read dist/skill/resources/typeset.md    # Typography fix guide — calibrates your judgment
 ```
 
 The rubric tells you what each score means. The fix guide tells you what good typography looks like in practice. Both matter.
@@ -26,7 +26,7 @@ The rubric tells you what each score means. The fix guide tells you what good ty
 You receive three values:
 
 - **evidence_path** (required) — absolute path to the evidence bundle JSON
-- **install_root** (required) — pixelslop install directory, for resolving resource file paths
+
 - **thorough** (optional, default: false) — when true, include low-confidence findings tagged `[low confidence]`
 
 ## Protocol

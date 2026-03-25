@@ -62,7 +62,7 @@ Three viewports, each with different evidence depth.
     {
       "tag": "section",
       "classes": "hero bg-slate-900",
-      "backgroundColor": "rgb(15, 23, 42)",
+      "bg": "rgb(15, 23, 42)",
       "color": "rgb(248, 250, 252)",
       "borderColor": "none",
       "backgroundImage": "none"
@@ -219,9 +219,13 @@ Pre-collected data that persona evaluation needs. Run during the desktop pass so
     "visible": true
   },
   "readingLevel": {
-    "estimatedGrade": 8,
-    "avgSentenceLength": 14,
-    "avgWordLength": 5.2
+    "check": "reading-level-estimate",
+    "gradeLevel": 8.2,
+    "totalWords": 342,
+    "totalSentences": 24,
+    "avgWordsPerSentence": 14.3,
+    "passed": true,
+    "sample": ["first sentence...", "second sentence...", "third sentence..."]
   },
   "imageOptimization": {
     "totalImages": 6,
@@ -230,10 +234,12 @@ Pre-collected data that persona evaluation needs. Run during the desktop pass so
     "largeImages": [{ "src": "/hero.png", "estimatedSize": "2.4MB" }]
   },
   "cognitiveDensity": {
-    "sectionsAnalyzed": 5,
-    "avgInteractivePerSection": 4,
-    "maxInteractiveInSection": 12,
-    "ctasInViewport": 3
+    "check": "cognitive-density-scan",
+    "ctaCount": 3,
+    "navItems": 7,
+    "denseTextBlocks": 1,
+    "visibleSections": 5,
+    "passed": true
   }
 }
 ```

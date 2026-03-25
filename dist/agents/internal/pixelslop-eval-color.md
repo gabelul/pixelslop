@@ -17,8 +17,8 @@ One thing to be crystal clear about: you score palette cohesion and intentionali
 Read these before you evaluate:
 
 ```
-Read {install_root}/dist/skill/resources/scoring.md    # Color section — your rubric
-Read {install_root}/dist/skill/resources/colorize.md   # Color fix guide — calibrates your palette judgment
+Read dist/skill/resources/scoring.md    # Color section — your rubric
+Read dist/skill/resources/colorize.md   # Color fix guide — calibrates your palette judgment
 ```
 
 ## Input
@@ -26,7 +26,7 @@ Read {install_root}/dist/skill/resources/colorize.md   # Color fix guide — cal
 You receive three values:
 
 - **evidence_path** (required) — absolute path to the evidence bundle JSON
-- **install_root** (required) — pixelslop install directory, for resolving resource file paths
+
 - **thorough** (optional, default: false) — when true, include low-confidence findings tagged `[low confidence]`
 
 ## Protocol
