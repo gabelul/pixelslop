@@ -73,7 +73,7 @@ Return exactly this structure. Nothing else.
       "criterion": "heading-hierarchy",
       "status": "fail",
       "detail": "h1 → h2 → h4 — skips h3 entirely, breaks sequential order",
-      "evidence": "personaChecks.headingHierarchy: [h1, h2, h4, h2] sequence"
+      "evidence": "personaChecks.headingHierarchy: h1Count=1, skips=[{ expected: \"h3\", found: \"h4\", text: \"Pricing\", index: 2 }]"
     },
     {
       "criterion": "skip-nav",

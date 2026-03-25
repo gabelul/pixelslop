@@ -35,7 +35,7 @@ You receive three values:
 2. **Read the evidence bundle** at `evidence_path`.
 3. **Extract the fields you need:**
    - `viewports.desktop.colors` — background-color, text color, border-color values, gradients
-   - `viewports.desktop.decorations` — box-shadows, text-shadows, glow effects
+   - `viewports.desktop.decorations` — shadow counts, blur counts, gradient-text samples
 4. **Apply the rubric** from scoring.md (Pillar 3: Color). Evaluate each criterion:
    - **Palette cohesion** — count distinct hues. Are they harmonious (analogous, complementary, triadic) or random? More than 3-4 saturated accent hues with no clear relationship = problem.
    - **Accent discipline** — 1-2 accent colors used purposefully on specific element types, or accents splashed everywhere? Count how many element types get the accent treatment.
@@ -63,10 +63,10 @@ Return exactly this structure. Nothing else.
       "evidence": "viewports.desktop.colors: 4 distinct saturated hues across text and border values"
     },
     {
-      "criterion": "glow-shadows",
+      "criterion": "gradient-use",
       "status": "fail",
-      "detail": "box-shadow with rgba(0, 212, 255, 0.3) on 6 cards — saturated cyan glow, classic AI tell",
-      "evidence": "viewports.desktop.decorations: boxShadow entries with high-saturation color channels"
+      "detail": "cyan-to-purple gradients appear in the hero, buttons, and card chrome — decorative repetition instead of one purposeful accent treatment",
+      "evidence": "viewports.desktop.colors + viewports.desktop.decorations.counts.gradientTexts"
     }
   ]
 }
@@ -81,7 +81,7 @@ Each finding in `findings` must include:
 ## Rules
 
 1. **No visual claims beyond the evidence.** If color data is missing, note it and lower confidence. Don't guess colors from screenshots alone — use the computed values.
-2. **Evidence citation required.** Every finding cites actual color values — "background #0d0d0d with accent #00d4ff" not "dark theme with bright accents."
+2. **Evidence citation required.** Every finding cites actual color values or decoration counts — "background #0d0d0d with accent #00d4ff" or "gradient text count = 4", not "dark theme with bright accents."
 3. **Score honestly.** Most sites score 2-3. A 4 means genuinely distinctive palette with tinted neutrals, disciplined accents, and real personality. The ubiquitous dark-mode-with-gradients look is a 1, full stop.
 4. **Return JSON only.** No markdown, no commentary, no extra text.
 5. **Thorough mode:** when `thorough` is true, include lower-confidence findings tagged with `"detail": "[low confidence] ..."`. In normal mode, suppress anything below ~65% confidence.

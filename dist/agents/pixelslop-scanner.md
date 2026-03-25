@@ -123,6 +123,7 @@ The bundle structure:
 ```json
 {
   "url": "<target_url>",
+  "title": "<document.title>",
   "timestamp": "<ISO-8601>",
   "root": "<root_path_or_null>",
   "confidence": {
@@ -134,7 +135,18 @@ The bundle structure:
     "multiViewport": true/false
   },
   "viewports": {
-    "desktop": { "width": 1440, "height": 900, "screenshot": "...", "typography": [...], "colors": [...], "spacing": [...], "decorations": {...}, "contrast": [...], "a11ySnapshot": {...}, "overflow": {...} },
+    "desktop": {
+      "width": 1440,
+      "height": 900,
+      "screenshot": "...",
+      "typography": { "h1": { "...": "..." }, "p": { "...": "..." } },
+      "colors": [...],
+      "spacing": [...],
+      "decorations": { "...": "..." },
+      "contrast": [...],
+      "a11ySnapshot": { "...": "..." },
+      "overflow": { "...": "..." }
+    },
     "tablet": { "width": 768, "height": 1024, "screenshot": "...", "overflow": {...} },
     "mobile": { "width": 375, "height": 812, "screenshot": "...", "overflow": {...}, "touchTargets": {...} }
   },
@@ -144,6 +156,8 @@ The bundle structure:
   "sourcePatterns": [...]
 }
 ```
+
+For any nested object shape beyond this summary, follow `evidence-schema.md` exactly. Do not improvise field names here.
 
 Set each `confidence` flag based on whether that evidence type was successfully collected. If a snippet failed or returned empty, set the flag to `false`.
 

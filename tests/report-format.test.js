@@ -77,36 +77,99 @@ function parseReport(markdown) {
   return report;
 }
 
-// --- Sample report for testing (mirrors the actual scanner output format) ---
-const SAMPLE_REPORT = `## Pixelslop Report: DataPulse - SaaS Analytics Dashboard
-URL: https://www.uupm.cc/demo/saas-analytics-dashboard
-Date: 2026-03-17T20:33:00Z
-Confidence: 90%
+/**
+ * Build a report from structured evidence + specialist outputs.
+ * This mirrors the collector -> specialists -> orchestrator contract.
+ *
+ * @param {object} input - Structured report parts
+ * @returns {string} Markdown report matching scoring.md format
+ */
+function buildReport(input) {
+  const { evidence, scores, slop, findings, personas } = input;
+  const total = Object.values(scores).reduce((sum, pillar) => sum + pillar.score, 0);
+  const ratingBand = total >= 17 ? 'Excellent'
+    : total >= 13 ? 'Good'
+      : total >= 9 ? 'Needs Work'
+        : total >= 5 ? 'Poor'
+          : 'Critical';
 
-### Scores
-| Pillar | Score | Evidence |
-|--------|-------|----------|
-| Hierarchy | 3/4 | Clear h1 (60px) with progressive reduction. Primary CTA visually distinct. |
-| Typography | 2/4 | Poppins + DM Sans pairing. Functional but common Google Fonts. |
-| Color | 2/4 | Standard blue primary. Green CTA. Slate neutrals. Generic palette. |
-| Responsiveness | 2/4 | Layout reflows but 71% of touch targets undersized on mobile. |
-| Accessibility | 2/4 | Heading hierarchy correct. CTA contrast fails at 2.28:1. |
-| **Total** | **11/20** | **Needs Work** |
+  const lines = [
+    `## Pixelslop Report: ${evidence.title}`,
+    `URL: ${evidence.url}`,
+    `Date: ${evidence.timestamp}`,
+    `Confidence: ${evidence.confidence}%`,
+    '',
+    '### Scores',
+    '| Pillar | Score | Evidence |',
+    '|--------|-------|----------|',
+    `| Hierarchy | ${scores.hierarchy.score}/4 | ${scores.hierarchy.evidence} |`,
+    `| Typography | ${scores.typography.score}/4 | ${scores.typography.evidence} |`,
+    `| Color | ${scores.color.score}/4 | ${scores.color.evidence} |`,
+    `| Responsiveness | ${scores.responsiveness.score}/4 | ${scores.responsiveness.evidence} |`,
+    `| Accessibility | ${scores.accessibility.score}/4 | ${scores.accessibility.evidence} |`,
+    `| **Total** | **${total}/20** | **${ratingBand}** |`,
+    '',
+    `### AI Slop: ${slop.band}`,
+    `Patterns detected: ${slop.patternCount}`,
+    ...slop.patterns.map((pattern, index) =>
+      `${index + 1}. **${pattern.name}** -- ${pattern.evidence}`),
+    '',
+    '### Findings',
+    ...findings.map((finding, index) => `${index + 1}. ${finding}`),
+  ];
 
-### AI Slop: TERMINAL
-Patterns detected: 11
-1. **Glassmorphism Everywhere** -- 20 elements with backdrop-filter.
-2. **Gradient Text** -- 4 instances of background-clip: text.
-3. **Hero Metric Layout** -- 10K+, 99.9%, 50M+ at 30px.
+  if (personas.length > 0) {
+    lines.push('', '### Persona Insights', ...personas);
+  }
 
-### Findings
-1. **[Accessibility] CTA contrast failures.** White on green at 2.28:1.
-2. **[Responsiveness] 71% of mobile touch targets undersized.**
+  lines.push(
+    '',
+    '### Screenshots',
+    `- Desktop (1440x900): ${evidence.screenshots.desktop}`,
+    `- Tablet (768x1024): ${evidence.screenshots.tablet}`,
+    `- Mobile (375x812): ${evidence.screenshots.mobile}`,
+  );
 
-### Screenshots
-- Desktop (1440x900): .pixelslop/screenshots/uupm-cc-desktop-20260317-203300.png
-- Tablet (768x1024): .pixelslop/screenshots/uupm-cc-tablet-20260317-203400.png
-- Mobile (375x812): .pixelslop/screenshots/uupm-cc-mobile-20260317-203430.png`;
+  return lines.join('\n');
+}
+
+const SAMPLE_INPUT = {
+  evidence: {
+    title: 'DataPulse - SaaS Analytics Dashboard',
+    url: 'https://www.uupm.cc/demo/saas-analytics-dashboard',
+    timestamp: '2026-03-17T20:33:00Z',
+    confidence: 90,
+    screenshots: {
+      desktop: '.pixelslop/screenshots/uupm-cc-desktop-20260317-203300.png',
+      tablet: '.pixelslop/screenshots/uupm-cc-tablet-20260317-203400.png',
+      mobile: '.pixelslop/screenshots/uupm-cc-mobile-20260317-203430.png',
+    },
+  },
+  scores: {
+    hierarchy: { score: 3, evidence: 'Clear h1 (60px) with progressive reduction. Primary CTA visually distinct.' },
+    typography: { score: 2, evidence: 'Poppins + DM Sans pairing. Functional but common Google Fonts.' },
+    color: { score: 2, evidence: 'Standard blue primary. Green CTA. Slate neutrals. Generic palette.' },
+    responsiveness: { score: 2, evidence: 'Layout reflows but 71% of touch targets undersized on mobile.' },
+    accessibility: { score: 2, evidence: 'Heading hierarchy correct. CTA contrast fails at 2.28:1.' },
+  },
+  slop: {
+    band: 'TERMINAL',
+    patternCount: 11,
+    patterns: [
+      { name: 'Glassmorphism Everywhere', evidence: '20 elements with backdrop-filter.' },
+      { name: 'Gradient Text', evidence: '4 instances of background-clip: text.' },
+      { name: 'Hero Metric Layout', evidence: '10K+, 99.9%, 50M+ at 30px.' },
+    ],
+  },
+  findings: [
+    '**[Accessibility] CTA contrast failures.** White on green at 2.28:1.',
+    '**[Responsiveness] 71% of mobile touch targets undersized.**',
+  ],
+  personas: [],
+};
+
+// --- Sample report for testing (built from structured outputs) ---
+const SAMPLE_REPORT = buildReport(SAMPLE_INPUT);
 
 
 describe('Report Format Parser', () => {
@@ -187,6 +250,19 @@ describe('Report Format Parser', () => {
     assert.equal(empty.total, null);
     assert.equal(empty.slopLevel, null);
     assert.deepEqual(empty.scores, {});
+  });
+
+  it('builds the sample report from structured specialist outputs', () => {
+    assert.ok(SAMPLE_REPORT.includes('## Pixelslop Report: DataPulse - SaaS Analytics Dashboard'));
+    assert.ok(SAMPLE_REPORT.includes('### Scores'));
+    assert.ok(SAMPLE_REPORT.includes('### AI Slop: TERMINAL'));
+    assert.ok(SAMPLE_REPORT.includes('### Findings'));
+    assert.ok(SAMPLE_REPORT.includes('### Screenshots'));
+  });
+
+  it('omits Persona Insights when no personas were evaluated', () => {
+    assert.ok(!SAMPLE_REPORT.includes('### Persona Insights'),
+      'report should omit Persona Insights when persona list is empty');
   });
 });
 

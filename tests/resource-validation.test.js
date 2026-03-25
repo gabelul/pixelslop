@@ -426,6 +426,67 @@ describe('Cross-file consistency', () => {
     assert.ok(eval_.includes('375') && eval_.includes('812'), 'visual-eval missing 375x812');
     assert.ok(scanner.includes('375') && scanner.includes('812'), 'scanner missing 375x812');
   });
+
+  it('evidence-schema decoration sample matches the decoration snippet shape', () => {
+    const eval_ = readDist('skill/resources/visual-eval.md');
+    const schema = readDist('skill/resources/evidence-schema.md');
+
+    assert.ok(eval_.includes("type: 'gradientText'"), 'visual-eval should emit gradientText details');
+    assert.ok(eval_.includes("type: 'blur'"), 'visual-eval should emit blur details');
+    assert.ok(schema.includes('"type": "gradientText"'), 'schema should document gradientText details');
+    assert.ok(schema.includes('"type": "blur"'), 'schema should document blur details');
+    assert.ok(!schema.includes('"property": "background-clip"'),
+      'schema should not document stale decoration fields that the snippet does not return');
+  });
+
+  it('evidence-schema persona examples match persona snippet shapes', () => {
+    const eval_ = readDist('skill/resources/visual-eval.md');
+    const schema = readDist('skill/resources/evidence-schema.md');
+
+    assert.ok(eval_.includes('h1Count'), 'visual-eval heading hierarchy snippet should expose h1Count');
+    assert.ok(schema.includes('"h1Count"'), 'schema should document h1Count for headingHierarchy');
+    assert.ok(schema.includes('"passed"'), 'schema should document passed for headingHierarchy');
+    assert.ok(!schema.includes('"multipleH1"'), 'schema should not document stale multipleH1 field');
+
+    assert.ok(eval_.includes('landmarks,') || eval_.includes('landmarks = {'),
+      'visual-eval landmark snippet should expose landmarks object');
+    assert.ok(schema.includes('"landmarks": {'), 'schema should document landmarks object');
+    assert.ok(schema.includes('"present": 4'), 'schema should document numeric present count');
+    assert.ok(schema.includes('"total": 4'), 'schema should document total count');
+  });
+
+  it('scanner bundle skeleton matches the evidence schema contract', () => {
+    const scanner = readDist('agents/pixelslop-scanner.md');
+
+    assert.ok(scanner.includes('"title": "<document.title>"'),
+      'scanner bundle skeleton should include top-level title');
+    assert.ok(scanner.includes('"typography": { "h1": { "...": "..." }, "p": { "...": "..." } }'),
+      'scanner bundle skeleton should show selector-keyed typography object');
+    assert.ok(!scanner.includes('"typography": [...]'),
+      'scanner bundle skeleton should not show stale typography array form');
+  });
+
+  it('evidence-schema examples match numeric and overflow fields from the snippets', () => {
+    const eval_ = readDist('skill/resources/visual-eval.md');
+    const schema = readDist('skill/resources/evidence-schema.md');
+
+    assert.ok(eval_.includes('fontSize,'), 'contrast snippet should return numeric fontSize');
+    assert.ok(schema.includes('"fontSize": 16'), 'schema should document numeric contrast fontSize');
+    assert.ok(eval_.includes('right: Math.round(rect.right)'), 'overflow snippet should return right edge');
+    assert.ok(eval_.includes('docWidth'), 'overflow snippet should return docWidth');
+    assert.ok(schema.includes('"right": 892'), 'schema should document overflow right value');
+    assert.ok(schema.includes('"docWidth": 768'), 'schema should document overflow docWidth value');
+  });
+
+  it('specialist prompts do not assume decoration fields the collector does not capture', () => {
+    const color = readDist('agents/internal/pixelslop-eval-color.md');
+    const slop = readDist('agents/internal/pixelslop-eval-slop.md');
+
+    assert.ok(!color.includes('boxShadow entries with high-saturation color channels'),
+      'color evaluator should not cite nonexistent boxShadow detail entries');
+    assert.ok(!slop.includes('saturated box-shadows (rgba('),
+      'slop evaluator should not cite shadow colors the collector does not capture');
+  });
 });
 
 

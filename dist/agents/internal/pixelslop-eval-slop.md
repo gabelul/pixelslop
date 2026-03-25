@@ -35,7 +35,7 @@ You receive three values:
 1. **Read ai-slop-patterns.md.** The whole thing. Before anything else.
 2. **Read the evidence bundle** at `evidence_path`.
 3. **Extract the fields you need:**
-   - `viewports.desktop.decorations` — gradient text, backdrop-filter counts, shadow colors, glow effects
+   - `viewports.desktop.decorations` — gradient text samples, blur counts, shadow counts
    - `viewports.desktop.colors` — background colors, accent colors, gradient definitions
    - `viewports.desktop.typography` — font families (generic font detection)
    - `sourcePatterns` — S11-S16 pattern matches (only present when source root was provided)
@@ -72,7 +72,7 @@ This is different from the pillar evaluators. Return exactly this structure:
     {
       "id": 3,
       "name": "dark-glow",
-      "evidence": "background #0d0d0d with 5 saturated box-shadows (rgba(0, 212, 255, 0.3))",
+      "evidence": "background #0d0d0d with 5 shadowed elements, 3 blur/glass treatments, and cyan accents across the color sample",
       "severity": 3
     },
     {

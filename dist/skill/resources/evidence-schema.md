@@ -94,10 +94,14 @@ Three viewports, each with different evidence depth.
     },
     "details": [
       {
-        "tag": "h2",
-        "property": "background-clip",
-        "value": "text",
-        "context": "gradient text on heading"
+        "type": "gradientText",
+        "tag": "H2",
+        "text": "Build Something Real"
+      },
+      {
+        "type": "blur",
+        "tag": "DIV",
+        "classes": "glass-card hero-panel"
       }
     ]
   },
@@ -108,7 +112,7 @@ Three viewports, each with different evidence depth.
       "fg": "rgb(156, 163, 175)",
       "bg": "rgb(15, 23, 42)",
       "ratio": 5.2,
-      "fontSize": "16px",
+      "fontSize": 16,
       "isLarge": false,
       "passesAA": true
     }
@@ -147,7 +151,7 @@ Three viewports, each with different evidence depth.
   "overflow": {
     "hasOverflow": true,
     "count": 1,
-    "elements": [{ "tag": "table", "classes": "pricing-table", "overflowWidth": 892 }]
+    "elements": [{ "tag": "table", "classes": "pricing-table", "right": 892, "docWidth": 768 }]
   }
 }
 ```
@@ -208,13 +212,23 @@ Pre-collected data that persona evaluation needs. Run during the desktop pass so
 ```json
 "personaChecks": {
   "headingHierarchy": {
-    "sequence": [1, 2, 2, 3, 2, 3, 3],
+    "check": "heading-hierarchy-sequential",
+    "totalHeadings": 7,
+    "h1Count": 1,
     "skips": [],
-    "multipleH1": false
+    "passed": true
   },
   "landmarks": {
-    "present": ["banner", "navigation", "main", "contentinfo"],
-    "missing": []
+    "check": "landmark-regions-present",
+    "landmarks": {
+      "main": true,
+      "nav": true,
+      "header": true,
+      "footer": true
+    },
+    "present": 4,
+    "total": 4,
+    "passed": true
   },
   "skipNav": {
     "check": "skip-navigation-link",
@@ -291,8 +305,13 @@ Only populated when `--root` is provided. Grep results from the S11-S16 source p
 | Contrast calculation | `(() => { function luminance...` | `viewports.desktop.contrast` |
 | Touch target audit | `(() => { const interactive...` | `viewports.mobile.touchTargets` |
 | Overflow check | `(() => { const vw...` | `viewports.{viewport}.overflow` |
-| Heading hierarchy | `browser_snapshot()` parsed | `personaChecks.headingHierarchy` |
-| Landmark check | `browser_snapshot()` parsed | `personaChecks.landmarks` |
+| Heading hierarchy | `(() => { const headings...` | `personaChecks.headingHierarchy` |
+| Landmark check | `(() => { const landmarks...` | `personaChecks.landmarks` |
+| Skip-nav check | `(() => { const focusable...` | `personaChecks.skipNav` |
+| Above-fold CTA | `(() => { const viewportHeight...` | `personaChecks.aboveFoldCta` |
+| Reading level | `(() => { const textElements...` | `personaChecks.readingLevel` |
+| Image optimization | `(() => { const images...` | `personaChecks.imageOptimization` |
+| Cognitive density | `(() => { const viewportHeight...` | `personaChecks.cognitiveDensity` |
 
 ---
 

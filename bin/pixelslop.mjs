@@ -1221,17 +1221,18 @@ function doctor() {
       check(`${client.name}: internal evaluators`, false, 'Missing internal/ directory');
     }
 
-    // Path rewriting verification — check one agent file for absolute paths
+    // Path rewriting verification — check both a public agent and an internal evaluator
     const orchestratorPath = join(client.agentDir, 'pixelslop.md');
-    if (existsSync(orchestratorPath)) {
-      const content = readFileSync(orchestratorPath, 'utf8');
-      const hasAbsolutePaths = content.includes(join(INSTALL_ROOT, 'bin', 'pixelslop-tools.cjs'));
-      check(
-        `${client.name}: path rewriting`,
-        hasAbsolutePaths,
-        'Agent files still reference relative paths'
-      );
-    }
+    const internalEvalPath = join(client.agentDir, 'internal', 'pixelslop-eval-color.md');
+    const orchestratorRewritten = existsSync(orchestratorPath)
+      && readFileSync(orchestratorPath, 'utf8').includes(join(INSTALL_ROOT, 'bin', 'pixelslop-tools.cjs'));
+    const internalRewritten = existsSync(internalEvalPath)
+      && readFileSync(internalEvalPath, 'utf8').includes(join(INSTALL_ROOT, 'skill', 'resources', 'scoring.md'));
+    check(
+      `${client.name}: path rewriting`,
+      orchestratorRewritten && internalRewritten,
+      'Installed agents still reference relative paths'
+    );
 
     // Skill — check existence and report install method
     const clientMethod = methods[client.name]?.skill || 'unknown';
