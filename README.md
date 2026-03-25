@@ -19,7 +19,7 @@ Pixelslop opens your actual pages in a real browser, screenshots them at three v
 npx pixelslop install
 ```
 
-Auto-detects Claude Code and Codex CLI, copies agent specs, configures Playwright MCP. Done.
+Install is interactive by default. It detects Claude Code and Codex CLI, lets you pick runtimes and scope, then copies agent specs and configures Playwright MCP.
 
 > **Need:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex CLI](https://github.com/openai/codex) installed first.
 
@@ -28,7 +28,7 @@ Auto-detects Claude Code and Codex CLI, copies agent specs, configures Playwrigh
 ```bash
 npx pixelslop@latest update     # upgrade to latest — backs up old files, shows diff
 npx pixelslop doctor             # verify installation health
-npx pixelslop status             # show what's installed and where
+npx pixelslop status             # show scope, install root, and all installed runtimes
 npx pixelslop uninstall          # remove everything cleanly
 ```
 
@@ -66,7 +66,7 @@ I built [stitch-kit](https://github.com/gabelul/stitch-kit) to teach AI agents h
 ## Tests
 
 ```bash
-npm test                 # 538 tests, zero dependencies
+npm test                 # 540 tests, zero dependencies
 npm run test:tools       # pixelslop-tools CLI
 npm run test:installer   # installer unit tests
 npm run test:orchestrator # agent spec validation

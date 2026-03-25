@@ -38,6 +38,20 @@ function makeTempDir() {
 }
 
 /**
+ * Create runtime marker directories in HOME so installer detection succeeds.
+ * @param {string} homeDir - Fake HOME used by the packaged CLI
+ * @param {Array<'claude'|'codex'>} runtimes - Runtime markers to create
+ */
+function seedRuntimeHomes(homeDir, runtimes) {
+  if (runtimes.includes('claude')) {
+    mkdirSync(join(homeDir, '.claude'), { recursive: true });
+  }
+  if (runtimes.includes('codex')) {
+    mkdirSync(join(homeDir, '.codex'), { recursive: true });
+  }
+}
+
+/**
  * Resolve the npm executable for the current platform.
  * @returns {string} npm executable name
  */
@@ -716,10 +730,11 @@ describe('getClients', () => {
     assert.equal(claude.scope, 'project');
   });
 
-  it('excludes Codex CLI from project scope', () => {
+  it('includes Codex CLI in project scope', () => {
     const clients = getClients('project');
     const codex = clients.find(c => c.name === 'Codex CLI');
-    assert.ok(!codex, 'Codex CLI should not be in project scope');
+    assert.ok(codex, 'Codex CLI must be in project client list');
+    assert.equal(codex.scope, 'project');
   });
 
   it('includes Codex CLI in global scope', () => {
@@ -744,6 +759,16 @@ describe('getClients', () => {
     const claude = clients.find(c => c.name === 'Claude Code');
     assert.ok(claude.mcpConfig.endsWith('.mcp.json'),
       'Project MCP config should be .mcp.json');
+  });
+
+  it('project scope uses project-relative Codex paths', () => {
+    const clients = getClients('project');
+    const codex = clients.find(c => c.name === 'Codex CLI');
+    assert.ok(codex.agentDir.includes('.codex'), 'Agent dir must contain .codex');
+    assert.ok(!codex.agentDir.startsWith(join(homedir(), '.codex')),
+      'Project agent dir must not be in home directory');
+    assert.ok(codex.mcpConfig.endsWith(join('.codex', 'config.toml')),
+      'Project MCP config should be .codex/config.toml');
   });
 
   it('global scope uses settings.json for MCP config', () => {
@@ -773,7 +798,7 @@ describe('getClients', () => {
 // ─────────────────────────────────────────────
 
 describe('CLI flags', () => {
-  it('help text shows --project flag', async () => {
+  it('help text shows scope and runtime selection flags', async () => {
     const { execSync } = await import('node:child_process');
     const output = execSync('node bin/pixelslop.mjs --help', {
       cwd: PROJECT_ROOT,
@@ -781,7 +806,11 @@ describe('CLI flags', () => {
     });
     assert.ok(output.includes('--project'), 'Help must show --project');
     assert.ok(output.includes('--global'), 'Help must show --global');
+    assert.ok(output.includes('--all'), 'Help must show --all');
+    assert.ok(output.includes('--claude-only'), 'Help must show --claude-only');
+    assert.ok(output.includes('--codex-only'), 'Help must show --codex-only');
     assert.ok(output.includes('--copy'), 'Help must show --copy');
+    assert.ok(output.includes('interactive wizard'), 'Help must describe interactive install');
   });
 });
 
@@ -806,23 +835,58 @@ describe('packaged artifact smoke', () => {
     rmSync(tempHome, { recursive: true, force: true });
   });
 
-  it('installs, verifies, reports status, and uninstalls via npx tarball', () => {
+  it('installs Codex in project scope via npx tarball', () => {
     const env = { HOME: tempHome };
+    seedRuntimeHomes(tempHome, ['codex']);
 
-    runTarballCommand(tarballPath, ['install', '--project'], tempProject, env);
-    assert.ok(existsSync(join(tempProject, '.claude', 'agents', 'pixelslop.md')));
-    assert.ok(existsSync(join(tempProject, '.claude', 'skills', 'pixelslop', 'SKILL.md')));
-    assert.ok(existsSync(join(tempProject, '.mcp.json')));
+    runTarballCommand(tarballPath, ['install', '--project', '--codex-only'], tempProject, env);
+    assert.ok(existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
+    assert.ok(existsSync(join(tempProject, '.codex', 'skills', 'pixelslop', 'SKILL.md')));
+    assert.ok(existsSync(join(tempProject, '.codex', 'config.toml')));
+    assert.ok(!existsSync(join(tempProject, '.claude')), 'Claude files should not be created');
 
     const doctorOutput = runTarballCommand(tarballPath, ['doctor'], tempProject, env);
     assert.ok(doctorOutput.includes('All checks passed.'), 'doctor should report success');
 
     const statusOutput = runTarballCommand(tarballPath, ['status'], tempProject, env);
     assert.ok(statusOutput.includes('Scope: project'), 'status should report project scope');
-    assert.ok(statusOutput.includes('Claude Code'), 'status should mention installed client');
+    assert.ok(statusOutput.includes('Codex CLI'), 'status should mention installed client');
+    assert.ok(statusOutput.includes('.codex/config.toml'), 'status should report project Codex MCP path');
 
     runTarballCommand(tarballPath, ['uninstall'], tempProject, env);
+    assert.ok(!existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
+    assert.ok(!existsSync(join(tempProject, '.codex', 'skills', 'pixelslop')));
+  });
+
+  it('installs, reports status, updates, and uninstalls across Claude and Codex', () => {
+    const env = { HOME: tempHome };
+    seedRuntimeHomes(tempHome, ['claude', 'codex']);
+
+    runTarballCommand(tarballPath, ['install', '--project', '--all'], tempProject, env);
+    assert.ok(existsSync(join(tempProject, '.claude', 'agents', 'pixelslop.md')));
+    assert.ok(existsSync(join(tempProject, '.claude', 'skills', 'pixelslop', 'SKILL.md')));
+    assert.ok(existsSync(join(tempProject, '.mcp.json')));
+    assert.ok(existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
+    assert.ok(existsSync(join(tempProject, '.codex', 'skills', 'pixelslop', 'SKILL.md')));
+    assert.ok(existsSync(join(tempProject, '.codex', 'config.toml')));
+
+    const statusOutput = runTarballCommand(tarballPath, ['status'], tempProject, env);
+    assert.ok(statusOutput.includes('Installed runtimes'), 'status should list installed runtimes');
+    assert.ok(statusOutput.includes('Claude Code'), 'status should mention Claude Code');
+    assert.ok(statusOutput.includes('Codex CLI'), 'status should mention Codex CLI');
+
+    const updateOutput = runTarballCommand(tarballPath, ['update', '--force'], tempProject, env);
+    assert.ok(
+      updateOutput.includes('Updated:') || updateOutput.includes('Reinstalled'),
+      'update should refresh the installed runtime set'
+    );
+
+    const uninstallOutput = runTarballCommand(tarballPath, ['uninstall'], tempProject, env);
+    assert.ok(uninstallOutput.includes('Removed from Claude Code'), 'uninstall should remove Claude Code');
+    assert.ok(uninstallOutput.includes('Removed from Codex CLI'), 'uninstall should remove Codex CLI');
     assert.ok(!existsSync(join(tempProject, '.claude', 'agents', 'pixelslop.md')));
     assert.ok(!existsSync(join(tempProject, '.claude', 'skills', 'pixelslop')));
+    assert.ok(!existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
+    assert.ok(!existsSync(join(tempProject, '.codex', 'skills', 'pixelslop')));
   });
 });

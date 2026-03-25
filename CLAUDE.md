@@ -9,7 +9,7 @@ Pixelslop is a browser-first design quality reviewer. It opens real pages in Pla
 Phase 5 is complete — updates and distribution. See `dev_docs/MASTER-PLAN.md` for the full roadmap.
 
 **What works now:**
-- **Installer** — `npx pixelslop install` copies tools, skill files, persona profiles, and agent specs into Claude Code and Codex CLI. Path rewriting, MCP config, symlinks — all automatic. `npx pixelslop@latest update` upgrades with backup + diff.
+- **Installer** — `npx pixelslop install` is interactive by default. It detects Claude Code and Codex CLI, lets the user pick runtimes and scope, supports project-local Codex installs in `.codex/`, rewrites paths, configures MCP, and installs skills via symlink or copy. `npx pixelslop@latest update` upgrades the installed runtime set with backup + diff.
 - **CI/CD** — GitHub Actions for CI (Node 18/20/22) and automated releases via release-please + npm publish with OIDC provenance.
 - **Orchestrator** — coordinates the full scan→fix→verify workflow. Spawns subagents, manages user interaction, groups findings by category, handles PARTIAL results. Supports `--personas` and `--thorough` flags.
 - **Scanner** — evaluates pages across 3 viewports, scores 5 pillars, detects 25 slop patterns, runs persona evaluation from 8 user perspectives. Tested on 7 pages, scores stable within ±1.
@@ -77,7 +77,7 @@ dev_docs/                          # Internal planning (gitignored)
 ## Testing
 
 ```bash
-npm test                 # Full suite (535+ tests)
+npm test                 # Full suite (540 tests)
 npm run validate         # Resource file structure + cross-file consistency only
 npm run test:detection   # Detection logic only
 npm run test:format      # Report format only
@@ -125,7 +125,7 @@ Conventional commits. Always. See the global CLAUDE.md for the full format refer
 - **Checkpoint before edit.** The fixer always creates a checkpoint via `pixelslop-tools` before modifying files. No exceptions.
 - **Build gate is non-negotiable.** If the build breaks after a fix, automatic rollback. No "but the design fix was correct."
 - **Max one retry on PARTIAL.** Keep the improvement and move on. Don't loop forever.
-- **Run tests before committing.** `npm test` — 535+ tests, zero dependencies, takes ~10s.
+- **Run tests before committing.** `npm test` — 540 tests, zero dependencies, takes ~10s.
 - **Path rewriting is fragile.** If you rename `bin/pixelslop-tools.cjs` or move `dist/skill/resources/`, update `rewriteAgentPaths()` in `bin/pixelslop.mjs`. The installer tests catch drift.
 
 ## Playwright MCP

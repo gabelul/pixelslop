@@ -6,26 +6,38 @@
 npx pixelslop install
 ```
 
-That's it. Auto-detects Claude Code and Codex CLI, copies agent specs, installs skill files, configures Playwright MCP.
+That's it. Install is interactive by default: it detects Claude Code and Codex CLI, lets you pick which runtimes to wire up, then copies agent specs, installs skill files, and configures Playwright MCP.
 
 **You need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex CLI](https://github.com/openai/codex) already installed.** Pixelslop plugs into your existing runtime — it doesn't bundle one.
 
 ### Options
 
 ```bash
-npx pixelslop install                # global — available everywhere
-npx pixelslop install --project      # this project only (.claude/, .mcp.json)
-npx pixelslop install --copy         # force copy mode (portable for teams/CI)
+npx pixelslop install                      # interactive: pick scope + runtimes
+npx pixelslop install --global             # global install for current user
+npx pixelslop install --project            # project install (.claude/, .codex/, .mcp.json)
+npx pixelslop install --claude-only        # install Claude Code only
+npx pixelslop install --codex-only         # install Codex CLI only
+npx pixelslop install --all                # install every detected runtime
+npx pixelslop install --project --all      # project-scoped Claude + Codex
+npx pixelslop install --copy               # force copy mode (portable for teams/CI)
 ```
+
+Project installs now use runtime-native paths:
+
+- Claude Code: `.claude/` plus `.mcp.json`
+- Codex CLI: `.codex/`
 
 ### Lifecycle
 
 ```bash
 npx pixelslop@latest update    # upgrade with backup + diff
 npx pixelslop doctor           # verify installation health
-npx pixelslop uninstall        # remove everything
-npx pixelslop status           # what's installed and where
+npx pixelslop uninstall        # remove pixelslop from every installed runtime
+npx pixelslop status           # show scope, install root, and all installed runtimes
 ```
+
+`update`, `status`, and `uninstall` work across the full installed set. If you installed both Claude and Codex, those commands report and clean up both.
 
 ## Your first scan
 

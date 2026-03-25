@@ -25,6 +25,7 @@ import { join, dirname, resolve, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
+import { createInterface } from 'readline/promises';
 
 // ─────────────────────────────────────────────
 // Constants
@@ -61,9 +62,10 @@ const AGENT_FILES = [
 /**
  * Valid install scopes.
  * - global: install into user-level runtime config (~/.claude, ~/.codex)
- * - project: install into project-level runtime config (./.claude, ./.mcp.json)
+ * - project: install into project-level runtime config (./.claude, ./.codex, ./.mcp.json)
  */
 const SCOPES = ['global', 'project'];
+const RUNTIMES = ['Claude Code', 'Codex CLI'];
 
 // ─────────────────────────────────────────────
 // Logging helpers
@@ -311,79 +313,312 @@ export function getClients(scope, forceCopy = false) {
   const claudeBase = scope === 'project'
     ? join(projectRoot, '.claude')
     : join(HOME, '.claude');
+  const claudeSkillDir = join(claudeBase, 'skills', 'pixelslop');
 
   const claudeMcpConfig = scope === 'project'
     ? join(projectRoot, '.mcp.json')
     : join(HOME, '.claude', 'settings.json');
 
   clients.push({
+    id: 'claude',
     name: 'Claude Code',
     scope,
-    /** For global: check ~/.claude exists. For project: always available. */
-    detect: () => scope === 'project' || existsSync(join(HOME, '.claude')),
+    baseDir: claudeBase,
+    detectPath: join(HOME, '.claude'),
+    detect: () => existsSync(join(HOME, '.claude')),
     agentDir: join(claudeBase, 'agents'),
+    skillDir: claudeSkillDir,
     /**
      * Install skill directory via linkOrCopy.
+     * @param {boolean} [forceCopyOverride]
      * @returns {{ path: string, method: 'symlink'|'copy' }}
      */
-    installSkill: () => {
-      const skillDest = join(claudeBase, 'skills', 'pixelslop');
+    installSkill: (forceCopyOverride = forceCopy) => {
       const skillSrc = join(INSTALL_ROOT, 'skill');
       mkdirSync(join(claudeBase, 'skills'), { recursive: true });
-      const method = linkOrCopy(skillSrc, skillDest, forceCopy);
-      return { path: skillDest, method };
+      const method = linkOrCopy(skillSrc, claudeSkillDir, forceCopyOverride);
+      return { path: claudeSkillDir, method };
     },
     removeSkill: () => {
-      const skillPath = join(claudeBase, 'skills', 'pixelslop');
-      if (existsSync(skillPath)) {
-        rmSync(skillPath, { recursive: true, force: true });
+      if (existsSync(claudeSkillDir)) {
+        rmSync(claudeSkillDir, { recursive: true, force: true });
       }
     },
     /** Check skill exists and SKILL.md is reachable (works for both symlinks and copies) */
-    checkSkill: () => {
-      const skillPath = join(claudeBase, 'skills', 'pixelslop');
-      return existsSync(skillPath) && existsSync(join(skillPath, 'SKILL.md'));
-    },
+    checkSkill: () => existsSync(claudeSkillDir) && existsSync(join(claudeSkillDir, 'SKILL.md')),
     mcpConfig: claudeMcpConfig,
     mcpFormat: 'json',
   });
 
   // ── Codex CLI ────────────────────────────────
-  // Global only — project-local is deferred to Phase 6
-  if (scope === 'global') {
-    clients.push({
-      name: 'Codex CLI',
-      scope: 'global',
-      /** Check if Codex config directory exists */
-      detect: () => existsSync(join(HOME, '.codex')),
-      agentDir: join(HOME, '.codex', 'agents'),
-      /**
-       * Install skill directory via linkOrCopy.
-       * @returns {{ path: string, method: 'symlink'|'copy' }}
-       */
-      installSkill: () => {
-        const skillDest = join(HOME, '.codex', 'skills', 'pixelslop');
-        const skillSrc = join(INSTALL_ROOT, 'skill');
-        mkdirSync(join(HOME, '.codex', 'skills'), { recursive: true });
-        const method = linkOrCopy(skillSrc, skillDest, forceCopy);
-        return { path: skillDest, method };
-      },
-      removeSkill: () => {
-        const skillDir = join(HOME, '.codex', 'skills', 'pixelslop');
-        if (existsSync(skillDir)) {
-          rmSync(skillDir, { recursive: true, force: true });
-        }
-      },
-      checkSkill: () => {
-        const skillDir = join(HOME, '.codex', 'skills', 'pixelslop');
-        return existsSync(skillDir) && existsSync(join(skillDir, 'SKILL.md'));
-      },
-      mcpConfig: join(HOME, '.codex', 'config.toml'),
-      mcpFormat: 'toml',
-    });
-  }
+  const codexBase = scope === 'project'
+    ? join(projectRoot, '.codex')
+    : join(HOME, '.codex');
+  const codexSkillDir = join(codexBase, 'skills', 'pixelslop');
+  clients.push({
+    id: 'codex',
+    name: 'Codex CLI',
+    scope,
+    baseDir: codexBase,
+    detectPath: join(HOME, '.codex'),
+    detect: () => existsSync(join(HOME, '.codex')),
+    agentDir: join(codexBase, 'agents'),
+    skillDir: codexSkillDir,
+    /**
+     * Install skill directory via linkOrCopy.
+     * @param {boolean} [forceCopyOverride]
+     * @returns {{ path: string, method: 'symlink'|'copy' }}
+     */
+    installSkill: (forceCopyOverride = forceCopy) => {
+      const skillSrc = join(INSTALL_ROOT, 'skill');
+      mkdirSync(join(codexBase, 'skills'), { recursive: true });
+      const method = linkOrCopy(skillSrc, codexSkillDir, forceCopyOverride);
+      return { path: codexSkillDir, method };
+    },
+    removeSkill: () => {
+      if (existsSync(codexSkillDir)) {
+        rmSync(codexSkillDir, { recursive: true, force: true });
+      }
+    },
+    checkSkill: () => existsSync(codexSkillDir) && existsSync(join(codexSkillDir, 'SKILL.md')),
+    mcpConfig: join(codexBase, 'config.toml'),
+    mcpFormat: 'toml',
+  });
 
   return clients;
+}
+
+/**
+ * Return all runtimes detected on this machine.
+ * Detection is machine-level and always checks the user home directory.
+ *
+ * @returns {Array<object>} Detected client definitions
+ */
+function getDetectedClients() {
+  return getClients('global').filter(client => client.detect());
+}
+
+/**
+ * Resolve client definitions by name and preserve registry order.
+ *
+ * @param {Array<object>} clients - Available client definitions
+ * @param {string[]} clientNames - Selected runtime names
+ * @returns {Array<object>} Selected client definitions
+ */
+function resolveClients(clients, clientNames = []) {
+  const selected = [];
+  for (const client of clients) {
+    if (clientNames.includes(client.name)) {
+      selected.push(client);
+    }
+  }
+  return selected;
+}
+
+/**
+ * Parse a runtime selection flag.
+ *
+ * @param {string[]} args - Raw CLI args
+ * @returns {'all'|'claude-only'|'codex-only'|null}
+ */
+function parseRuntimeFlag(args) {
+  const flags = [
+    ['--all', 'all'],
+    ['--claude-only', 'claude-only'],
+    ['--codex-only', 'codex-only'],
+  ].filter(([flag]) => args.includes(flag));
+
+  if (flags.length > 1) {
+    throw new Error('Choose only one runtime flag: --all, --claude-only, or --codex-only.');
+  }
+
+  return flags[0]?.[1] || null;
+}
+
+/**
+ * Parse a scope flag.
+ *
+ * @param {string[]} args - Raw CLI args
+ * @returns {'global'|'project'|null}
+ */
+function parseScopeFlag(args) {
+  const hasGlobal = args.includes('--global');
+  const hasProject = args.includes('--project');
+
+  if (hasGlobal && hasProject) {
+    throw new Error('Choose only one scope flag: --global or --project.');
+  }
+
+  if (hasProject) return 'project';
+  if (hasGlobal) return 'global';
+  return null;
+}
+
+/**
+ * Print the runtime detection summary.
+ *
+ * @param {Array<object>} allClients - Full runtime registry
+ * @param {Array<object>} detectedClients - Detected runtime subset
+ */
+function reportDetectedClients(allClients, detectedClients) {
+  header('Detected runtimes');
+  for (const client of detectedClients) {
+    log('✓', `${client.name} (${client.detectPath})`);
+  }
+  for (const client of allClients.filter(item => !detectedClients.some(found => found.name === item.name))) {
+    log('·', `${client.name} (not found at ${client.detectPath})`);
+  }
+}
+
+/**
+ * Turn a runtime flag into a concrete runtime list.
+ *
+ * @param {'all'|'claude-only'|'codex-only'|null} runtimeFlag - Parsed runtime flag
+ * @param {Array<object>} detectedClients - Detected runtime subset
+ * @returns {string[]|null} Selected runtime names
+ */
+function selectClientsFromFlag(runtimeFlag, detectedClients) {
+  if (!runtimeFlag) return null;
+
+  if (runtimeFlag === 'all') {
+    return detectedClients.map(client => client.name);
+  }
+
+  if (runtimeFlag === 'claude-only') {
+    return ['Claude Code'];
+  }
+
+  return ['Codex CLI'];
+}
+
+/**
+ * Validate that the requested runtimes are available on this machine.
+ *
+ * @param {string[]} selectedClients - Requested runtime names
+ * @param {Array<object>} detectedClients - Detected runtime subset
+ */
+function validateSelectedClients(selectedClients, detectedClients) {
+  const detectedNames = detectedClients.map(client => client.name);
+  const unavailable = selectedClients.filter(name => !detectedNames.includes(name));
+
+  if (unavailable.length === 0) return;
+
+  const found = detectedNames.length > 0 ? detectedNames.join(', ') : 'none';
+  throw new Error(`Requested runtime not found: ${unavailable.join(', ')}. Detected: ${found}.`);
+}
+
+/**
+ * Prompt for a numbered choice.
+ *
+ * @param {import('readline/promises').Interface} rl - Readline interface
+ * @param {string} prompt - Prompt label
+ * @param {Array<{label: string, value: any, detail?: string}>} choices - Menu choices
+ * @returns {Promise<any>} Selected value
+ */
+async function promptChoice(rl, prompt, choices) {
+  while (true) {
+    for (const [index, choice] of choices.entries()) {
+      log(`${index + 1}.`, choice.label);
+      if (choice.detail) {
+        log(' ', choice.detail);
+      }
+    }
+
+    const answer = (await rl.question(`\n  ${prompt} `)).trim();
+    const picked = Number(answer);
+
+    if (Number.isInteger(picked) && picked >= 1 && picked <= choices.length) {
+      return choices[picked - 1].value;
+    }
+
+    if (!process.stdin.isTTY && answer === '') {
+      throw new Error('Installer needs prompt answers. Re-run with flags like --global and --all.');
+    }
+
+    log('⚠', 'Pick one of the numbered options.');
+    console.log('');
+  }
+}
+
+/**
+ * Collect install selections from flags and, when needed, interactive prompts.
+ *
+ * @param {object} options - Initial selections from CLI flags
+ * @param {'global'|'project'|null} options.scope - Preselected scope
+ * @param {'all'|'claude-only'|'codex-only'|null} options.runtimeFlag - Preselected runtime flag
+ * @returns {Promise<{ scope: 'global'|'project', selectedClients: string[] }>}
+ */
+async function collectInstallSelections({ scope, runtimeFlag }) {
+  const allClients = getClients('global');
+  const detectedClients = getDetectedClients();
+
+  if (detectedClients.length === 0) {
+    throw new Error('No supported runtimes found (checked: ~/.claude, ~/.codex). Install Claude Code or Codex CLI first.');
+  }
+
+  reportDetectedClients(allClients, detectedClients);
+
+  let selectedClients = selectClientsFromFlag(runtimeFlag, detectedClients);
+  if (selectedClients) {
+    validateSelectedClients(selectedClients, detectedClients);
+  }
+
+  let rl;
+  try {
+    if (!selectedClients || !scope) {
+      header('Install wizard');
+      rl = createInterface({ input: process.stdin, output: process.stdout });
+    }
+
+    if (!selectedClients) {
+      if (detectedClients.length === 1) {
+        selectedClients = [detectedClients[0].name];
+        log('ℹ', `Using ${selectedClients[0]} — only supported runtime found.`);
+      } else {
+        selectedClients = await promptChoice(
+          rl,
+          'Choose runtime(s):',
+          [
+            {
+              label: 'Both Claude Code and Codex CLI',
+              value: ['Claude Code', 'Codex CLI'],
+            },
+            {
+              label: 'Claude Code only',
+              value: ['Claude Code'],
+            },
+            {
+              label: 'Codex CLI only',
+              value: ['Codex CLI'],
+            },
+          ]
+        );
+      }
+    }
+
+    if (!scope) {
+      scope = await promptChoice(
+        rl,
+        'Choose scope:',
+        [
+          {
+            label: 'Global',
+            value: 'global',
+            detail: 'Install into ~/.claude and ~/.codex. Available in every project.',
+          },
+          {
+            label: 'Project-local',
+            value: 'project',
+            detail: 'Install into .claude/, .codex/, .mcp.json for this project only.',
+          },
+        ]
+      );
+    }
+  } finally {
+    rl?.close();
+  }
+
+  return { scope, selectedClients };
 }
 
 // ─────────────────────────────────────────────
@@ -520,7 +755,7 @@ export function calculateFileDiff(backupDir, installDir) {
 // ─────────────────────────────────────────────
 
 /**
- * Install pixelslop into detected runtimes.
+ * Install pixelslop into selected runtimes.
  * Copies tools, skill files, and agent specs. Configures MCP.
  * Tracks install method (symlink vs copy) per client in the manifest.
  * Runs doctor automatically after install.
@@ -530,6 +765,8 @@ export function calculateFileDiff(backupDir, installDir) {
  * @param {boolean} [options.isUpdate] - Called from update command (skip banner)
  * @param {'global'|'project'} [options.scope='global'] - Install scope
  * @param {boolean} [options.copy] - Force copy mode (no symlinks)
+ * @param {string[]} [options.selectedClients] - Runtime names to configure
+ * @param {object} [options.installMethods] - Previous per-client install methods
  * @returns {string|null} Backup directory path if backup was created, null otherwise
  */
 function install(options = {}) {
@@ -550,21 +787,20 @@ function install(options = {}) {
 
   // Build client registry for this scope
   const allClients = getClients(scope, forceCopy);
+  const selectedClientNames = options.selectedClients?.length
+    ? options.selectedClients
+    : allClients.filter(client => client.detect()).map(client => client.name);
+  const selectedClients = resolveClients(allClients, selectedClientNames);
 
-  // Detect runtimes
-  const detected = allClients.filter(c => c.detect());
-  if (detected.length === 0) {
-    log('✗', 'No supported runtimes found (checked: Claude Code, Codex CLI)');
-    log(' ', 'Install Claude Code or Codex CLI first, then re-run.');
-    process.exit(1);
+  if (selectedClients.length === 0) {
+    throw new Error('No runtimes selected for install.');
   }
 
-  header('Detected runtimes');
-  for (const client of detected) {
-    log('✓', client.name);
-  }
-  for (const client of allClients.filter(c => !c.detect())) {
-    log('·', `${client.name} (not found)`);
+  if (!options.isUpdate) {
+    header('Installing for');
+    for (const client of selectedClients) {
+      log('→', client.name);
+    }
   }
 
   // Backup existing install if present
@@ -609,7 +845,7 @@ function install(options = {}) {
   const installedClients = [];
   const installMethods = {};
 
-  for (const client of detected) {
+  for (const client of selectedClients) {
     header(`Configuring ${client.name}`);
 
     // Copy agent files with path rewriting
@@ -623,7 +859,10 @@ function install(options = {}) {
     log('✓', `${AGENT_FILES.length} agent specs → ${client.agentDir}`);
 
     // Install skill via linkOrCopy — method is tracked
-    const { path: skillPath, method: skillMethod } = client.installSkill();
+    const preferredMethod = options.installMethods?.[client.name]?.skill;
+    const { path: skillPath, method: skillMethod } = client.installSkill(
+      preferredMethod === 'copy' || forceCopy
+    );
     log('✓', `Skill → ${skillPath} (${skillMethod})`);
 
     // Track install method for this client
@@ -651,7 +890,7 @@ function install(options = {}) {
   if (!options.isUpdate) {
     header('Done');
     log('→', 'Use /pixelslop <url> in Claude Code to scan a page');
-    if (detected.some(c => c.name === 'Codex CLI')) {
+    if (selectedClients.some(client => client.name === 'Codex CLI')) {
       log('→', 'Use $pixelslop <url> in Codex CLI');
     }
     console.log('');
@@ -722,6 +961,8 @@ function update(options = {}) {
     force: options.force,
     scope,
     copy: options.copy,
+    selectedClients: manifest.clients || [],
+    installMethods: manifest.installMethods || {},
   });
 
   // Step 4: Calculate and display file diff
@@ -784,6 +1025,12 @@ function uninstall() {
 
   // Read manifest to know what scope was used
   const manifest = readManifest();
+  if (!manifest) {
+    log('·', 'Pixelslop is not installed');
+    console.log('');
+    return;
+  }
+
   const scope = manifest?.scope || 'global';
 
   // If this is a project install, use the stored project root so uninstall
@@ -798,33 +1045,28 @@ function uninstall() {
     process.chdir(manifest.projectRoot);
   }
 
-  // Build client list for the installed scope (plus global for cleanup)
-  // We try both scopes to clean up everything
-  const scopesToClean = scope === 'project' ? ['project', 'global'] : ['global'];
-
-  for (const s of scopesToClean) {
-    const clients = getClients(s);
-    for (const client of clients) {
-      // Remove agent files
-      for (const agentFile of AGENT_FILES) {
-        const agentPath = join(client.agentDir, agentFile);
-        if (existsSync(agentPath)) {
-          rmSync(agentPath);
-        }
+  // Build the exact client list captured in the manifest.
+  const clients = resolveClients(getClients(scope), manifest.clients || RUNTIMES);
+  for (const client of clients) {
+    // Remove agent files
+    for (const agentFile of AGENT_FILES) {
+      const agentPath = join(client.agentDir, agentFile);
+      if (existsSync(agentPath)) {
+        rmSync(agentPath);
       }
-
-      // Remove skill
-      client.removeSkill();
-
-      // Remove MCP entry
-      if (client.mcpFormat === 'json') {
-        removeJsonMcp(client.mcpConfig);
-      } else {
-        removeTomlMcp(client.mcpConfig);
-      }
-
-      log('✓', `Removed from ${client.name} (${s})`);
     }
+
+    // Remove skill
+    client.removeSkill();
+
+    // Remove MCP entry
+    if (client.mcpFormat === 'json') {
+      removeJsonMcp(client.mcpConfig);
+    } else {
+      removeTomlMcp(client.mcpConfig);
+    }
+
+    log('✓', `Removed from ${client.name} (${scope})`);
   }
 
   // Restore original working directory if we changed it
@@ -921,12 +1163,12 @@ function doctor() {
 
   // Per-client checks — use manifest scope to get the right client paths
   const scope = manifest?.scope || 'global';
-  const clients = getClients(scope);
+  const clients = manifest?.clients?.length
+    ? resolveClients(getClients(scope), manifest.clients)
+    : getClients(scope).filter(client => client.detect());
   const methods = manifest?.installMethods || {};
 
   for (const client of clients) {
-    if (!client.detect()) continue;
-
     // Agent files
     let agentCount = 0;
     for (const agentFile of AGENT_FILES) {
@@ -962,10 +1204,9 @@ function doctor() {
 
     // If skill was installed as a symlink, verify the link target still resolves
     if (clientMethod === 'symlink') {
-      const skillPath = join(client.agentDir, '..', 'skills', 'pixelslop');
       try {
-        const stat = lstatSync(skillPath);
-        if (stat.isSymbolicLink() && !existsSync(skillPath)) {
+        const stat = lstatSync(client.skillDir);
+        if (stat.isSymbolicLink() && !existsSync(client.skillDir)) {
           check(
             `${client.name}: symlink target`,
             false,
@@ -1033,14 +1274,18 @@ function status() {
   log('ℹ', `Scope: ${manifest.scope || 'global'}`);
   log('ℹ', `Install root: ${manifest.installRoot}`);
   log('ℹ', `Installed: ${manifest.installedAt}`);
-  log('ℹ', `Clients: ${manifest.clients.join(', ')}`);
+  log('ℹ', `Clients: ${(manifest.clients || []).join(', ')}`);
   log('ℹ', `Playwright MCP: @playwright/mcp@${manifest.playwrightMcpVersion}`);
 
-  // Show install methods per client
-  if (manifest.installMethods) {
-    header('Install methods');
-    for (const [clientName, methods] of Object.entries(manifest.installMethods)) {
-      log('ℹ', `${clientName}: skill → ${methods.skill}`);
+  const clients = resolveClients(getClients(manifest.scope || 'global'), manifest.clients || []);
+  if (clients.length > 0) {
+    header('Installed runtimes');
+    for (const client of clients) {
+      const skillMethod = manifest.installMethods?.[client.name]?.skill || 'unknown';
+      log('✓', client.name);
+      log(' ', `Agents: ${client.agentDir}`);
+      log(' ', `Skill: ${client.skillDir} (${skillMethod})`);
+      log(' ', `MCP:   ${client.mcpConfig}`);
     }
   }
   console.log('');
@@ -1055,31 +1300,34 @@ function status() {
  * Supports: install, update, uninstall, doctor, status, --help, --version
  *
  * Scope flags:
- *   --project  Install into project-level runtime config (.claude/, .mcp.json)
+ *   --project  Install into project-level runtime config (.claude/, .codex/, .mcp.json)
  *   --global   Install into user-level runtime config (~/.claude/) — default
  *
  * Method flags:
  *   --copy     Force copy mode — skip symlink attempts (portable/team installs)
  *   --force    Force install/update even if same version
  */
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
   const hasForce = args.includes('--force');
   const hasCopy = args.includes('--copy');
-
-  // Determine scope: --project wins, --global is explicit default
-  let scope = 'global';
-  if (args.includes('--project')) {
-    scope = 'project';
-  }
+  const scope = parseScopeFlag(args);
+  const runtimeFlag = parseRuntimeFlag(args);
 
   switch (command) {
-    case 'install':
-      install({ force: hasForce, scope, copy: hasCopy });
+    case 'install': {
+      const installSelection = await collectInstallSelections({ scope, runtimeFlag });
+      install({
+        force: hasForce,
+        scope: installSelection.scope,
+        copy: hasCopy,
+        selectedClients: installSelection.selectedClients,
+      });
       break;
+    }
     case 'update':
-      update({ force: hasForce, scope: args.includes('--project') ? 'project' : undefined, copy: hasCopy });
+      update({ force: hasForce, scope, copy: hasCopy });
       break;
     case 'uninstall':
       uninstall();
@@ -1108,8 +1356,13 @@ function main() {
     status      Show what's installed
 
   Scope:
-    --project   Install into this project only (.claude/, .mcp.json)
+    --project   Install into this project only (.claude/, .codex/, .mcp.json)
     --global    Install for current user (default)
+
+  Runtimes:
+    --all           Install for every detected runtime
+    --claude-only   Install for Claude Code only
+    --codex-only    Install for Codex CLI only
 
   Options:
     --copy      Force copy mode (no symlinks — portable for teams/CI)
@@ -1118,9 +1371,11 @@ function main() {
     --help      Show this help
 
   Usage:
-    npx pixelslop install                # global, symlinks where possible
-    npx pixelslop install --project      # project-local, runtime-native paths
-    npx pixelslop install --copy         # global, always copy (no symlinks)
+    npx pixelslop install                      # interactive wizard
+    npx pixelslop install --global --all      # global, every detected runtime
+    npx pixelslop install --project --codex-only
+                                               # project-local Codex install
+    npx pixelslop install --copy              # keep wizard, force copies
     npx pixelslop@latest update          # upgrade existing install
     npx pixelslop doctor                 # verify health
     npx pixelslop uninstall              # remove everything
@@ -1133,4 +1388,7 @@ function main() {
   }
 }
 
-main();
+main().catch(error => {
+  console.error(`  ${error.message}`);
+  process.exit(1);
+});
