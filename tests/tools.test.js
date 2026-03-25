@@ -750,14 +750,16 @@ describe('serve start/stop', () => {
     const dir = mkdtempSync(join(tmpdir(), 'pixelslop-serve-'));
     writeFileSync(join(dir, 'index.html'), '<html><body>test</body></html>');
 
-    // Start — need a brief wait for the detached process to bind
+    // Start — the ready-file poll confirms the port is bound, but on slow
+    // CI runners the TCP socket may not accept connections immediately.
     const startResult = runJson(`serve start --root "${dir}"`, dir);
     assert.ok(startResult.url, 'should return a URL');
     assert.ok(startResult.port > 0, 'should return a valid port');
     assert.ok(startResult.pid > 0, 'should return a PID');
     assert.ok(startResult.pid_file.includes(join(dir, '.pixelslop')), 'should store state under the project');
 
-    // Verify the server actually serves content
+    // Wait for the server to actually accept connections before fetching
+    await waitForHttpServer(startResult.port);
     const response = await fetch(startResult.url);
     assert.equal(response.status, 200, 'should serve 200');
     const body = await response.text();
@@ -785,7 +787,9 @@ describe('serve start/stop', () => {
     writeFileSync(join(dirB, 'index.html'), '<html><body>beta</body></html>');
 
     const startA = runJson(`serve start --root "${dirA}"`, dirA);
+    await waitForHttpServer(startA.port);
     const startB = runJson(`serve start --root "${dirB}"`, dirB);
+    await waitForHttpServer(startB.port);
 
     const beforeStop = await (await fetch(startB.url)).text();
     assert.ok(beforeStop.includes('beta'));
