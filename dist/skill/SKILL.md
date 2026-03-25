@@ -109,6 +109,16 @@ Run init to validate the environment:
 node bin/pixelslop-tools.cjs init scan --url "$URL" --root "$ROOT" --raw
 ```
 
+Check for cached technical context from a previous run:
+
+```bash
+node bin/pixelslop-tools.cjs config load-context --root "$ROOT" --raw
+```
+
+If `exists: true` and `stale: false`, pass the cached context to the orchestrator — this skips the setup agent and saves 30-60 seconds. If `stale: true` (older than 7 days), let the orchestrator re-run setup to refresh. If `exists: false`, the cache is missing, malformed, or has a version mismatch — the orchestrator will run setup normally.
+
+The cached context covers technical detection only (framework, CSS approach, fonts, tokens) — it doesn't replace `.pixelslop.md` design intent.
+
 If the init result shows `pixelslop_config` is null (no `.pixelslop.md`), optionally ask the user quick setup questions via `AskUserQuestion`:
 
 - Target audience
@@ -209,6 +219,9 @@ Knowledge files loaded by agents at runtime:
 - `resources/distill.md` — fix guide: AI slop removal
 - `resources/harden.md` — fix guide: accessibility
 - `resources/clarify.md` — fix guide: copy & labels
+- `resources/interaction-design.md` — fix guide: interactive states, dropdowns, forms, modals
+- `resources/cognitive-load.md` — cognitive load checklist (supplements hierarchy evaluation)
+- `resources/heuristics.md` — Nielsen's 10 heuristics adapted for browser measurement
 - `resources/personas/schema.md` — persona format documentation
 - `resources/personas/*.json` — 8 built-in persona evaluation profiles
 
@@ -228,6 +241,10 @@ node bin/pixelslop-tools.cjs serve stop --root $ROOT --raw
 
 # Session init
 node bin/pixelslop-tools.cjs init scan --url $URL --root $ROOT --raw
+
+# Context caching (skip setup on repeat runs)
+node bin/pixelslop-tools.cjs config save-context --root $ROOT --framework "..." --raw
+node bin/pixelslop-tools.cjs config load-context --root $ROOT --raw
 
 # Fix plan management (orchestrator)
 node bin/pixelslop-tools.cjs plan begin --url $URL --root $ROOT --issues '...' --force --raw

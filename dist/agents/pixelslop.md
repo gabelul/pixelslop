@@ -105,7 +105,17 @@ Tell the user which mode was selected and why. If mode is `visual-report-only`, 
 
 ### Step 4: Setup (if no .pixelslop.md)
 
-If `pixelslop_config` from the init result is `null` AND the parent didn't pass design context in the invocation, spawn the setup subagent to auto-detect what it can:
+First, check for cached technical context from a previous run:
+
+```bash
+node bin/pixelslop-tools.cjs config load-context --root "$ROOT" --raw
+```
+
+If `exists: true` and `stale: false`, use the cached technical context (framework, CSS approach, fonts, tokens) and skip spawning setup. If `exists: true` but `stale: true`, the cache is older than 7 days — re-run setup to refresh it. If `exists: false`, the cache is missing, malformed, or has a version mismatch — run setup normally.
+
+The user still needs `.pixelslop.md` for design intent (audience, brand, off-limits) — cached context only covers technical detection.
+
+If the cache is missing/stale AND `pixelslop_config` from the init result is `null` AND the parent didn't pass design context in the invocation, spawn the setup subagent to auto-detect what it can:
 
 ```
 Spawn agent: pixelslop-setup

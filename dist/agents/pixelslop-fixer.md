@@ -42,6 +42,7 @@ Then read the fix guide for the relevant pillar:
 | Accessibility (ARIA/focus/landmarks) | `dist/skill/resources/harden.md` |
 | AI Slop patterns | `dist/skill/resources/distill.md` |
 | Copy/labels/alt text | `dist/skill/resources/clarify.md` |
+| Interaction states/dropdowns/forms/modals | `dist/skill/resources/interaction-design.md` |
 
 If the finding spans multiple pillars, read the primary guide plus any relevant secondary guides. But you still fix ONE issue — don't scope-creep because you loaded extra context.
 

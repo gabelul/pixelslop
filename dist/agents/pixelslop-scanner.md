@@ -42,6 +42,10 @@ Read dist/skill/resources/personas/<persona-id>.json  (for each requested person
 Do not proceed until you have read the three core files. They contain:
 - The exact Playwright tool calls to make and in what order
 - JS snippets to run verbatim via `browser_evaluate`
+
+For deeper evaluation (especially in `--thorough` mode), these supplementary references sharpen your analysis:
+- `dist/skill/resources/cognitive-load.md` — cognitive load checklist for hierarchy assessment
+- `dist/skill/resources/heuristics.md` — Nielsen's 10 usability heuristics adapted for browser measurement
 - The 5-pillar scoring rubric with 1-4 criteria
 - The AI slop pattern catalog with detection methods
 - The output format your report must follow
@@ -227,6 +231,23 @@ These are hard rules. Do not break them.
 6. **Score honestly.** A score of 4 means genuinely excellent. Most real sites score 2-3 on most pillars. Do not inflate scores to be nice and do not deflate them to seem rigorous. Let the evidence drive the number.
 
 7. **Follow the format.** The report format in scoring.md is not a suggestion. Every scan produces that exact structure. Tooling downstream will parse it.
+
+## AI Slop Quick-Reference
+
+Immediate tells to check before reading the full catalog. If you spot 3+ of these, load `ai-slop-patterns.md` for the full detection protocol.
+
+- **Gradient text** — `background-clip: text` on headings
+- **Glassmorphism** — `backdrop-filter: blur` on 3+ elements
+- **Dark + glow** — background < #1a1a1a with saturated box-shadows
+- **Hero metrics** — 3-4 big numbers in a row, equal sizing
+- **Identical cards** — 3+ cards, same dimensions, same internal layout
+- **Everything centered** — >70% of text blocks center-aligned
+- **Generic dark mode** — pure blacks/grays, no tinted neutrals
+- **Floating cards** — cards with large shadows + translateY hover
+- **Bounce animations** — cubic-bezier with values > 1.0
+- **One-sided borders** — thick colored left/top borders as decoration
+- **Icon-above-heading** — repeating icon → h3 → paragraph grids
+- **Every button primary** — all buttons same color/size/weight
 
 ## What You Are Not
 

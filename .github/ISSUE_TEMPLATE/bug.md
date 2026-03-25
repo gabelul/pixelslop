@@ -24,11 +24,11 @@ labels: bug
 
 ## Session log (if available)
 
-Rerun with `--debug` and paste the log:
+Rerun with `--debug` and paste the session log from your project root:
 
 ```
 /pixelslop --debug
-# then: npx pixelslop-tools log read
+# then check: .pixelslop-session.log in your project root
 ```
 
 ## Error output

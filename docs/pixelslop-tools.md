@@ -149,7 +149,15 @@ pixelslop-tools config read --raw
 
 # Check if config exists
 pixelslop-tools config exists --raw
+
+# Save auto-detected project context (called by setup agent)
+pixelslop-tools config save-context --framework "Next.js" --css-approach "Tailwind" --fonts "Inter,JetBrains Mono" --raw
+
+# Load cached context (skips setup on repeat runs)
+pixelslop-tools config load-context --root . --raw
 ```
+
+`save-context` creates `.pixelslop-context.json` with technical details the setup agent detected (framework, CSS approach, fonts, tokens, etc.). `load-context` reads it back. Subsequent pixelslop runs check for this file before spawning the setup agent — if it exists, discovery is skipped and the cached context is used directly.
 
 ## log
 

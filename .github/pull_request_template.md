@@ -8,7 +8,7 @@
 
 ## Checklist
 
-- [ ] `npm test` passes (470+ tests)
+- [ ] `npm test` passes (500+ tests)
 - [ ] Conventional commit format in PR title (`feat:`, `fix:`, `chore:`, `docs:`)
 - [ ] No hardcoded secrets or API keys
 - [ ] If touching `dist/` — agent specs, resource files, or SKILL.md updated

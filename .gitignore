@@ -19,6 +19,7 @@ build/
 .pixelslop/
 .pixelslop-session.log
 .pixelslop-plan.md
+.pixelslop-context.json
 
 # Local installs (created by `npx pixelslop install --project`)
 .claude/

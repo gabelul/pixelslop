@@ -57,7 +57,7 @@ I built [stitch-kit](https://github.com/gabelul/stitch-kit) to teach AI agents h
 ## Tests
 
 ```bash
-npm test                 # 470+ tests, zero dependencies
+npm test                 # 500+ tests, zero dependencies
 npm run test:tools       # pixelslop-tools CLI
 npm run test:installer   # installer unit tests
 npm run test:orchestrator # agent spec validation

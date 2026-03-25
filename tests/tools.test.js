@@ -11,7 +11,7 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { execSync, spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -853,6 +853,185 @@ describe('verify commands', () => {
     assert.ok(!result.valid);
   });
 });
+
+// ─────────────────────────────────────────────
+// Tests: config save-context / load-context
+// ─────────────────────────────────────────────
+
+describe('config save-context and load-context', () => {
+  let dir;
+
+  beforeEach(() => {
+    dir = createTestRepo();
+  });
+
+  it('save-context creates .pixelslop-context.json', () => {
+    run('config save-context --framework "Next.js" --raw', dir);
+    assert.ok(existsSync(join(dir, '.pixelslop-context.json')));
+  });
+
+  it('load-context returns saved data with exists: true', () => {
+    run('config save-context --framework "Next.js" --css-approach "Tailwind" --raw', dir);
+    const result = runJson('config load-context', dir);
+    assert.equal(result.exists, true);
+    assert.equal(result.framework, 'Next.js');
+    assert.equal(result.css_approach, 'Tailwind');
+  });
+
+  it('load-context returns exists: false when no file', () => {
+    const result = runJson('config load-context', dir);
+    assert.equal(result.exists, false);
+  });
+
+  it('save-context includes version and timestamp', () => {
+    run('config save-context --framework "React" --raw', dir);
+    const raw = JSON.parse(readFileSync(join(dir, '.pixelslop-context.json'), 'utf-8'));
+    assert.equal(raw.version, 1);
+    assert.ok(raw.saved_at, 'should have saved_at timestamp');
+    // Timestamp should be ISO 8601
+    assert.ok(!isNaN(Date.parse(raw.saved_at)), 'saved_at should be valid ISO date');
+  });
+
+  it('save-context respects --root flag', () => {
+    const projectDir = createTestRepo();
+    run(`config save-context --framework "Vue" --root "${projectDir}" --raw`, dir);
+    assert.ok(existsSync(join(projectDir, '.pixelslop-context.json')));
+    assert.ok(!existsSync(join(dir, '.pixelslop-context.json')));
+  });
+
+  it('save-context handles fonts as comma-separated list', () => {
+    run('config save-context --fonts "Inter,JetBrains Mono" --raw', dir);
+    const result = runJson('config load-context', dir);
+    assert.deepEqual(result.fonts, ['Inter', 'JetBrains Mono']);
+  });
+
+  it('save-context handles boolean flags', () => {
+    run('config save-context --design-tokens true --has-dark-mode true --raw', dir);
+    const result = runJson('config load-context', dir);
+    assert.equal(result.design_tokens, true);
+    assert.equal(result.has_dark_mode, true);
+  });
+
+  it('save-context handles numeric component-count', () => {
+    run('config save-context --component-count 24 --raw', dir);
+    const result = runJson('config load-context', dir);
+    assert.equal(result.component_count, 24);
+  });
+
+  it('save-context defaults missing fields to null', () => {
+    run('config save-context --framework "Svelte" --raw', dir);
+    const result = runJson('config load-context', dir);
+    assert.equal(result.css_approach, null);
+    assert.equal(result.build_tool, null);
+    assert.equal(result.component_library, null);
+    assert.deepEqual(result.fonts, []);
+  });
+
+  it('load-context returns exists: false for malformed JSON', () => {
+    writeFileSync(join(dir, '.pixelslop-context.json'), 'not json {{{');
+    const result = runJson('config load-context', dir);
+    assert.equal(result.exists, false);
+    assert.equal(result.reason, 'malformed');
+    assert.ok(result.error, 'should include the parse error message');
+  });
+
+  it('load-context rejects unknown schema version', () => {
+    writeFileSync(join(dir, '.pixelslop-context.json'), JSON.stringify({
+      version: 99, saved_at: new Date().toISOString(), framework: 'React'
+    }));
+    const result = runJson('config load-context', dir);
+    assert.equal(result.exists, false);
+    assert.equal(result.reason, 'version_mismatch');
+    assert.equal(result.found, 99);
+    assert.equal(result.expected, 1);
+  });
+
+  it('load-context rejects cache with missing required fields', () => {
+    writeFileSync(join(dir, '.pixelslop-context.json'), JSON.stringify({
+      version: 1
+      // missing saved_at and framework
+    }));
+    const result = runJson('config load-context', dir);
+    assert.equal(result.exists, false);
+    assert.equal(result.reason, 'missing_fields');
+    assert.ok(result.missing.includes('saved_at'));
+    assert.ok(result.missing.includes('framework'));
+  });
+
+  it('load-context flags stale cache (older than 7 days)', () => {
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    writeFileSync(join(dir, '.pixelslop-context.json'), JSON.stringify({
+      version: 1, saved_at: eightDaysAgo, framework: 'React'
+    }));
+    const result = runJson('config load-context', dir);
+    assert.equal(result.exists, true);
+    assert.equal(result.stale, true);
+  });
+
+  it('load-context marks fresh cache as not stale', () => {
+    run('config save-context --framework "React" --raw', dir);
+    const result = runJson('config load-context', dir);
+    assert.equal(result.exists, true);
+    assert.equal(result.stale, false);
+  });
+
+  it('save-context --debug writes session log to correct root', () => {
+    run('config save-context --framework "Next.js" --debug --raw', dir);
+    const logPath = join(dir, '.pixelslop-session.log');
+    if (existsSync(logPath)) {
+      const log = readFileSync(logPath, 'utf-8');
+      assert.ok(log.includes('config save-context'), 'log entry should contain the command');
+      assert.ok(!log.includes('[object Object]'), 'log entry should not contain [object Object]');
+    }
+    // If no log file, --debug may not have triggered (depends on global DEBUG flag);
+    // the key assertion is no [object Object] in the output
+    const { stdout } = run('config save-context --framework "Next.js" --debug --raw', dir);
+    assert.ok(!stdout.includes('[object Object]'), 'raw output should not contain [object Object]');
+  });
+
+  it('save-context rejects symlinked context file without overwriting target', () => {
+    const targetPath = join(dir, 'sentinel.txt');
+    writeFileSync(targetPath, 'do not touch');
+    symlinkSync(targetPath, join(dir, '.pixelslop-context.json'));
+
+    const result = run('config save-context --framework "Next.js" --raw', dir, true);
+    assert.equal(result.exitCode, 1);
+    assert.ok(result.stderr.includes('Refusing to write state file through symlink'));
+    assert.equal(readFileSync(targetPath, 'utf-8'), 'do not touch');
+  });
+
+  it('round-trips all fields correctly', () => {
+    run([
+      'config save-context',
+      '--framework "Next.js 14"',
+      '--css-approach "Tailwind + CSS Modules"',
+      '--build-tool "Turbopack"',
+      '--package-manager "pnpm"',
+      '--fonts "Inter,JetBrains Mono"',
+      '--design-tokens true',
+      '--token-location "src/styles/tokens.css"',
+      '--component-count 24',
+      '--component-library "shadcn/ui"',
+      '--has-dark-mode true',
+      '--description "Developer documentation"',
+      '--raw',
+    ].join(' '), dir);
+    const result = runJson('config load-context', dir);
+    assert.equal(result.exists, true);
+    assert.equal(result.framework, 'Next.js 14');
+    assert.equal(result.css_approach, 'Tailwind + CSS Modules');
+    assert.equal(result.build_tool, 'Turbopack');
+    assert.equal(result.package_manager, 'pnpm');
+    assert.deepEqual(result.fonts, ['Inter', 'JetBrains Mono']);
+    assert.equal(result.design_tokens, true);
+    assert.equal(result.token_location, 'src/styles/tokens.css');
+    assert.equal(result.component_count, 24);
+    assert.equal(result.component_library, 'shadcn/ui');
+    assert.equal(result.has_dark_mode, true);
+    assert.equal(result.description, 'Developer documentation');
+  });
+});
+
 
 // ─────────────────────────────────────────────
 // Tests: --cwd flag

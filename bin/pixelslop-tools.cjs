@@ -898,6 +898,130 @@ function configExists(args = {}) {
   output(RAW ? { exists } : exists ? 'Config exists' : 'No config');
 }
 
+/**
+ * Save auto-detected project context to .pixelslop-context.json.
+ * The setup agent calls this after exploring the codebase so future
+ * runs can skip the discovery phase entirely.
+ *
+ * @param {object} args - Flags from CLI (--framework, --css-approach, etc.)
+ */
+function configSaveContext(args) {
+  const root = resolveProjectRoot(args.root);
+  const contextPath = path.join(root, '.pixelslop-context.json');
+
+  const context = {
+    version: 1,
+    saved_at: new Date().toISOString(),
+    framework: args.framework || null,
+    css_approach: args['css-approach'] || null,
+    build_tool: args['build-tool'] || null,
+    package_manager: args['package-manager'] || null,
+    fonts: args.fonts ? args.fonts.split(',').map(f => f.trim()) : [],
+    design_tokens: args['design-tokens'] === 'true',
+    token_location: args['token-location'] || null,
+    component_count: args['component-count'] ? parseInt(args['component-count'], 10) : null,
+    component_library: args['component-library'] || null,
+    has_dark_mode: args['has-dark-mode'] === 'true',
+    description: args.description || null,
+  };
+
+  writeStateFile(contextPath, JSON.stringify(context, null, 2) + '\n');
+  autoLog('setup', 'info', `config save-context → ${contextPath}`, args.root);
+  output(RAW ? { status: 'saved', path: contextPath } : `Context saved: ${contextPath}`);
+}
+
+/**
+ * Write a project-local state file without following symlink targets.
+ * Uses a temp file in the same directory, then atomically renames it
+ * into place so we never clobber a symlink target.
+ *
+ * @param {string} filePath - Final destination path
+ * @param {string} content - File content
+ */
+function writeStateFile(filePath, content) {
+  if (fs.existsSync(filePath)) {
+    const stat = fs.lstatSync(filePath);
+    if (stat.isSymbolicLink()) {
+      fail(`Refusing to write state file through symlink: ${filePath}`);
+    }
+  }
+
+  const dir = path.dirname(filePath);
+  const tempPath = path.join(dir, `.${path.basename(filePath)}.tmp-${process.pid}-${Date.now()}`);
+
+  try {
+    const fd = fs.openSync(tempPath, 'wx');
+    fs.writeFileSync(fd, content, 'utf-8');
+    fs.closeSync(fd);
+    fs.renameSync(tempPath, filePath);
+  } catch (e) {
+    if (fs.existsSync(tempPath)) {
+      fs.unlinkSync(tempPath);
+    }
+    fail(`Failed to write state file: ${e.message}`);
+  }
+}
+
+/**
+ * Load cached project context from .pixelslop-context.json.
+ * Returns the context object with exists: true, or exists: false
+ * if no cached context is found.
+ *
+ * @param {object} args - Flags from CLI (--root)
+ */
+/** Expected schema version for .pixelslop-context.json */
+const CONTEXT_SCHEMA_VERSION = 1;
+
+/** Context older than 7 days is considered stale */
+const CONTEXT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Fields that a valid context file must contain */
+const CONTEXT_REQUIRED_FIELDS = ['version', 'saved_at', 'framework'];
+
+function configLoadContext(args = {}) {
+  const root = resolveProjectRoot(args.root);
+  const contextPath = path.join(root, '.pixelslop-context.json');
+
+  if (!fs.existsSync(contextPath)) {
+    output(RAW ? { exists: false } : 'No cached context found');
+    return;
+  }
+
+  let context;
+  try {
+    context = JSON.parse(fs.readFileSync(contextPath, 'utf-8'));
+  } catch (e) {
+    // Malformed JSON — treat as missing, don't crash
+    output(RAW ? { exists: false, reason: 'malformed', error: e.message } : 'Cached context is malformed, ignoring');
+    return;
+  }
+
+  // Schema version guard — reject unknown versions
+  if (context.version !== CONTEXT_SCHEMA_VERSION) {
+    output(RAW
+      ? { exists: false, reason: 'version_mismatch', found: context.version, expected: CONTEXT_SCHEMA_VERSION }
+      : `Cached context has version ${context.version}, expected ${CONTEXT_SCHEMA_VERSION} — ignoring`
+    );
+    return;
+  }
+
+  // Structural check — reject if required fields are missing
+  const missing = CONTEXT_REQUIRED_FIELDS.filter(f => !(f in context));
+  if (missing.length > 0) {
+    output(RAW
+      ? { exists: false, reason: 'missing_fields', missing }
+      : `Cached context missing fields: ${missing.join(', ')} — ignoring`
+    );
+    return;
+  }
+
+  // Staleness check — flag if older than 7 days
+  const age = Date.now() - new Date(context.saved_at).getTime();
+  const stale = isNaN(age) || age > CONTEXT_MAX_AGE_MS;
+
+  output(RAW ? { exists: true, stale, ...context } : JSON.stringify(context, null, 2));
+}
+
 // ─────────────────────────────────────────────
 // Discovery Commands
 // ─────────────────────────────────────────────
@@ -2063,7 +2187,9 @@ function main() {
         case 'write': return configWrite(flags);
         case 'read': return configRead(flags);
         case 'exists': return configExists(flags);
-        default: fail(`Unknown config command: ${command}. Valid: write, read, exists`);
+        case 'save-context': return configSaveContext(flags);
+        case 'load-context': return configLoadContext(flags);
+        default: fail(`Unknown config command: ${command}. Valid: write, read, exists, save-context, load-context`);
       }
       break;
 

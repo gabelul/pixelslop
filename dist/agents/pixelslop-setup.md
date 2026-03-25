@@ -135,6 +135,29 @@ Return a structured JSON result:
 }
 ```
 
+### Step 7: Cache Context
+
+Save the detected technical context so future runs skip discovery:
+
+```bash
+node bin/pixelslop-tools.cjs config save-context \
+  --root "$ROOT" \
+  --framework "$FRAMEWORK" \
+  --css-approach "$CSS_APPROACH" \
+  --build-tool "$BUILD_TOOL" \
+  --package-manager "$PACKAGE_MANAGER" \
+  --fonts "$FONTS" \
+  --design-tokens "$HAS_TOKENS" \
+  --token-location "$TOKEN_PATH" \
+  --component-count "$COUNT" \
+  --component-library "$LIBRARY" \
+  --has-dark-mode "$DARK_MODE" \
+  --description "$DESCRIPTION" \
+  --raw
+```
+
+This creates `.pixelslop-context.json` in the project root. Subsequent runs load it directly without re-scanning the codebase. Still return the JSON result to the orchestrator — caching is a side-effect, not a replacement for the response.
+
 ## Question Guidelines
 
 Ask 2-4 questions. Focus on things you genuinely cannot infer from the code:

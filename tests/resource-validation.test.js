@@ -189,6 +189,10 @@ describe('Required files exist', () => {
     'skill/resources/clarify.md',
     // Phase 4 — persona evaluation
     'skill/resources/personas/schema.md',
+    // Supplementary evaluation + interaction fix guide
+    'skill/resources/cognitive-load.md',
+    'skill/resources/heuristics.md',
+    'skill/resources/interaction-design.md',
   ];
 
   for (const file of required) {
@@ -659,6 +663,7 @@ describe('Fix guide structure', () => {
     'skill/resources/distill.md',
     'skill/resources/harden.md',
     'skill/resources/clarify.md',
+    'skill/resources/interaction-design.md',
   ];
 
   for (const guide of fixGuides) {
@@ -706,6 +711,126 @@ describe('Fix guide structure', () => {
       });
     });
   }
+});
+
+
+// ─────────────────────────────────────────────
+// Tests: Cognitive load reference
+// ─────────────────────────────────────────────
+
+describe('Cognitive load reference', () => {
+  let content;
+
+  it('loads without error', () => {
+    content = readDist('skill/resources/cognitive-load.md');
+    assert.ok(content.length > 500, 'cognitive-load.md seems too short');
+  });
+
+  it('has at least 6 checklist items', () => {
+    const headings = content.match(/### \d+\./g) || [];
+    assert.ok(headings.length >= 6, `Expected ≥6 checklist items, got ${headings.length}`);
+  });
+
+  it('has scoring guidance section', () => {
+    assert.ok(content.includes('Scoring Guidance'), 'missing "Scoring Guidance" section');
+  });
+
+  it('references the hierarchy pillar', () => {
+    assert.ok(
+      content.toLowerCase().includes('hierarchy'),
+      'should reference the hierarchy pillar (cognitive load supplements it)'
+    );
+  });
+
+  it('has syntactically valid JS snippets', () => {
+    const blocks = extractJsBlocks(content);
+    assert.ok(blocks.length >= 1, 'should have at least one JS detection snippet');
+    for (const { code, lineNumber } of blocks) {
+      try {
+        new Function(code);
+      } catch (e) {
+        assert.fail(`JS block at line ${lineNumber} has syntax error: ${e.message}`);
+      }
+    }
+  });
+
+  it('has common violations section', () => {
+    assert.ok(
+      content.includes('Common Violations') || content.includes('common violations'),
+      'missing common violations section'
+    );
+  });
+});
+
+
+// ─────────────────────────────────────────────
+// Tests: Heuristics reference
+// ─────────────────────────────────────────────
+
+describe('Heuristics reference', () => {
+  let content;
+
+  it('loads without error', () => {
+    content = readDist('skill/resources/heuristics.md');
+    assert.ok(content.length > 500, 'heuristics.md seems too short');
+  });
+
+  it('has all 10 Nielsen heuristics', () => {
+    for (let i = 1; i <= 10; i++) {
+      assert.ok(
+        content.includes(`### ${i}.`),
+        `missing heuristic #${i}`
+      );
+    }
+  });
+
+  it('references browser measurement', () => {
+    assert.ok(
+      content.toLowerCase().includes('playwright') || content.toLowerCase().includes('browser'),
+      'should reference Playwright or browser measurement'
+    );
+  });
+
+  it('has syntactically valid JS snippets', () => {
+    const blocks = extractJsBlocks(content);
+    assert.ok(blocks.length >= 1, 'should have at least one JS detection snippet');
+    for (const { code, lineNumber } of blocks) {
+      try {
+        new Function(code);
+      } catch (e) {
+        assert.fail(`JS block at line ${lineNumber} has syntax error: ${e.message}`);
+      }
+    }
+  });
+
+  it('does not define its own severity bands', () => {
+    assert.ok(
+      !content.includes('CLEAN') && !content.includes('SLOPPY') && !content.includes('TERMINAL'),
+      'heuristics reference should not define severity bands (it feeds into existing pillars)'
+    );
+  });
+
+  it('explains how findings feed into pillar scores', () => {
+    assert.ok(
+      content.includes('Feeds into') || content.includes('feeds into') || content.includes('How This Feeds'),
+      'should explain how heuristic findings map to pillar scores'
+    );
+  });
+});
+
+
+// ─────────────────────────────────────────────
+// Tests: Fixer references interaction-design guide
+// ─────────────────────────────────────────────
+
+describe('Fixer references interaction-design guide', () => {
+  it('fixer mapping table includes interaction-design.md', () => {
+    const fixer = readDist('agents/pixelslop-fixer.md');
+    assert.ok(
+      fixer.includes('interaction-design.md'),
+      'fixer should reference interaction-design.md in its mapping table'
+    );
+  });
 });
 
 
