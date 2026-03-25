@@ -56,7 +56,7 @@ const AGENT_FILES = [
   'pixelslop-fixer.md',
   'pixelslop-checker.md',
   'pixelslop-setup.md',
-
+  'pixelslop-code-scanner.md',
 ];
 
 /**
