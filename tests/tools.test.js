@@ -1034,6 +1034,46 @@ describe('config save-context and load-context', () => {
 
 
 // ─────────────────────────────────────────────
+// Tests: init scan --code-check
+// ─────────────────────────────────────────────
+
+describe('init scan --code-check', () => {
+  let dir;
+
+  beforeEach(() => {
+    dir = createTestRepo();
+  });
+
+  it('works without --url when --code-check is set', () => {
+    const result = runJson(`init scan --code-check --root "${dir}"`, dir);
+    assert.equal(result.mode, 'code-check');
+  });
+
+  it('returns null url and url_type in code-check mode', () => {
+    const result = runJson(`init scan --code-check --root "${dir}"`, dir);
+    assert.equal(result.url, null);
+    assert.equal(result.url_type, null);
+  });
+
+  it('still validates root in code-check mode', () => {
+    const result = runJson(`init scan --code-check --root "${dir}"`, dir);
+    assert.equal(result.root_valid, true);
+  });
+
+  it('init scan without --url and without --code-check still fails', () => {
+    const result = run(`init scan --root "${dir}" --raw`, dir, true);
+    assert.notEqual(result.exitCode, 0);
+    assert.ok(result.stderr.includes('--url required') || result.stdout.includes('--url required'));
+  });
+
+  it('--code-check overrides mode even with --url', () => {
+    const result = runJson(`init scan --code-check --url http://localhost:3000 --root "${dir}"`, dir);
+    assert.equal(result.mode, 'code-check');
+  });
+});
+
+
+// ─────────────────────────────────────────────
 // Tests: --cwd flag
 // ─────────────────────────────────────────────
 

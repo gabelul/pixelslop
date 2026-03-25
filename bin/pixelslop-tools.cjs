@@ -1770,7 +1770,7 @@ function discoverStartTarget(args) {
  * @param {object} args - url, root
  */
 function initScan(args) {
-  const url = args.url || fail('--url required');
+  const url = args.url || (args['code-check'] ? null : fail('--url required'));
   const root = args.root || '.';
   const resolvedRoot = path.resolve(CWD, root);
 
@@ -1813,8 +1813,8 @@ function initScan(args) {
     }));
   }
 
-  // Determine URL type
-  const urlType = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(url) ? 'local' : 'remote';
+  // Determine URL type (null when in code-check mode — no URL needed)
+  const urlType = url ? (/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(url) ? 'local' : 'remote') : null;
 
   // Determine mode
   let mode = 'visual-report-only';
@@ -1890,7 +1890,7 @@ function initScan(args) {
     pixelslop_config: pixelslopConfig
   };
 
-  autoLog('orchestrator', 'info', `init scan: url=${url} mode=${mode} root=${resolvedRoot}`, root);
+  autoLog('orchestrator', 'info', `init scan: url=${url || 'none'} mode=${mode} root=${resolvedRoot}`, root);
   output(result, true);
 }
 

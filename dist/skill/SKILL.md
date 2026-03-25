@@ -67,6 +67,43 @@ node bin/pixelslop-tools.cjs log read --root "$ROOT" --tail 20
 
 If the user didn't pass `--debug`, skip all logging commands — don't create any log file.
 
+## Code-Check Mode
+
+When the user passes `--code-check`, the workflow is shorter — no URL, no browser, no server.
+
+### Code-Check Phase 1: Pre-flight
+
+Run init with the code-check flag (no URL needed):
+
+```bash
+node bin/pixelslop-tools.cjs init scan --code-check --root "$ROOT" --raw
+```
+
+Validate that root is a valid directory. If not, tell the user and stop.
+
+### Code-Check Phase 2: Scan
+
+Spawn the orchestrator in code-check mode:
+
+```
+Agent(
+  name: "pixelslop-scan",
+  prompt: "Run pixelslop code check. Root: <root>. Code-check: true. Thorough: <thorough>."
+)
+```
+
+The orchestrator spawns the code-check scanner (not the visual scanner). No Playwright needed.
+
+### Code-Check Phase 3: Results
+
+Present the code check report to the user. Code check is report-only — no fix strategy question, no fix loop. Tell the user they can run a full visual scan (`/pixelslop [url]`) for pillar scores and browser-verified findings.
+
+No cleanup needed (no server was started).
+
+**If `--code-check` was passed, use the code-check flow above and skip everything below.**
+
+---
+
 ## Phase 1: Resolve the URL (only when no URL argument provided)
 
 If the user passed a URL, skip to Phase 2.
@@ -202,6 +239,7 @@ The orchestrator spawns these subagents as needed:
 | `pixelslop-fixer` | Applies one targeted fix per finding with checkpoint |
 | `pixelslop-checker` | Verifies fixes by re-measuring the targeted metric |
 | `pixelslop-setup` | Explores codebase to build project design context |
+| `pixelslop-code-scanner` | Source-only analysis — greps for slop, a11y, copy, missing states (code-check mode) |
 
 ## Resources
 
@@ -220,6 +258,7 @@ Knowledge files loaded by agents at runtime:
 - `resources/harden.md` — fix guide: accessibility
 - `resources/clarify.md` — fix guide: copy & labels
 - `resources/interaction-design.md` — fix guide: interactive states, dropdowns, forms, modals
+- `resources/code-check-eval.md` — code-check evaluation protocol (source-only analysis)
 - `resources/cognitive-load.md` — cognitive load checklist (supplements hierarchy evaluation)
 - `resources/heuristics.md` — Nielsen's 10 heuristics adapted for browser measurement
 - `resources/personas/schema.md` — persona format documentation

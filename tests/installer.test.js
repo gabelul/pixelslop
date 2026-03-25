@@ -143,7 +143,7 @@ describe('pattern drift detection', () => {
   it('all agent files are known to the installer', () => {
     const expectedAgents = [
       'pixelslop.md', 'pixelslop-scanner.md', 'pixelslop-fixer.md',
-      'pixelslop-checker.md', 'pixelslop-setup.md',
+      'pixelslop-checker.md', 'pixelslop-setup.md', 'pixelslop-code-scanner.md',
     ];
     assert.deepEqual(
       agentFiles.sort(),
@@ -183,10 +183,10 @@ describe('pattern drift detection', () => {
   it('installer knows about all resource files', () => {
     const resourceEntries = readdirSync(join(DIST, 'skill', 'resources'))
       .filter(f => !f.startsWith('._')); // ignore macOS resource forks
-    // 15 markdown files + 1 personas directory = 16 entries
+    // 16 markdown files + 1 personas directory = 17 entries
     assert.equal(
-      resourceEntries.length, 16,
-      `Expected 16 resource entries (15 .md + personas/), found ${resourceEntries.length}: ${resourceEntries.join(', ')}`
+      resourceEntries.length, 17,
+      `Expected 17 resource entries (16 .md + personas/), found ${resourceEntries.length}: ${resourceEntries.join(', ')}`
     );
   });
 
@@ -402,7 +402,7 @@ describe('manifest schema', () => {
   it('agentFiles matches the actual agent inventory', () => {
     const expectedAgents = [
       'pixelslop.md', 'pixelslop-scanner.md', 'pixelslop-fixer.md',
-      'pixelslop-checker.md', 'pixelslop-setup.md',
+      'pixelslop-checker.md', 'pixelslop-setup.md', 'pixelslop-code-scanner.md',
     ];
     const actualAgents = readdirSync(join(DIST, 'agents'))
       .filter(f => f.endsWith('.md') && !f.startsWith('._'));

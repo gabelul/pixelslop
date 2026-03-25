@@ -193,6 +193,9 @@ describe('Required files exist', () => {
     'skill/resources/cognitive-load.md',
     'skill/resources/heuristics.md',
     'skill/resources/interaction-design.md',
+    // Code-check mode
+    'agents/pixelslop-code-scanner.md',
+    'skill/resources/code-check-eval.md',
   ];
 
   for (const file of required) {
@@ -830,6 +833,141 @@ describe('Fixer references interaction-design guide', () => {
       fixer.includes('interaction-design.md'),
       'fixer should reference interaction-design.md in its mapping table'
     );
+  });
+});
+
+
+// ─────────────────────────────────────────────
+// Tests: Code-check scanner agent
+// ─────────────────────────────────────────────
+
+describe('Code-check scanner agent', () => {
+  let content, fm;
+
+  it('loads without error', () => {
+    content = readDist('agents/pixelslop-code-scanner.md');
+    assert.ok(content.length > 200, 'code-check scanner seems too short');
+  });
+
+  it('has required frontmatter fields', () => {
+    const parsed = parseFrontmatter(content);
+    fm = parsed.frontmatter;
+    assert.ok(fm.name, 'missing name');
+    assert.ok(fm.description, 'missing description');
+    assert.ok(fm.model, 'missing model');
+    assert.ok(fm.tools, 'missing tools');
+  });
+
+  it('has correct tool set (Read, Bash, Glob, Grep)', () => {
+    const tools = Array.isArray(fm.tools) ? fm.tools : [];
+    assert.ok(tools.includes('Read'), 'should have Read');
+    assert.ok(tools.includes('Bash'), 'should have Bash');
+    assert.ok(tools.includes('Glob'), 'should have Glob');
+    assert.ok(tools.includes('Grep'), 'should have Grep');
+  });
+
+  it('does NOT have Playwright tools (no browser)', () => {
+    const tools = Array.isArray(fm.tools) ? fm.tools : [];
+    const playwright = tools.filter(t => t.includes('playwright') || t.includes('browser'));
+    assert.equal(playwright.length, 0,
+      `code-check scanner must not have Playwright tools, found: ${playwright.join(', ')}`);
+  });
+
+  it('does NOT have Write or Edit tools (read-only)', () => {
+    const tools = Array.isArray(fm.tools) ? fm.tools : [];
+    assert.ok(!tools.includes('Write'), 'code-check scanner must not have Write');
+    assert.ok(!tools.includes('Edit'), 'code-check scanner must not have Edit');
+  });
+
+  it('references code-check-eval.md', () => {
+    assert.ok(content.includes('code-check-eval.md'),
+      'should reference code-check-eval.md as its protocol');
+  });
+
+  it('references ai-slop-patterns.md', () => {
+    assert.ok(content.includes('ai-slop-patterns.md'),
+      'should reference ai-slop-patterns.md for pattern catalog');
+  });
+
+  it('has mandatory "Not Verified" section rule', () => {
+    assert.ok(content.includes('Not Verified'),
+      'should require a "Not Verified" section in reports');
+  });
+
+  it('explicitly forbids pillar scores', () => {
+    assert.ok(
+      content.includes('Do not claim pillar scores') || content.includes('no pillar scores') || content.includes('No visual claims'),
+      'should explicitly state it cannot produce pillar scores'
+    );
+  });
+});
+
+
+// ─────────────────────────────────────────────
+// Tests: Code-check eval resource
+// ─────────────────────────────────────────────
+
+describe('Code-check eval resource', () => {
+  let content;
+
+  it('loads without error', () => {
+    content = readDist('skill/resources/code-check-eval.md');
+    assert.ok(content.length > 1000, 'code-check-eval.md seems too short');
+  });
+
+  it('has report format template', () => {
+    assert.ok(content.includes('## Pixelslop Code Check:'),
+      'should have report format template');
+  });
+
+  it('has slop pattern detection section', () => {
+    assert.ok(content.includes('Slop Pattern Detection') || content.includes('Source Slop'),
+      'should have slop pattern detection section');
+  });
+
+  it('has accessibility structure section', () => {
+    assert.ok(content.includes('Accessibility Structure'),
+      'should have accessibility structure checks');
+  });
+
+  it('has generic copy detection section', () => {
+    assert.ok(content.includes('Generic Copy'),
+      'should have generic copy detection');
+  });
+
+  it('has missing state detection section', () => {
+    assert.ok(content.includes('Missing State'),
+      'should have missing state detection');
+  });
+
+  it('has theming issues section', () => {
+    assert.ok(content.includes('Theming'),
+      'should have theming issues section');
+  });
+
+  it('has "Not Verified" section', () => {
+    assert.ok(content.includes('Not Verified'),
+      'should have "Not Verified (requires browser)" section');
+  });
+
+  it('does NOT produce pillar scores', () => {
+    // The report format should not contain a pillar score table (| Pillar | Score |)
+    // It CAN mention "no pillar scores" as a disclaimer — that's correct behavior
+    assert.ok(!content.includes('| Pillar | Score'),
+      'code-check eval must not have a pillar score table — those need browser evidence');
+    assert.ok(!content.includes('/20 total'),
+      'code-check eval must not reference /20 scoring — that is visual-only');
+  });
+
+  it('has confidence model', () => {
+    assert.ok(content.includes('Confidence Model') || content.includes('confidence'),
+      'should have a confidence model');
+  });
+
+  it('severity bands match ai-slop-patterns.md', () => {
+    assert.ok(content.includes('CLEAN') && content.includes('MILD') &&
+      content.includes('SLOPPY') && content.includes('TERMINAL'),
+      'should use the same severity bands as ai-slop-patterns.md');
   });
 });
 

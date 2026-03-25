@@ -233,7 +233,7 @@ describe('setup subagent spec (pixelslop-setup.md)', () => {
 describe('agent cross-references', () => {
   it('all referenced agent files exist', () => {
     const agents = ['pixelslop.md', 'pixelslop-scanner.md', 'pixelslop-fixer.md',
-      'pixelslop-checker.md', 'pixelslop-setup.md'];
+      'pixelslop-checker.md', 'pixelslop-setup.md', 'pixelslop-code-scanner.md'];
     for (const agent of agents) {
       const fullPath = join(DIST, 'agents', agent);
       assert.ok(existsSync(fullPath), `Missing agent file: ${agent}`);
@@ -275,6 +275,21 @@ describe('agent cross-references', () => {
     assert.ok(skill.includes('pixelslop-fixer'), 'SKILL should reference fixer');
     assert.ok(skill.includes('pixelslop-checker'), 'SKILL should reference checker');
     assert.ok(skill.includes('pixelslop-setup'), 'SKILL should reference setup');
+    assert.ok(skill.includes('pixelslop-code-scanner'), 'SKILL should reference code-check scanner');
+  });
+
+  it('orchestrator references code-check scanner', () => {
+    const orch = readDist('agents/pixelslop.md');
+    assert.ok(orch.includes('pixelslop-code-scanner'),
+      'orchestrator should reference code-check scanner for code-check mode');
+  });
+
+  it('SKILL.md has code-check branch', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(skill.includes('Code-Check Mode') || skill.includes('code-check'),
+      'SKILL should have a code-check mode branch');
+    assert.ok(skill.includes('--code-check'),
+      'SKILL should reference the --code-check flag');
   });
 
   it('SKILL.md references pixelslop-tools', () => {

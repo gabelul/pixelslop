@@ -103,6 +103,26 @@ Based on the init result:
 
 Tell the user which mode was selected and why. If mode is `visual-report-only`, explain what's limiting and how to unlock editable mode.
 
+### Code-Check Mode Protocol
+
+If mode is `code-check`, the workflow is different. No browser, no visual scanner, no fix loop.
+
+1. **Skip setup** — code check doesn't need `.pixelslop.md` design intent or cached context
+2. **Skip URL validation** — there is no URL
+3. **Spawn the code-check scanner:**
+
+```
+Spawn agent: pixelslop-code-scanner
+Input: Root path, thorough flag
+```
+
+4. When the code-check scanner returns, present its report to the user and stop
+5. No fix strategy question, no plan file, no fix loop, no checkpoint operations
+
+Code check is a one-shot report. After presenting results, you're done.
+
+**If mode is `code-check`, skip all remaining steps below and follow this protocol instead.**
+
 ### Step 4: Setup (if no .pixelslop.md)
 
 First, check for cached technical context from a previous run:
