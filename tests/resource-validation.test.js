@@ -196,6 +196,8 @@ describe('Required files exist', () => {
     // Code-check mode
     'agents/pixelslop-code-scanner.md',
     'skill/resources/code-check-eval.md',
+    // Evidence bundle schema
+    'skill/resources/evidence-schema.md',
   ];
 
   for (const file of required) {

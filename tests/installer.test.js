@@ -197,10 +197,10 @@ describe('pattern drift detection', () => {
   it('installer knows about all resource files', () => {
     const resourceEntries = readdirSync(join(DIST, 'skill', 'resources'))
       .filter(f => !f.startsWith('._')); // ignore macOS resource forks
-    // 16 markdown files + 1 personas directory = 17 entries
+    // 17 markdown files + 1 personas directory = 18 entries
     assert.equal(
-      resourceEntries.length, 17,
-      `Expected 17 resource entries (16 .md + personas/), found ${resourceEntries.length}: ${resourceEntries.join(', ')}`
+      resourceEntries.length, 18,
+      `Expected 18 resource entries (17 .md + personas/), found ${resourceEntries.length}: ${resourceEntries.join(', ')}`
     );
   });
 
