@@ -858,6 +858,19 @@ function install(options = {}) {
     }
     log('✓', `${AGENT_FILES.length} agent specs → ${client.agentDir}`);
 
+    // Copy internal evaluator agents (not in AGENT_FILES — orchestrator-only)
+    const internalSrc = join(PACKAGE_ROOT, 'dist', 'agents', 'internal');
+    if (existsSync(internalSrc)) {
+      const internalDest = join(client.agentDir, 'internal');
+      mkdirSync(internalDest, { recursive: true });
+      const internalFiles = readdirSync(internalSrc).filter(f => f.endsWith('.md') && !f.startsWith('._'));
+      for (const file of internalFiles) {
+        const raw = readFileSync(join(internalSrc, file), 'utf8');
+        writeFileSync(join(internalDest, file), rewriteAgentPaths(raw, INSTALL_ROOT));
+      }
+      log('✓', `${internalFiles.length} internal evaluators → ${internalDest}`);
+    }
+
     // Install skill via linkOrCopy — method is tracked
     const preferredMethod = options.installMethods?.[client.name]?.skill;
     const { path: skillPath, method: skillMethod } = client.installSkill(
@@ -1056,6 +1069,12 @@ function uninstall() {
       }
     }
 
+    // Remove internal evaluator agents
+    const internalDir = join(client.agentDir, 'internal');
+    if (existsSync(internalDir)) {
+      rmSync(internalDir, { recursive: true, force: true });
+    }
+
     // Remove skill
     client.removeSkill();
 
@@ -1181,6 +1200,19 @@ function doctor() {
       agentCount === AGENT_FILES.length,
       `Missing ${AGENT_FILES.length - agentCount} agent file(s)`
     );
+
+    // Internal evaluator agents
+    const internalDir = join(client.agentDir, 'internal');
+    if (existsSync(internalDir)) {
+      const internalCount = readdirSync(internalDir).filter(f => f.endsWith('.md') && !f.startsWith('._')).length;
+      check(
+        `${client.name}: internal evaluators (${internalCount})`,
+        internalCount >= 6,
+        `Expected ≥6 internal evaluators, found ${internalCount}`
+      );
+    } else {
+      check(`${client.name}: internal evaluators`, false, 'Missing internal/ directory');
+    }
 
     // Path rewriting verification — check one agent file for absolute paths
     const orchestratorPath = join(client.agentDir, 'pixelslop.md');

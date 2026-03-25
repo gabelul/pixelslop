@@ -377,21 +377,21 @@ describe('Cross-file consistency', () => {
     }
   });
 
-  it('scanner references all 3 resource files', () => {
+  it('scanner (evidence collector) references its resource files', () => {
     const scanner = readDist('agents/pixelslop-scanner.md');
     assert.ok(scanner.includes('visual-eval.md'), 'scanner should reference visual-eval.md');
-    assert.ok(scanner.includes('scoring.md'), 'scanner should reference scoring.md');
+    assert.ok(scanner.includes('evidence-schema.md'), 'scanner should reference evidence-schema.md');
     assert.ok(scanner.includes('ai-slop-patterns.md'), 'scanner should reference ai-slop-patterns.md');
   });
 
-  it('all 5 pillar names are consistent across scoring.md and scanner', () => {
+  it('all 5 pillar names are consistent across scoring.md and orchestrator', () => {
     const scoring = readDist('skill/resources/scoring.md');
-    const scanner = readDist('agents/pixelslop-scanner.md');
+    const orchestrator = readDist('agents/pixelslop.md');
     const pillars = ['Hierarchy', 'Typography', 'Color', 'Responsiveness', 'Accessibility'];
 
     for (const pillar of pillars) {
       assert.ok(scoring.includes(pillar), `scoring.md missing pillar: ${pillar}`);
-      assert.ok(scanner.includes(pillar), `scanner missing pillar: ${pillar}`);
+      assert.ok(orchestrator.includes(pillar), `orchestrator missing pillar: ${pillar}`);
     }
   });
 
