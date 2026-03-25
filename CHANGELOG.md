@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.2](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.1...pixelslop-v0.2.2) (2026-03-25)
+
+
+### Features
+
+* code-check mode for source-only design analysis ([f348e16](https://github.com/gabelul/pixelslop/commit/f348e164a7dde647922af9dc0deeb728a2a3a8f6))
+* cognitive load, heuristics, interaction design, context caching ([1c2ef21](https://github.com/gabelul/pixelslop/commit/1c2ef219f2525c97a6057980f6563e06b4dc8ba8))
+
+
+### Bug Fixes
+
+* serve tests wait for TCP socket before fetching ([3e6cd06](https://github.com/gabelul/pixelslop/commit/3e6cd06366edb01ce7129559e4bdf1c94a5fc767))
+
 ## [0.2.1](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.0...pixelslop-v0.2.1) (2026-03-24)
 
 
