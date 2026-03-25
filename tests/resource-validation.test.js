@@ -444,8 +444,10 @@ describe('scoring.md rubric structure', () => {
   it('has explicit 1-4 criteria for each pillar', () => {
     const pillars = ['Hierarchy', 'Typography', 'Color', 'Responsiveness', 'Accessibility'];
     for (const pillar of pillars) {
-      // Headings are "### Pillar N: Name (1-4)"
-      const idx = content.indexOf(pillar);
+      // Search for the actual heading, not just the word (avoids false matches in interpretation notes)
+      const idx = content.indexOf(`### Pillar`) > -1
+        ? content.indexOf(`${pillar} (1-4)`)
+        : content.indexOf(pillar);
       assert.ok(idx > -1, `${pillar} not found in scoring.md`);
       const pillarSection = content.slice(idx);
       const nextPillar = pillarSection.indexOf('\n### Pillar', 5);
