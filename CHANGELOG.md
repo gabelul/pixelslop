@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.4](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.3...pixelslop-v0.2.4) (2026-03-26)
+
+
+### Features
+
+* evidence schema, 6 specialist evaluator agents, evaluator tests ([35c6e93](https://github.com/gabelul/pixelslop/commit/35c6e9394b873d16d72b869ef0ce7dcb6de7008c))
+* scanner decomposition into evidence collector + specialist fan-out ([4e89083](https://github.com/gabelul/pixelslop/commit/4e890832593a8068b4601aa462d772a49a7e6586))
+* specialist agent architecture — scanner decomposition ([67faf02](https://github.com/gabelul/pixelslop/commit/67faf023479fd60053a1bd369b375de1d5e81212))
+
+
+### Bug Fixes
+
+* add pixelslop-code-scanner to installer AGENT_FILES ([ecd2116](https://github.com/gabelul/pixelslop/commit/ecd211627b8be172a9bcbc13cf35db2d713332f2))
+* address Codex review — paths, schema fields, slop coverage, responsiveness evidence ([91c7b49](https://github.com/gabelul/pixelslop/commit/91c7b492bdd3bf3ad30a0934d199472efc71cd10))
+* Codex round 2 — schema/snippet alignment, test lockdown, evaluator field refs ([19fdb7d](https://github.com/gabelul/pixelslop/commit/19fdb7d32083ad79ea6912ccfd27f22e6177e3c5))
+* remaining Codex review items — schema drift, title, uninstall safety ([2034284](https://github.com/gabelul/pixelslop/commit/203428406dfa51505ce7e2f097640f642769b2e1))
+
 ## [0.2.3](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.2...pixelslop-v0.2.3) (2026-03-25)
 
 
