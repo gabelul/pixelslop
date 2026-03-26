@@ -42,6 +42,8 @@ Evidence: clear progressive reduction in visual weight from h1 through body text
 - Number of elements with font-size > 24px (if everything is big, nothing is)
 - Screenshot with viewport at 1440px width -- does one thing dominate?
 
+**Interpretation notes for evaluators:** Cognitive load compounds hierarchy problems. A page with decent visual weight distribution can still score 2 if there are 12 CTAs visible at once. Check `personaChecks.cognitiveDensity` — high density pulls the score down by 1. Also: heading structure from the a11y snapshot must match visual hierarchy. If h2 is visually bigger than h1, that's a hierarchy failure regardless of what the CSS says.
+
 ---
 
 ### Pillar 2: Typography (1-4)
@@ -77,6 +79,8 @@ Evidence: distinctive font pairing (not just Inter/Roboto/Open Sans defaults), c
 - Letter-spacing values if present
 - Number of distinct font families in use
 
+**Interpretation notes for evaluators:** A site using Inter as its only font gets a 2 at best — it's the most common AI default and says nothing about brand. But Inter used alongside a distinctive display font as part of a deliberate pairing can score 3. Context matters. Also check `network.failed` for font load failures — a custom font that 404s means the user sees system fallbacks, which changes the score.
+
 ---
 
 ### Pillar 3: Color (1-4)
@@ -110,6 +114,8 @@ Evidence: tinted neutrals (not pure gray), unique primary that is not the standa
 - Whether neutrals are pure gray or tinted
 - Box-shadow and text-shadow colors (glow detection)
 - Whether accent colors are used consistently on specific element types
+
+**Interpretation notes for evaluators:** Color is about palette judgment, not contrast ratios — contrast lives in Accessibility. A page can have perfect AA contrast and still score 1 on Color if it's cyan-on-dark with purple gradients everywhere. Look at the `decorations` data for glow indicators. Pure black (#000) or white (#fff) backgrounds are a tell — real designers tint their neutrals. Count unique accent hues: 1-2 is disciplined, 5+ is a rainbow.
 
 ---
 
@@ -145,6 +151,8 @@ Evidence: content reordering between viewports (not just reflow), navigation pat
 - Navigation pattern at each viewport
 - Whether layout structure actually changes (column count, element order)
 - Image handling (srcset, sizes, or art direction)
+
+**Interpretation notes for evaluators:** The biggest tell is whether the layout genuinely adapts or just shrinks. Compare the 3 viewport screenshots — if mobile looks like a miniaturized desktop, that's a 1-2 regardless of whether overflow is technically fixed. Touch targets under 44px on mobile are an automatic score reduction. Check all three overflow datasets, not just mobile.
 
 ---
 
@@ -184,6 +192,8 @@ Evidence: contrast ratios approaching or exceeding 7:1 on key text, `aria-label`
 - Tab order (does it follow visual order?)
 - Skip-to-content link presence
 - `prefers-reduced-motion` media query in stylesheets
+
+**Interpretation notes for evaluators:** Contrast is the gateway metric. If even one text element fails AA (4.5:1 for normal, 3:1 for large), the score caps at 2 — good a11y infrastructure can't save unreadable text. Check `personaChecks.headingHierarchy` for skipped levels (h1 → h3 with no h2). Missing landmarks are common on simple pages and might only warrant a minor deduction, but missing labels on forms are always serious. The heuristics in `heuristics.md` (#6 Recognition > Recall) catch placeholder-only inputs — those should pull the score down.
 
 ---
 

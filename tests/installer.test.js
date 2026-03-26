@@ -197,10 +197,10 @@ describe('pattern drift detection', () => {
   it('installer knows about all resource files', () => {
     const resourceEntries = readdirSync(join(DIST, 'skill', 'resources'))
       .filter(f => !f.startsWith('._')); // ignore macOS resource forks
-    // 16 markdown files + 1 personas directory = 17 entries
+    // 17 markdown files + 1 personas directory = 18 entries
     assert.equal(
-      resourceEntries.length, 17,
-      `Expected 17 resource entries (16 .md + personas/), found ${resourceEntries.length}: ${resourceEntries.join(', ')}`
+      resourceEntries.length, 18,
+      `Expected 18 resource entries (17 .md + personas/), found ${resourceEntries.length}: ${resourceEntries.join(', ')}`
     );
   });
 
@@ -841,9 +841,19 @@ describe('packaged artifact smoke', () => {
 
     runTarballCommand(tarballPath, ['install', '--project', '--codex-only'], tempProject, env);
     assert.ok(existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
+    assert.ok(existsSync(join(tempProject, '.codex', 'agents', 'internal', 'pixelslop-eval-color.md')));
     assert.ok(existsSync(join(tempProject, '.codex', 'skills', 'pixelslop', 'SKILL.md')));
     assert.ok(existsSync(join(tempProject, '.codex', 'config.toml')));
     assert.ok(!existsSync(join(tempProject, '.claude')), 'Claude files should not be created');
+
+    const internalEval = readFileSync(
+      join(tempProject, '.codex', 'agents', 'internal', 'pixelslop-eval-color.md'),
+      'utf8'
+    );
+    assert.ok(
+      internalEval.includes(join(tempHome, '.pixelslop', 'skill', 'resources', 'scoring.md')),
+      'internal evaluator resources should be rewritten to absolute install paths'
+    );
 
     const doctorOutput = runTarballCommand(tarballPath, ['doctor'], tempProject, env);
     assert.ok(doctorOutput.includes('All checks passed.'), 'doctor should report success');
@@ -855,7 +865,26 @@ describe('packaged artifact smoke', () => {
 
     runTarballCommand(tarballPath, ['uninstall'], tempProject, env);
     assert.ok(!existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
+    assert.ok(!existsSync(join(tempProject, '.codex', 'agents', 'internal', 'pixelslop-eval-color.md')));
     assert.ok(!existsSync(join(tempProject, '.codex', 'skills', 'pixelslop')));
+  });
+
+  it('uninstall preserves unrelated files inside agents/internal', () => {
+    const env = { HOME: tempHome };
+    seedRuntimeHomes(tempHome, ['codex']);
+
+    runTarballCommand(tarballPath, ['install', '--project', '--codex-only'], tempProject, env);
+
+    const internalDir = join(tempProject, '.codex', 'agents', 'internal');
+    const foreignAgent = join(internalDir, 'other-tool.md');
+    writeFileSync(foreignAgent, '# not pixelslop\n');
+
+    runTarballCommand(tarballPath, ['uninstall'], tempProject, env);
+
+    assert.ok(existsSync(internalDir), 'internal directory should remain when foreign files still exist');
+    assert.ok(existsSync(foreignAgent), 'uninstall should not delete unrelated internal agents');
+    assert.ok(!existsSync(join(internalDir, 'pixelslop-eval-color.md')),
+      'pixelslop internal evaluators should still be removed');
   });
 
   it('installs, reports status, updates, and uninstalls across Claude and Codex', () => {

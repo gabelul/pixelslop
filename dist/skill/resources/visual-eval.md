@@ -650,6 +650,31 @@ Counts competing CTAs, text blocks, and navigation items in the visible viewport
 
 ---
 
+## Section 9: Evidence Bundle Output
+
+After running all extraction snippets across all viewports, the evidence collector assembles a JSON evidence bundle and writes it to `/tmp/pixelslop-evidence-{timestamp}.json`. See `evidence-schema.md` for the full schema.
+
+The mapping from snippets to bundle fields:
+
+| Snippet | Bundle Field |
+|---------|-------------|
+| Typography extraction | `viewports.desktop.typography` |
+| Color extraction | `viewports.desktop.colors` |
+| Spacing extraction | `viewports.desktop.spacing` |
+| Decoration detection | `viewports.desktop.decorations` |
+| Contrast calculation | `viewports.desktop.contrast` |
+| Touch target audit | `viewports.mobile.touchTargets` |
+| Overflow check | `viewports.{viewport}.overflow` |
+| `browser_snapshot()` | `viewports.desktop.a11ySnapshot` |
+| `browser_console_messages()` | `console` |
+| `browser_network_requests()` | `network` |
+| Persona evaluation snippets | `personaChecks.*` |
+| Source pattern greps | `sourcePatterns` |
+
+Each `confidence` flag tracks whether the corresponding evidence was successfully collected. If a snippet fails or returns empty, set the flag to `false` — don't skip the field, set it to `null`.
+
+---
+
 ## Reference: Tool Call Summary
 
 | Tool | Purpose | When Used |

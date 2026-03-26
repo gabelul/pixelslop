@@ -19,7 +19,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync,
-         readdirSync, rmSync, existsSync, lstatSync, symlinkSync,
+         readdirSync, rmSync, rmdirSync, existsSync, lstatSync, symlinkSync,
          chmodSync, statSync } from 'fs';
 import { join, dirname, resolve, relative } from 'path';
 import { fileURLToPath } from 'url';
@@ -858,6 +858,19 @@ function install(options = {}) {
     }
     log('✓', `${AGENT_FILES.length} agent specs → ${client.agentDir}`);
 
+    // Copy internal evaluator agents (not in AGENT_FILES — orchestrator-only)
+    const internalSrc = join(PACKAGE_ROOT, 'dist', 'agents', 'internal');
+    if (existsSync(internalSrc)) {
+      const internalDest = join(client.agentDir, 'internal');
+      mkdirSync(internalDest, { recursive: true });
+      const internalFiles = readdirSync(internalSrc).filter(f => f.endsWith('.md') && !f.startsWith('._'));
+      for (const file of internalFiles) {
+        const raw = readFileSync(join(internalSrc, file), 'utf8');
+        writeFileSync(join(internalDest, file), rewriteAgentPaths(raw, INSTALL_ROOT));
+      }
+      log('✓', `${internalFiles.length} internal evaluators → ${internalDest}`);
+    }
+
     // Install skill via linkOrCopy — method is tracked
     const preferredMethod = options.installMethods?.[client.name]?.skill;
     const { path: skillPath, method: skillMethod } = client.installSkill(
@@ -1056,6 +1069,19 @@ function uninstall() {
       }
     }
 
+    // Remove internal evaluator agents (only pixelslop-eval-* files, not the whole directory)
+    const internalDir = join(client.agentDir, 'internal');
+    if (existsSync(internalDir)) {
+      for (const file of readdirSync(internalDir).filter(f => f.startsWith('pixelslop-eval-') && f.endsWith('.md'))) {
+        rmSync(join(internalDir, file));
+      }
+      // Remove the directory only if it's empty (don't nuke other tools' files)
+      try {
+        const remaining = readdirSync(internalDir).filter(f => !f.startsWith('.'));
+        if (remaining.length === 0) rmdirSync(internalDir);
+      } catch { /* directory not empty or already gone — fine */ }
+    }
+
     // Remove skill
     client.removeSkill();
 
@@ -1182,17 +1208,31 @@ function doctor() {
       `Missing ${AGENT_FILES.length - agentCount} agent file(s)`
     );
 
-    // Path rewriting verification — check one agent file for absolute paths
-    const orchestratorPath = join(client.agentDir, 'pixelslop.md');
-    if (existsSync(orchestratorPath)) {
-      const content = readFileSync(orchestratorPath, 'utf8');
-      const hasAbsolutePaths = content.includes(join(INSTALL_ROOT, 'bin', 'pixelslop-tools.cjs'));
+    // Internal evaluator agents
+    const internalDir = join(client.agentDir, 'internal');
+    if (existsSync(internalDir)) {
+      const internalCount = readdirSync(internalDir).filter(f => f.endsWith('.md') && !f.startsWith('._')).length;
       check(
-        `${client.name}: path rewriting`,
-        hasAbsolutePaths,
-        'Agent files still reference relative paths'
+        `${client.name}: internal evaluators (${internalCount})`,
+        internalCount >= 6,
+        `Expected ≥6 internal evaluators, found ${internalCount}`
       );
+    } else {
+      check(`${client.name}: internal evaluators`, false, 'Missing internal/ directory');
     }
+
+    // Path rewriting verification — check both a public agent and an internal evaluator
+    const orchestratorPath = join(client.agentDir, 'pixelslop.md');
+    const internalEvalPath = join(client.agentDir, 'internal', 'pixelslop-eval-color.md');
+    const orchestratorRewritten = existsSync(orchestratorPath)
+      && readFileSync(orchestratorPath, 'utf8').includes(join(INSTALL_ROOT, 'bin', 'pixelslop-tools.cjs'));
+    const internalRewritten = existsSync(internalEvalPath)
+      && readFileSync(internalEvalPath, 'utf8').includes(join(INSTALL_ROOT, 'skill', 'resources', 'scoring.md'));
+    check(
+      `${client.name}: path rewriting`,
+      orchestratorRewritten && internalRewritten,
+      'Installed agents still reference relative paths'
+    );
 
     // Skill — check existence and report install method
     const clientMethod = methods[client.name]?.skill || 'unknown';

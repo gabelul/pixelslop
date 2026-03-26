@@ -157,30 +157,97 @@ node bin/pixelslop-tools.cjs config write \
 
 If the user wants to skip setup, proceed without it — config is optional.
 
-### Step 6: Spawn Scanner
+### Step 6: Collect Evidence
 
 **Log before spawning:**
 ```bash
-node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --message "Spawning scanner for $URL"
+node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --message "Spawning evidence collector for $URL"
 ```
 
-Spawn the scanner subagent with the URL, design context, and persona/thorough settings:
+Spawn the scanner (evidence collector) to capture all browser data:
 
 ```
 Spawn agent: pixelslop-scanner
-Input: URL, root path (if available), design context from .pixelslop.md, personas flag, thorough flag
+Input: URL, root path (if available), personas flag
 ```
 
-Pass the `--personas` and `--thorough` flags to the scanner. The scanner returns a structured report with scores, findings, slop classification, and (if personas enabled) persona insights. Parse the full report.
+The scanner returns a tmpfile path to the JSON evidence bundle (e.g., `/tmp/pixelslop-evidence-1711234567.json`). Read the file to verify it was written successfully.
 
-**Log after scanner returns:**
+**Log after collector returns:**
 ```bash
-node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --message "Scanner returned: $TOTAL/20, $N_ISSUES issues, slop=$SLOP_BAND"
+node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --message "Evidence collected: $EVIDENCE_PATH"
+```
+
+### Step 6b: Spawn Specialist Evaluators
+
+Spawn all 6 specialist evaluators from `dist/agents/internal/`. Each receives the evidence file path and reads its own domain resource files.
+
+```
+Spawn agents (parallel where runtime supports it):
+  - pixelslop-eval-hierarchy    (evidence_path, thorough flag)
+  - pixelslop-eval-typography   (evidence_path, thorough flag)
+  - pixelslop-eval-color        (evidence_path, thorough flag)
+  - pixelslop-eval-responsiveness (evidence_path, thorough flag)
+  - pixelslop-eval-accessibility (evidence_path, thorough flag)
+  - pixelslop-eval-slop         (evidence_path, thorough flag)
+```
+
+Each pillar specialist returns JSON: `{ "pillar": "...", "score": N, "evidence": "...", "findings": [...] }`
+The slop classifier returns JSON: `{ "band": "...", "patternCount": N, "patterns": [...] }`
+
+Collect all 6 results.
+
+### Step 6c: Aggregate Report
+
+Assemble the standard report from specialist outputs. The format is defined in `scoring.md` — the same contract as before.
+
+```
+## Pixelslop Report: [page title from evidence bundle]
+URL: [url from evidence bundle]
+Date: [timestamp]
+Confidence: [calculate from evidence bundle confidence flags]
+
+### Scores
+| Pillar | Score | Evidence |
+|--------|-------|----------|
+| Hierarchy | [from eval-hierarchy]/4 | [evidence] |
+| Typography | [from eval-typography]/4 | [evidence] |
+| Color | [from eval-color]/4 | [evidence] |
+| Responsiveness | [from eval-responsiveness]/4 | [evidence] |
+| Accessibility | [from eval-accessibility]/4 | [evidence] |
+| **Total** | **[sum]/20** | **[rating band]** |
+
+### AI Slop: [band from eval-slop]
+Patterns detected: [patternCount]
+[patterns list from eval-slop]
+
+### Findings
+[merge all specialist findings, sort by priority]
+
+### Persona Insights
+[apply persona frustrationTriggers/positiveSignals against specialist findings using evidence bundle personaChecks data]
+
+### Screenshots
+[reference from evidence bundle]
+```
+
+Calculate confidence from the evidence bundle's `confidence` flags:
+- Base: 50%
+- +15% if screenshots captured
+- +10% if computedStyles collected
+- +10% if contrastRatios calculated
+- +5% if a11ySnapshot analyzed
+- +5% if sourceGrepped
+- +5% if multiViewport compared
+
+**Log after aggregation:**
+```bash
+node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --message "Report assembled: $TOTAL/20, $N_ISSUES issues, slop=$SLOP_BAND"
 ```
 
 ### Step 7: Group and Prioritize Findings
 
-Parse the scanner report findings. For each finding:
+From the aggregated report, assign priorities and categories:
 
 1. **Assign priority** based on the rules in plan-format.md:
    - P0: AA-fail contrast (< 4.5:1), score-1 pillars, TERMINAL slop

@@ -284,6 +284,24 @@ describe('agent cross-references', () => {
       'orchestrator should reference code-check scanner for code-check mode');
   });
 
+  it('orchestrator references evidence collection', () => {
+    const orch = readDist('agents/pixelslop.md');
+    assert.ok(orch.includes('evidence') || orch.includes('Evidence'),
+      'orchestrator should reference evidence collection step');
+  });
+
+  it('orchestrator references specialist evaluators', () => {
+    const orch = readDist('agents/pixelslop.md');
+    assert.ok(orch.includes('eval-hierarchy') || orch.includes('internal/'),
+      'orchestrator should reference specialist evaluators');
+  });
+
+  it('orchestrator references report aggregation', () => {
+    const orch = readDist('agents/pixelslop.md');
+    assert.ok(orch.includes('Aggregate') || orch.includes('aggregate'),
+      'orchestrator should reference report aggregation step');
+  });
+
   it('SKILL.md has code-check branch', () => {
     const skill = readDist('skill/SKILL.md');
     assert.ok(skill.includes('Code-Check Mode') || skill.includes('code-check'),
