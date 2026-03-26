@@ -1,8 +1,8 @@
 # Visual Evaluation Protocol
 
-Operational manual for the Pixelslop scanner agent. Tells you exactly how to use Playwright MCP tools to capture visual evidence from a live web page and produce structured data for scoring.
+Operational manual for the direct browser collector. It describes the evidence the collector must capture from a live page and the extraction heuristics that feed scoring.
 
-Every JS snippet here is complete and runnable via `browser_evaluate`. Copy them verbatim.
+The collector now runs these steps internally through `pixelslop-tools browser collect`. The snippets below are implementation references for the browser runtime, not manual MCP commands.
 
 ---
 
@@ -24,53 +24,27 @@ Follow this sequence for every URL. Do not skip steps, do not reorder.
 
 ### Step 1: Navigate
 
-```
-browser_navigate({ url: "<target_url>" })
-browser_console_messages()
-browser_network_requests()
-```
-
-Load the URL, then immediately grab console and network data. Flag console errors (not warnings) and failed network requests (4xx/5xx). These are secondary signals -- record them but do not let them dominate.
+Open the target URL, then immediately gather console and network data. Flag console errors (not warnings) and failed network requests (4xx/5xx). These are secondary signals; record them but do not let them dominate.
 
 ### Step 2: Desktop Evaluation (1440x900)
 
 The main event. Most evidence comes from here.
 
-```
-browser_resize({ width: 1440, height: 900 })
-browser_take_screenshot()
-```
-
 Save screenshot as `.pixelslop/screenshots/[domain]-desktop-[timestamp].png`.
 
 Run all five extraction snippets from Section 3: typography, color, spacing, decoration, contrast.
 
-Then get the accessibility snapshot and check console:
-
-```
-browser_snapshot()
-browser_console_messages()
-```
+Then capture the accessibility snapshot and re-check console output.
 
 See Section 4 for what to check in the snapshot output.
 
 ### Step 3: Tablet Evaluation (768x1024)
-
-```
-browser_resize({ width: 768, height: 1024 })
-browser_take_screenshot()
-```
 
 Save as `.pixelslop/screenshots/[domain]-tablet-[timestamp].png`. Run the horizontal overflow check from Section 3.
 
 Compare against desktop -- you are not re-running all extractions, just checking what changed. Common tablet failures: grids without a breakpoint, fixed-width heroes, navigation that neither stays inline nor collapses.
 
 ### Step 4: Mobile Evaluation (375x812)
-
-```
-browser_resize({ width: 375, height: 812 })
-browser_take_screenshot()
-```
 
 Save as `.pixelslop/screenshots/[domain]-mobile-[timestamp].png`. Run touch target audit and horizontal overflow check from Section 3. Also check text readability -- body text below 14px on mobile is a problem.
 
@@ -88,7 +62,7 @@ After all three viewports are evaluated, compare:
 
 ## 3. JS Extraction Snippets
 
-All snippets run via `browser_evaluate`, return structured data, and should not be modified. Each snippet is an arrow function `() => {...}` — pass it directly to `browser_evaluate`'s `function` parameter. Do NOT wrap in `(...)()` — the tool invokes the function internally.
+These snippets are the canonical extraction references used by the collector runtime. They return structured data and should stay semantically stable unless the evidence schema changes.
 
 ### Typography Extraction
 
@@ -319,7 +293,7 @@ Run at tablet and mobile. Detects elements extending beyond viewport width.
 
 ## 4. Accessibility Snapshot Protocol
 
-`browser_snapshot()` returns the accessibility tree. Not a full audit, but catches the most impactful issues.
+The collector's accessibility snapshot returns the tree. Not a full audit, but it catches the most impactful issues.
 
 ### What to Check
 
@@ -347,10 +321,6 @@ These are supporting evidence, not primary scoring inputs. A page can have conso
 
 ### Console Messages
 
-```
-browser_console_messages()
-```
-
 **Flag these:**
 - JavaScript errors (TypeError, ReferenceError, etc.) -- these indicate broken functionality
 - Failed resource loads -- missing fonts, broken images, unavailable scripts
@@ -363,10 +333,6 @@ browser_console_messages()
 - General info/debug messages
 
 ### Network Requests
-
-```
-browser_network_requests()
-```
 
 **Flag these:**
 - 4xx responses on first-party resources (broken links, missing assets)
@@ -652,7 +618,7 @@ Counts competing CTAs, text blocks, and navigation items in the visible viewport
 
 ## Section 9: Evidence Bundle Output
 
-After running all extraction snippets across all viewports, the evidence collector assembles a JSON evidence bundle and writes it to `/tmp/pixelslop-evidence-{timestamp}.json`. See `evidence-schema.md` for the full schema.
+After running all extraction snippets across all viewports, the evidence collector assembles a JSON evidence bundle and writes it to the `--out` path provided by `pixelslop-tools browser collect`. See `evidence-schema.md` for the full schema.
 
 The mapping from snippets to bundle fields:
 
@@ -665,9 +631,9 @@ The mapping from snippets to bundle fields:
 | Contrast calculation | `viewports.desktop.contrast` |
 | Touch target audit | `viewports.mobile.touchTargets` |
 | Overflow check | `viewports.{viewport}.overflow` |
-| `browser_snapshot()` | `viewports.desktop.a11ySnapshot` |
-| `browser_console_messages()` | `console` |
-| `browser_network_requests()` | `network` |
+| Accessibility snapshot collection | `viewports.desktop.a11ySnapshot` |
+| Console capture | `console` |
+| Network capture | `network` |
 | Persona evaluation snippets | `personaChecks.*` |
 | Source pattern greps | `sourcePatterns` |
 
@@ -675,14 +641,14 @@ Each `confidence` flag tracks whether the corresponding evidence was successfull
 
 ---
 
-## Reference: Tool Call Summary
+## Reference: Collector Step Summary
 
-| Tool | Purpose | When Used |
-|------|---------|-----------|
-| `browser_navigate` | Load the target URL | Step 1 |
-| `browser_resize` | Set viewport dimensions | Steps 2, 3, 4 |
-| `browser_take_screenshot` | Capture the viewport | Steps 2, 3, 4 |
-| `browser_evaluate` | Run JS snippets | Steps 2, 4 |
-| `browser_snapshot` | Get accessibility tree | Step 2 |
-| `browser_console_messages` | Check for JS errors | Steps 1, 2 |
-| `browser_network_requests` | Check for failed requests | Step 1 |
+| Collector Step | Purpose | When Used |
+|----------------|---------|-----------|
+| Navigate | Load the target URL | Step 1 |
+| Resize viewport | Set viewport dimensions | Steps 2, 3, 4 |
+| Screenshot capture | Save viewport evidence | Steps 2, 3, 4 |
+| JS extraction snippets | Run measurement logic | Steps 2, 3, 4 |
+| Accessibility snapshot | Get accessibility tree | Step 2 |
+| Console capture | Check for JS errors | Steps 1, 2 |
+| Network capture | Check for failed requests | Step 1 |

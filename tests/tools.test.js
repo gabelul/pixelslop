@@ -153,6 +153,102 @@ describe('pixelslop-tools CLI basics', () => {
   });
 });
 
+describe('browser commands', () => {
+  it('browser detect returns runtime metadata', () => {
+    const result = runJson('browser detect', process.cwd());
+    assert.equal(typeof result.available, 'boolean');
+  });
+
+  it('browser collect captures an evidence bundle for the sloppy fixture', async (t) => {
+    const runtime = runJson('browser detect', process.cwd());
+    if (!runtime.available) {
+      t.skip('No local Chrome/Chromium runtime available');
+    }
+
+    const fixtureDir = join(__dirname, 'fixtures', 'sloppy-app');
+    const start = runJson('serve start --root .', fixtureDir);
+
+    try {
+      const collected = runJson(`browser collect --url "${start.url}" --root . --personas none`, fixtureDir);
+      assert.ok(collected.outputPath, 'collector should return an evidence path');
+      assert.ok(existsSync(collected.outputPath), 'evidence bundle should exist');
+
+      const bundle = JSON.parse(readFileSync(collected.outputPath, 'utf8'));
+      assert.equal(new URL(bundle.url).toString(), new URL(start.url).toString());
+      assert.ok(bundle.viewports.desktop.screenshot, 'desktop screenshot missing');
+      assert.ok(bundle.viewports.tablet.screenshot, 'tablet screenshot missing');
+      assert.ok(bundle.viewports.mobile.screenshot, 'mobile screenshot missing');
+      assert.ok(Array.isArray(bundle.viewports.desktop.contrast), 'desktop contrast should be collected');
+      assert.ok(Array.isArray(bundle.sourcePatterns), 'source patterns should be present');
+    } finally {
+      runJson('serve stop --root .', fixtureDir);
+    }
+  });
+
+  it('browser check measures selector-based metrics', async (t) => {
+    const runtime = runJson('browser detect', process.cwd());
+    if (!runtime.available) {
+      t.skip('No local Chrome/Chromium runtime available');
+    }
+
+    const fixtureDir = join(__dirname, 'fixtures', 'sloppy-app');
+    const start = runJson('serve start --root .', fixtureDir);
+
+    try {
+      const contrast = runJson(`browser check --url "${start.url}" --metric contrast --selector ".cta-button"`, fixtureDir);
+      assert.equal(contrast.ok, true);
+      assert.equal(contrast.metric, 'contrast');
+      assert.equal(contrast.result.found, true);
+      assert.equal(contrast.result.selector, '.cta-button');
+
+      const typography = runJson(`browser check --url "${start.url}" --metric typography --selector ".hero h1"`, fixtureDir);
+      assert.equal(typography.ok, true);
+      assert.equal(typography.metric, 'typography');
+      assert.equal(typography.result.found, true);
+      assert.match(typography.result.fontFamily, /Inter/i);
+    } finally {
+      runJson('serve stop --root .', fixtureDir);
+    }
+  });
+
+  it('browser styles, snapshot, and screenshot return structured artifacts', async (t) => {
+    const runtime = runJson('browser detect', process.cwd());
+    if (!runtime.available) {
+      t.skip('No local Chrome/Chromium runtime available');
+    }
+
+    const fixtureDir = join(__dirname, 'fixtures', 'sloppy-app');
+    const start = runJson('serve start --root .', fixtureDir);
+    const screenshotOut = join(fixtureDir, '.pixelslop', 'browser-test-mobile.png');
+
+    try {
+      const styles = runJson(`browser styles --url "${start.url}" --selector ".cta-button"`, fixtureDir);
+      assert.equal(styles.ok, true);
+      assert.equal(styles.selector, '.cta-button');
+      assert.equal(styles.matchCount >= 1, true);
+      assert.equal(styles.element.tag, 'a');
+
+      const snapshot = runJson(`browser snapshot --url "${start.url}"`, fixtureDir);
+      assert.equal(snapshot.ok, true);
+      assert.equal(Array.isArray(snapshot.snapshot.headings), true);
+
+      const screenshot = runJson(`browser screenshot --url "${start.url}" --viewport mobile --out "${screenshotOut}"`, fixtureDir);
+      assert.equal(screenshot.ok, true);
+      assert.equal(screenshot.outputPath, screenshotOut);
+      assert.equal(existsSync(screenshotOut), true);
+    } finally {
+      runJson('serve stop --root .', fixtureDir);
+      rmSync(screenshotOut, { force: true });
+    }
+  });
+
+  it('browser commands reject unsupported URL schemes', () => {
+    const { exitCode, stderr } = run('browser check --url "file:///etc/hosts" --metric typography --selector "pre" --raw', process.cwd(), true);
+    assert.equal(exitCode, 1);
+    assert.ok(stderr.includes('Unsupported URL protocol'), 'should reject non-http URLs');
+  });
+});
+
 // ─────────────────────────────────────────────
 // Tests: Plan commands
 // ─────────────────────────────────────────────

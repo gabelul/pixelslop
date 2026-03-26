@@ -19,7 +19,7 @@ Pixelslop opens your actual pages in a real browser, screenshots them at three v
 npx pixelslop install
 ```
 
-Install is interactive by default. It detects Claude Code and Codex CLI, lets you pick runtimes and scope, then copies agent specs and configures Playwright MCP.
+Install is interactive by default. It detects Claude Code and Codex CLI, lets you pick runtimes and scope, then copies agent specs and verifies a direct Playwright browser runtime.
 
 > **Need:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex CLI](https://github.com/openai/codex) installed first.
 

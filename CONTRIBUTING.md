@@ -52,7 +52,6 @@ pixelslop/
 │       └── sloppy-app/               # Integration test fixture
 │           └── index.html            # Deliberately sloppy page
 ├── dev_docs/                         # Internal planning (gitignored)
-├── .mcp.json                         # Playwright MCP config
 ├── CLAUDE.md                         # Project conventions for AI agents
 └── package.json
 ```
@@ -65,14 +64,13 @@ pixelslop/
 | `tests/` | Yes | Test suite — validates detection logic and report format |
 | `dev_docs/` | No | Internal planning, research notes, test results |
 | `.pixelslop/` | No | Scanner runtime output (screenshots, reports) |
-| `.playwright-mcp/` | No | Playwright MCP state files |
 
 ## How the Scanner Works
 
 1. Agent reads 3 resource files from `dist/skill/resources/`
 2. Navigates to a URL with Playwright
 3. Evaluates at 3 viewports: Desktop (1440x900), Tablet (768x1024), Mobile (375x812)
-4. Runs JS extraction snippets via `browser_evaluate` to capture computed styles
+4. Runs extraction snippets inside the direct browser collector to capture computed styles
 5. Scores 5 pillars (Hierarchy, Typography, Color, Responsiveness, Accessibility) each 1-4
 6. Counts slop patterns against the catalog in `ai-slop-patterns.md`
 7. Produces a structured markdown report per the format in `scoring.md`
@@ -82,7 +80,7 @@ pixelslop/
 ### Adding a new slop pattern
 
 1. Add the pattern to `dist/skill/resources/ai-slop-patterns.md`
-2. Include: name, description, detection JS snippet (must work in `browser_evaluate`), severity (1-3)
+2. Include: name, description, detection JS snippet (must work in the collector page context), severity (1-3)
 3. If the pattern needs a new threshold, add test cases to `tests/slop-detection.test.js`
 4. Run `npm test` to verify nothing breaks
 5. Test against at least 2 pages: one where the pattern should fire, one where it shouldn't
@@ -93,7 +91,7 @@ pixelslop/
 **What it looks like:** One-line description of the visual symptom.
 **How to detect:**
 \`\`\`js
-// browser_evaluate
+// collector snippet
 (() => {
   // Detection logic — must return { pattern: 'name', detected: boolean, ...evidence }
 })()
@@ -116,7 +114,7 @@ pixelslop/
 
 1. Edit `dist/skill/resources/visual-eval.md`
 2. All snippets must be self-contained IIFEs — no external dependencies
-3. Snippets run in the browser page context via Playwright's `browser_evaluate`
+3. Snippets run in the browser page context via the direct collector runtime
 4. Cap output size (use `.slice()`) — Playwright has response size limits
 5. Test the snippet manually against a live page before committing
 

@@ -235,7 +235,7 @@ The orchestrator spawns these subagents as needed:
 
 | Agent | Role |
 |-------|------|
-| `pixelslop-scanner` | Evaluates pages across viewports, scores pillars, detects slop |
+| `pixelslop-scanner` | Compatibility wrapper around `pixelslop-tools browser collect` |
 | `pixelslop-fixer` | Applies one targeted fix per finding with checkpoint |
 | `pixelslop-checker` | Verifies fixes by re-measuring the targeted metric |
 | `pixelslop-setup` | Explores codebase to build project design context |
@@ -246,7 +246,7 @@ The orchestrator spawns these subagents as needed:
 Knowledge files loaded by agents at runtime:
 
 - `resources/scoring.md` — 5-pillar grading rubric (1-4 per pillar, /20 total)
-- `resources/visual-eval.md` — Playwright operational manual (viewports, JS snippets)
+- `resources/visual-eval.md` — direct browser collector manual (viewports, JS snippets)
 - `resources/ai-slop-patterns.md` — AI slop pattern catalog with detection methods
 - `resources/checkpoint-protocol.md` — fix/verify/rollback mechanism
 - `resources/plan-format.md` — plan file contract between agents

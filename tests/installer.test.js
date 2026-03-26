@@ -1,10 +1,10 @@
 /**
  * Installer Tests
  *
- * Validates the installer's pure functions: path rewriting, MCP config
- * writing, manifest schema, and structural completeness. These tests
- * run without touching the real filesystem — they use temp directories
- * and verify the installer knows about all agents and resources.
+ * Validates the installer's pure functions: path rewriting, browser runtime
+ * detection, manifest schema, and structural completeness. These tests run
+ * without touching the real filesystem — they use temp directories and verify
+ * the installer knows about all agents and resources.
  *
  * Run: node --test tests/installer.test.js
  */
@@ -18,9 +18,8 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir, homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 
-import { rewriteAgentPaths, writeJsonMcp, removeJsonMcp,
-         writeTomlMcp, removeTomlMcp, calculateFileDiff,
-         linkOrCopy, getClients } from '../bin/pixelslop.mjs';
+import { rewriteAgentPaths, detectBrowserRuntime, calculateFileDiff,
+         linkOrCopy, getClients, ensureBrowserRuntime } from '../bin/pixelslop.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..');
@@ -210,146 +209,72 @@ describe('pattern drift detection', () => {
 });
 
 // ─────────────────────────────────────────────
-// JSON MCP Config (Claude Code settings.json)
+// Browser runtime detection
 // ─────────────────────────────────────────────
 
-describe('writeJsonMcp', () => {
-  let tempDir;
-
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
-
-  it('creates settings.json if it does not exist', () => {
-    const filePath = join(tempDir, 'settings.json');
-    writeJsonMcp(filePath);
-    assert.ok(existsSync(filePath));
-    const data = JSON.parse(readFileSync(filePath, 'utf8'));
-    assert.ok(data.mcpServers['pixelslop-playwright']);
-    assert.equal(data.mcpServers['pixelslop-playwright'].command, 'npx');
-  });
-
-  it('preserves existing entries', () => {
-    const filePath = join(tempDir, 'settings.json');
-    writeFileSync(filePath, JSON.stringify({
-      mcpServers: { 'my-other-mcp': { command: 'other' } },
-      someSetting: true,
-    }));
-    writeJsonMcp(filePath);
-    const data = JSON.parse(readFileSync(filePath, 'utf8'));
-    assert.ok(data.mcpServers['pixelslop-playwright'], 'pixelslop entry added');
-    assert.ok(data.mcpServers['my-other-mcp'], 'existing entry preserved');
-    assert.equal(data.someSetting, true, 'other settings preserved');
-  });
-
-  it('does not duplicate on re-install', () => {
-    const filePath = join(tempDir, 'settings.json');
-    writeJsonMcp(filePath);
-    writeJsonMcp(filePath);
-    const data = JSON.parse(readFileSync(filePath, 'utf8'));
-    const keys = Object.keys(data.mcpServers).filter(k => k === 'pixelslop-playwright');
-    assert.equal(keys.length, 1);
-  });
-
-  it('creates parent directories if needed', () => {
-    const filePath = join(tempDir, 'nested', 'dir', 'settings.json');
-    writeJsonMcp(filePath);
-    assert.ok(existsSync(filePath));
+describe('detectBrowserRuntime', () => {
+  it('returns a structured status object', () => {
+    const runtime = detectBrowserRuntime();
+    assert.equal(typeof runtime.available, 'boolean');
+    if (runtime.available) {
+      assert.equal(typeof runtime.executablePath, 'string');
+      assert.ok(runtime.source, 'available runtime should include a source');
+    } else {
+      assert.equal(runtime.executablePath, null);
+    }
   });
 });
 
-describe('removeJsonMcp', () => {
-  let tempDir;
+describe('ensureBrowserRuntime', () => {
+  it('returns immediately when a runtime is already available', () => {
+    let installCalls = 0;
+    const runtime = ensureBrowserRuntime({
+      detectBrowserRuntime: () => ({ available: true, executablePath: '/fake/chrome', source: 'system' }),
+      installChromium: () => { installCalls += 1; },
+      header: () => {},
+      log: () => {},
+    });
 
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+    assert.equal(runtime.available, true);
+    assert.equal(installCalls, 0);
+  });
 
-  it('removes pixelslop entry and preserves others', () => {
-    const filePath = join(tempDir, 'settings.json');
-    writeFileSync(filePath, JSON.stringify({
-      mcpServers: {
-        'pixelslop-playwright': { command: 'npx' },
-        'other-mcp': { command: 'other' },
+  it('installs Chromium when runtime is missing and re-detect succeeds', () => {
+    let detectCalls = 0;
+    let installCalls = 0;
+
+    const runtime = ensureBrowserRuntime({
+      detectBrowserRuntime: () => {
+        detectCalls += 1;
+        if (detectCalls === 1) return { available: false, executablePath: null, source: null };
+        return { available: true, executablePath: '/fake/chromium', source: 'playwright-cache' };
       },
-    }));
-    removeJsonMcp(filePath);
-    const data = JSON.parse(readFileSync(filePath, 'utf8'));
-    assert.ok(!data.mcpServers['pixelslop-playwright'], 'pixelslop entry removed');
-    assert.ok(data.mcpServers['other-mcp'], 'other entry preserved');
+      installChromium: () => { installCalls += 1; },
+      header: () => {},
+      log: () => {},
+    });
+
+    assert.equal(installCalls, 1);
+    assert.equal(detectCalls, 2);
+    assert.equal(runtime.executablePath, '/fake/chromium');
   });
 
-  it('handles missing file gracefully', () => {
-    const result = removeJsonMcp(join(tempDir, 'nonexistent.json'));
-    assert.ok(result);
-  });
-});
-
-// ─────────────────────────────────────────────
-// TOML MCP Config (Codex config.toml)
-// ─────────────────────────────────────────────
-
-describe('writeTomlMcp', () => {
-  let tempDir;
-
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
-
-  it('creates config.toml if it does not exist', () => {
-    const filePath = join(tempDir, 'config.toml');
-    writeTomlMcp(filePath);
-    assert.ok(existsSync(filePath));
-    const content = readFileSync(filePath, 'utf8');
-    assert.ok(content.includes('[mcp_servers.pixelslop-playwright]'));
-    assert.ok(content.includes('command = "npx"'));
-    assert.ok(content.includes('@playwright/mcp@'));
+  it('surfaces install failures cleanly', () => {
+    assert.throws(() => ensureBrowserRuntime({
+      detectBrowserRuntime: () => ({ available: false, executablePath: null, source: null }),
+      installChromium: () => { throw new Error('install failed'); },
+      header: () => {},
+      log: () => {},
+    }), /install failed/);
   });
 
-  it('appends to existing content', () => {
-    const filePath = join(tempDir, 'config.toml');
-    writeFileSync(filePath, '[some_other_section]\nkey = "value"\n');
-    writeTomlMcp(filePath);
-    const content = readFileSync(filePath, 'utf8');
-    assert.ok(content.includes('[some_other_section]'), 'existing section preserved');
-    assert.ok(content.includes('[mcp_servers.pixelslop-playwright]'), 'pixelslop section added');
-  });
-
-  it('does not duplicate on re-install', () => {
-    const filePath = join(tempDir, 'config.toml');
-    writeTomlMcp(filePath);
-    writeTomlMcp(filePath);
-    const content = readFileSync(filePath, 'utf8');
-    const matches = content.match(/\[mcp_servers\.pixelslop-playwright\]/g);
-    assert.equal(matches.length, 1, 'Should not duplicate');
-  });
-});
-
-describe('removeTomlMcp', () => {
-  let tempDir;
-
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
-
-  it('removes the pixelslop-playwright block', () => {
-    const filePath = join(tempDir, 'config.toml');
-    writeFileSync(filePath, `[some_section]
-key = "value"
-
-[mcp_servers.pixelslop-playwright]
-command = "npx"
-args = ["-y", "@playwright/mcp@0.0.68"]
-
-[another_section]
-foo = "bar"
-`);
-    removeTomlMcp(filePath);
-    const content = readFileSync(filePath, 'utf8');
-    assert.ok(!content.includes('pixelslop-playwright'), 'Block removed');
-    assert.ok(content.includes('[some_section]'), 'Other sections preserved');
-    assert.ok(content.includes('[another_section]'), 'Other sections preserved');
-  });
-
-  it('handles missing file gracefully', () => {
-    const result = removeTomlMcp(join(tempDir, 'nonexistent.toml'));
-    assert.ok(result);
+  it('fails if install succeeds but runtime is still missing', () => {
+    assert.throws(() => ensureBrowserRuntime({
+      detectBrowserRuntime: () => ({ available: false, executablePath: null, source: null }),
+      installChromium: () => {},
+      header: () => {},
+      log: () => {},
+    }), /Chromium install completed, but no executable was detected/);
   });
 });
 
@@ -359,10 +284,10 @@ foo = "bar"
 
 describe('manifest schema', () => {
   it('defines all required fields including v2 additions', () => {
-    // Manifest v2 adds scope, projectRoot, and installMethods
+    // Manifest tracks browser runtime instead of MCP config.
     const requiredFields = [
       'version', 'installedAt', 'installRoot',
-      'playwrightMcpVersion', 'clients', 'agentFiles',
+      'browserPackage', 'browserRuntime', 'clients', 'agentFiles',
       'scope', 'projectRoot', 'installMethods',
     ];
 
@@ -373,7 +298,8 @@ describe('manifest schema', () => {
       installRoot: '/home/user/.pixelslop',
       scope: 'global',
       projectRoot: null,
-      playwrightMcpVersion: '0.0.68',
+      browserPackage: 'playwright-core@1.58.2',
+      browserRuntime: { executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', source: 'system' },
       clients: ['Claude Code'],
       agentFiles: ['pixelslop.md'],
       installMethods: { 'Claude Code': { skill: 'symlink' } },
@@ -754,28 +680,12 @@ describe('getClients', () => {
       'Project agent dir must not be in home directory');
   });
 
-  it('project scope uses .mcp.json for MCP config', () => {
-    const clients = getClients('project');
-    const claude = clients.find(c => c.name === 'Claude Code');
-    assert.ok(claude.mcpConfig.endsWith('.mcp.json'),
-      'Project MCP config should be .mcp.json');
-  });
-
   it('project scope uses project-relative Codex paths', () => {
     const clients = getClients('project');
     const codex = clients.find(c => c.name === 'Codex CLI');
     assert.ok(codex.agentDir.includes('.codex'), 'Agent dir must contain .codex');
     assert.ok(!codex.agentDir.startsWith(join(homedir(), '.codex')),
       'Project agent dir must not be in home directory');
-    assert.ok(codex.mcpConfig.endsWith(join('.codex', 'config.toml')),
-      'Project MCP config should be .codex/config.toml');
-  });
-
-  it('global scope uses settings.json for MCP config', () => {
-    const clients = getClients('global');
-    const claude = clients.find(c => c.name === 'Claude Code');
-    assert.ok(claude.mcpConfig.endsWith('settings.json'),
-      'Global MCP config should be settings.json');
   });
 
   it('all clients have required methods', () => {
@@ -786,8 +696,6 @@ describe('getClients', () => {
         assert.equal(typeof client.installSkill, 'function', `${client.name}: installSkill`);
         assert.equal(typeof client.removeSkill, 'function', `${client.name}: removeSkill`);
         assert.equal(typeof client.checkSkill, 'function', `${client.name}: checkSkill`);
-        assert.ok(client.mcpConfig, `${client.name}: mcpConfig`);
-        assert.ok(client.mcpFormat, `${client.name}: mcpFormat`);
       }
     }
   });
@@ -843,7 +751,6 @@ describe('packaged artifact smoke', () => {
     assert.ok(existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
     assert.ok(existsSync(join(tempProject, '.codex', 'agents', 'internal', 'pixelslop-eval-color.md')));
     assert.ok(existsSync(join(tempProject, '.codex', 'skills', 'pixelslop', 'SKILL.md')));
-    assert.ok(existsSync(join(tempProject, '.codex', 'config.toml')));
     assert.ok(!existsSync(join(tempProject, '.claude')), 'Claude files should not be created');
 
     const internalEval = readFileSync(
@@ -861,7 +768,7 @@ describe('packaged artifact smoke', () => {
     const statusOutput = runTarballCommand(tarballPath, ['status'], tempProject, env);
     assert.ok(statusOutput.includes('Scope: project'), 'status should report project scope');
     assert.ok(statusOutput.includes('Codex CLI'), 'status should mention installed client');
-    assert.ok(statusOutput.includes('.codex/config.toml'), 'status should report project Codex MCP path');
+    assert.ok(statusOutput.includes('Browser package:'), 'status should report browser runtime details');
 
     runTarballCommand(tarballPath, ['uninstall'], tempProject, env);
     assert.ok(!existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
@@ -894,15 +801,14 @@ describe('packaged artifact smoke', () => {
     runTarballCommand(tarballPath, ['install', '--project', '--all'], tempProject, env);
     assert.ok(existsSync(join(tempProject, '.claude', 'agents', 'pixelslop.md')));
     assert.ok(existsSync(join(tempProject, '.claude', 'skills', 'pixelslop', 'SKILL.md')));
-    assert.ok(existsSync(join(tempProject, '.mcp.json')));
     assert.ok(existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
     assert.ok(existsSync(join(tempProject, '.codex', 'skills', 'pixelslop', 'SKILL.md')));
-    assert.ok(existsSync(join(tempProject, '.codex', 'config.toml')));
 
     const statusOutput = runTarballCommand(tarballPath, ['status'], tempProject, env);
     assert.ok(statusOutput.includes('Installed runtimes'), 'status should list installed runtimes');
     assert.ok(statusOutput.includes('Claude Code'), 'status should mention Claude Code');
     assert.ok(statusOutput.includes('Codex CLI'), 'status should mention Codex CLI');
+    assert.ok(statusOutput.includes('Browser runtime:'), 'status should mention the browser runtime');
 
     const updateOutput = runTarballCommand(tarballPath, ['update', '--force'], tempProject, env);
     assert.ok(

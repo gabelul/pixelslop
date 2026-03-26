@@ -1,6 +1,6 @@
 # Evidence Bundle Schema
 
-The evidence collector (pixelslop-scanner) captures all browser data in a single Playwright session, writes it to a JSON file, and hands the path to the orchestrator. Specialist evaluators read this file — they never touch a browser.
+The evidence collector (`pixelslop-tools browser collect`) captures all browser data in a single browser session, writes it to a JSON file, and hands the path to the orchestrator. Specialist evaluators read this file — they never touch a browser.
 
 This schema is the contract. If the collector writes it and the specialist reads it, they must agree on the shape.
 

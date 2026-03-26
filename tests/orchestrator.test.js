@@ -118,8 +118,8 @@ describe('orchestrator agent spec (pixelslop.md)', () => {
     assert.ok(body.includes('bin/pixelslop-tools.cjs'), 'should reference tool path');
   });
 
-  it('references all subagents', () => {
-    assert.ok(body.includes('pixelslop-scanner'), 'should reference scanner');
+  it('references active subagents and direct collection', () => {
+    assert.ok(body.includes('browser collect'), 'should reference direct collector');
     assert.ok(body.includes('pixelslop-fixer'), 'should reference fixer');
     assert.ok(body.includes('pixelslop-checker'), 'should reference checker');
     assert.ok(body.includes('pixelslop-setup'), 'should reference setup');

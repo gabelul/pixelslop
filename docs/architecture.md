@@ -70,9 +70,9 @@ The plan file is the handoff contract between phases. SKILL.md creates it (with 
 | Agent | Tools | What it does |
 |-------|-------|-------------|
 | **pixelslop** (orchestrator) | Read, Bash, Glob, Grep | Coordinates everything. No Write/Edit — all state goes through pixelslop-tools CLI |
-| **pixelslop-scanner** | Read, Bash, Glob, Grep + Playwright MCP | Opens pages, captures screenshots, extracts computed styles, scores pillars, detects slop |
-| **pixelslop-fixer** | Read, Write, Edit, Bash, Glob, Grep | Applies one fix per invocation. Always checkpoints first. |
-| **pixelslop-checker** | Read, Bash, Glob, Grep + Playwright MCP | Re-measures the targeted metric after a fix. Returns PASS/FAIL/PARTIAL. No Write/Edit — can't change code |
+| **pixelslop-scanner** | Read, Bash, Glob, Grep | Compatibility wrapper around `pixelslop-tools browser collect` |
+| **pixelslop-fixer** | Read, Write, Edit, Bash, Glob, Grep | Applies one fix per invocation. Browser inspection goes through `pixelslop-tools browser *`. |
+| **pixelslop-checker** | Read, Bash, Glob, Grep | Re-measures the targeted metric via `pixelslop-tools browser check`. No Write/Edit — can't change code |
 | **pixelslop-setup** | Read, Bash, Glob, Grep | Explores codebase for design context (framework, CSS approach, fonts, tokens). Caches results to `.pixelslop-context.json` so future runs skip discovery. |
 
 The tool boundaries are security boundaries. The fixer can edit files; the checker can't. The orchestrator can't edit anything — it manages state through `pixelslop-tools`. Tests enforce these constraints.

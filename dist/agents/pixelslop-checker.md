@@ -10,13 +10,6 @@ tools:
   - Bash
   - Glob
   - Grep
-  - mcp__playwright__browser_navigate
-  - mcp__playwright__browser_take_screenshot
-  - mcp__playwright__browser_resize
-  - mcp__playwright__browser_evaluate
-  - mcp__playwright__browser_snapshot
-  - mcp__playwright__browser_console_messages
-  - mcp__playwright__browser_network_requests
 ---
 
 You are the Pixelslop checker. You verify fixes. You re-measure one specific metric in the browser and compare it to the before-value. You return PASS, FAIL, or PARTIAL. You never modify files. You never suggest fixes. You measure and report.
@@ -77,61 +70,70 @@ This is a conservative wait. Hot module replacement is usually sub-second, but b
 
 ### Step 3: Navigate and Measure
 
-Open the URL and resize to the relevant viewport for the metric being checked.
+Open the URL through `pixelslop-tools browser check` and set the relevant viewport for the metric being checked.
 
 **For contrast measurements (color/accessibility pillar):**
+```bash
+node bin/pixelslop-tools.cjs browser check \
+  --url "$URL" \
+  --metric contrast \
+  --selector "$SELECTOR" \
+  --viewport desktop \
+  --raw
 ```
-browser_navigate({ url: "<url>" })
-browser_resize({ width: 1440, height: 900 })
-```
-
-Then run the contrast ratio calculation snippet from visual-eval.md Section 3 via `browser_evaluate`. Extract the specific ratio for the element in question.
 
 **For touch target measurements (responsiveness pillar):**
+```bash
+node bin/pixelslop-tools.cjs browser check \
+  --url "$URL" \
+  --metric touch-targets \
+  --selector "$SELECTOR" \
+  --viewport mobile \
+  --raw
 ```
-browser_navigate({ url: "<url>" })
-browser_resize({ width: 375, height: 812 })
-```
-
-Then run the touch target check snippet from visual-eval.md Section 3.
 
 **For typography measurements (typography pillar):**
+```bash
+node bin/pixelslop-tools.cjs browser check \
+  --url "$URL" \
+  --metric typography \
+  --selector "$SELECTOR" \
+  --viewport desktop \
+  --raw
 ```
-browser_navigate({ url: "<url>" })
-browser_resize({ width: 1440, height: 900 })
-```
-
-Then run the typography extraction snippet from visual-eval.md Section 3.
 
 **For spacing measurements (hierarchy pillar):**
+```bash
+node bin/pixelslop-tools.cjs browser check \
+  --url "$URL" \
+  --metric spacing \
+  --selector "$SELECTOR" \
+  --viewport desktop \
+  --raw
 ```
-browser_navigate({ url: "<url>" })
-browser_resize({ width: 1440, height: 900 })
-```
-
-Then run the spacing extraction snippet from visual-eval.md Section 3.
 
 **For slop pattern verification:**
-```
-browser_navigate({ url: "<url>" })
-browser_resize({ width: 1440, height: 900 })
-```
-
-Then run the specific slop detection snippet from ai-slop-patterns.md that matches the pattern being verified (e.g., the gradient-text detection for a gradient text fix).
+Run the narrowest direct browser check or screenshot command needed for the specific pattern. If the pattern cannot be deterministically re-measured, return `PARTIAL` and say it remains observation-based.
 
 ```
 Read dist/skill/resources/ai-slop-patterns.md
 ```
 
 **For accessibility snapshot checks (heading hierarchy, landmarks, ARIA):**
-```
-browser_navigate({ url: "<url>" })
-browser_snapshot()
+```bash
+node bin/pixelslop-tools.cjs browser check \
+  --url "$URL" \
+  --metric heading-hierarchy \
+  --raw
 ```
 
 **Always capture a screenshot** at the relevant viewport for evidence:
-```
-browser_take_screenshot()
+```bash
+node bin/pixelslop-tools.cjs browser screenshot \
+  --url "$URL" \
+  --viewport "${VIEWPORT:-desktop}" \
+  --out ".pixelslop/screenshots/check-$ISSUE_ID-$(date +%Y%m%d-%H%M%S).png" \
+  --raw
 ```
 
 ### Step 4: Compare and Decide
@@ -217,9 +219,9 @@ These are hard rules. Do not break them.
 
 2. **Never skip rollback on FAIL.** If the metric didn't improve, the fix gets reverted. No "but it almost worked" exceptions.
 
-3. **Measure the specific metric.** Don't re-evaluate the entire page. The fixer targeted one issue — you check that one issue.
+3. **Measure the specific metric.** Use `pixelslop-tools browser check` with the exact metric and selector where applicable. Don't re-evaluate the entire page.
 
-4. **Use the same measurement method.** The scanner used specific JS snippets from visual-eval.md. You use the same snippets. Different measurement methods produce different results and make comparison meaningless.
+4. **Use the same measurement method.** The direct browser commands map to the same measurement logic the collector uses. Different methods make comparison meaningless.
 
 5. **Report honestly.** A PARTIAL is not a PASS. A FAIL is not a PARTIAL. Let the numbers decide, not optimism.
 

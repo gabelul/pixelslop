@@ -1,6 +1,6 @@
 # pixelslop-tools CLI Reference
 
-Deterministic CLI for all agent state management. Plan files, checkpoints, build gates, discovery, config, temp servers, session logging. Agents call this instead of writing inline bash.
+Deterministic CLI for all agent state management and browser measurement. Plan files, checkpoints, build gates, discovery, config, temp servers, session logging, and direct browser commands. Agents call this instead of writing inline bash.
 
 ## Global flags
 
@@ -188,4 +188,17 @@ pixelslop-tools verify plan          # plan file structure
 pixelslop-tools verify session       # all issues resolved?
 pixelslop-tools verify screenshots   # screenshot dir exists
 pixelslop-tools verify checkpoints   # checkpoint integrity
+```
+
+## browser
+
+Direct browser runtime used by the collector, fixer, and checker.
+
+```bash
+pixelslop-tools browser detect
+pixelslop-tools browser collect --url http://localhost:3000 --root . --raw
+pixelslop-tools browser check --url http://localhost:3000 --metric contrast --selector ".cta" --raw
+pixelslop-tools browser styles --url http://localhost:3000 --selector "h1" --raw
+pixelslop-tools browser snapshot --url http://localhost:3000 --raw
+pixelslop-tools browser screenshot --url http://localhost:3000 --viewport mobile --out .pixelslop/screenshots/mobile.png --raw
 ```

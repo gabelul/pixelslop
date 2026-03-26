@@ -10,7 +10,7 @@ This matters because users have developed pattern recognition for it. An AI-gene
 
 ## Visual Patterns
 
-Each pattern includes detection methods for use with Playwright's `browser_evaluate`, screenshot analysis, and accessibility snapshots.
+Each pattern includes detection methods for use with the collector's JS extraction snippets, screenshot analysis, and accessibility snapshots.
 
 Severity scale: **1** = mild indicator (common in legit designs too), **2** = notable signal, **3** = strong slop fingerprint.
 
@@ -19,7 +19,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Headings or metric values with gradient color fills, usually purple-to-blue or cyan-to-pink. Text used as a canvas for decoration instead of communication.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const hits = [];
   document.querySelectorAll('h1, h2, h3, h4, h5, h6, [class*="metric"], [class*="stat"]').forEach(el => {
@@ -39,7 +39,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Containers with blurred, semi-transparent backgrounds. Glass-effect cards stacked on colorful backgrounds, glow borders, frosted panels.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   let count = 0;
   const hits = [];
@@ -61,7 +61,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Dark backgrounds (#0a0a0a to #1a1a1a) paired with neon or bright-colored glows, shadows, and highlights. The "AI dashboard" aesthetic.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const body = getComputedStyle(document.body);
   const bg = body.backgroundColor;
@@ -96,7 +96,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Cyan (#00d4ff range) as the primary accent against near-black backgrounds. The "hacker terminal meets SaaS dashboard" color scheme.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const isDark = () => {
     const bg = getComputedStyle(document.body).backgroundColor;
@@ -121,7 +121,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Background gradients or accents shifting from purple (#7c3aed range) to blue (#3b82f6 range). The default "AI product" palette.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   let count = 0;
   document.querySelectorAll('*').forEach(el => {
@@ -140,7 +140,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Big number (48-72px), small label beneath it, supporting stats in a row, optional gradient accent line. The "analytics dashboard hero" that every AI produces.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const bigNumbers = [];
   document.querySelectorAll('*').forEach(el => {
@@ -163,7 +163,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Three or four cards in a row, each with the same dimensions, same internal layout (icon, heading, description), same spacing. Cookie-cutter feature sections.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const grids = document.querySelectorAll('[class*="grid"], [style*="grid"], [class*="flex"]');
   const results = [];
@@ -192,7 +192,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** The usual suspects: Inter, Roboto, Arial, Open Sans, system-ui with no custom or distinctive typography choices. Zero personality in the type.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const generic = ['inter', 'roboto', 'arial', 'open sans', 'helvetica', 'system-ui', 'segoe ui', '-apple-system'];
   // Extract only the PRIMARY font (first in the stack), not fallbacks
@@ -224,7 +224,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Cards inside cards. A container with rounded corners, padding, and a shadow, sitting inside another container with rounded corners, padding, and a shadow. Visual matryoshka.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   let nested = 0;
   document.querySelectorAll('*').forEach(el => {
@@ -251,7 +251,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Every container has border-radius between 8-16px and a soft box-shadow. Safe, forgettable, could be any AI output from any prompt.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   let count = 0;
   document.querySelectorAll('div, section, article, aside').forEach(el => {
@@ -270,7 +270,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Tiny inline charts (SVG paths or canvas elements) that look data-driven but convey no actual information. Vibes-only data visualization.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const tinySvgs = [];
   document.querySelectorAll('svg').forEach(svg => {
@@ -292,7 +292,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Monospace fonts used on headings, labels, or body text that isn't code. Deployed to make things feel "technical" or "developer-y" without any functional reason.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const mono = ['monospace', 'courier', 'consolas', 'fira code', 'jetbrains mono', 'source code pro', 'sf mono'];
   const hits = [];
@@ -313,7 +313,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Elements that overshoot their target position and bounce back. Feels like a 2016 Dribbble shot, not a production interface.
 **How to detect:**
 ```js
-// browser_evaluate — check stylesheets for cubic-bezier curves that indicate bounce/elastic
+// in-page evaluation — check stylesheets for cubic-bezier curves that indicate bounce/elastic
 () => {
   const bouncePatterns = /cubic-bezier\(\s*[\d.]+,\s*[\d.]+,\s*[\d.]+,\s*(1\.[3-9]|[2-9])/;
   const elasticKeywords = /bounce|elastic|spring/i;
@@ -336,7 +336,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Dialogs, overlays, and modals used for tasks that could happen inline. Confirmation modals, settings modals, info modals. Everything gets a modal.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const modals = document.querySelectorAll(
     '[role="dialog"], [aria-modal="true"], dialog, [class*="modal"], [class*="overlay"], [class*="popup"], [class*="dialog"]'
@@ -352,7 +352,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** A thick colored border on just the left or top side of a card/container, used as a lazy visual accent. The "I need some color here" solution.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   let count = 0;
   document.querySelectorAll('*').forEach(el => {
@@ -375,7 +375,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Backgrounds using literal #000000 or #ffffff. Real design uses off-blacks and off-whites with subtle tints. Pure values are the "I didn't think about this" choice.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const body = getComputedStyle(document.body).backgroundColor;
   const m = body.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
@@ -393,7 +393,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Every section, every heading, every paragraph -- all center-aligned. No left alignment, no asymmetry, no intentional layout decisions. Just the safe default.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   let centered = 0, total = 0;
   document.querySelectorAll('h1, h2, h3, p, section > div').forEach(el => {
@@ -412,7 +412,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Large rounded icons (often in colored circles) sitting above every section heading or feature card. The universal "feature list" template.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   let count = 0;
   document.querySelectorAll('h2, h3, h4').forEach(heading => {
@@ -434,7 +434,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** A heading that says "Our Features" followed by a subheading that says "Explore the features we offer." The same information, twice, adding nothing.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const hits = [];
   document.querySelectorAll('h1, h2, h3').forEach(h => {
@@ -456,7 +456,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** All buttons share the same visual weight. No hierarchy between primary actions and secondary options. When everything is loud, nothing is.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const buttons = Array.from(document.querySelectorAll('button, a[class*="btn"], [role="button"], a[class*="button"]'));
   if (buttons.length < 3) return { pattern: 'all-primary-buttons', detected: false };
@@ -476,7 +476,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Every section, every gap, every padding value is the same (usually 24px or 32px). No visual rhythm, no breathing room, no hierarchy of space.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const gaps = [];
   document.querySelectorAll('section, [class*="container"], main > div').forEach(el => {
@@ -498,7 +498,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Bright, saturated accent colors (often green, pink, or yellow) against near-black backgrounds. Like the UI was designed inside a nightclub.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const bg = getComputedStyle(document.body).backgroundColor;
   const bgm = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
@@ -525,7 +525,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Every piece of content sits inside its own rounded, shadowed container. Lists of cards. Cards of cards. The interface is more container than content.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   let cardCount = 0;
   const mainContent = document.querySelector('main') || document.body;
@@ -548,7 +548,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Using gray (#666, #999, etc.) for secondary text regardless of the background color. On white it's fine. On colored or dark backgrounds it looks washed out and unreadable.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const hits = [];
   document.querySelectorAll('p, span, label, small').forEach(el => {
@@ -586,7 +586,7 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **What it looks like:** Full-width hero with a large heading, a subtitle paragraph, and one or two CTA buttons, optionally with a stock illustration or gradient blob. Indistinguishable from a template.
 **How to detect:**
 ```js
-// browser_evaluate
+// in-page evaluation
 () => {
   const hero = document.querySelector('section:first-of-type, header + section, [class*="hero"], main > div:first-child');
   if (!hero) return { pattern: 'generic-hero', detected: false };

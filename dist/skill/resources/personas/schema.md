@@ -1,10 +1,10 @@
 # Persona Schema
 
-Personas are evaluation lenses — not interaction simulators. They let the scanner evaluate design quality from different user perspectives. "How does this page serve a screen reader user? A rushed mobile shopper? A non-native English speaker?"
+Personas are evaluation lenses — not interaction simulators. They let the collector evaluate design quality from different user perspectives. "How does this page serve a screen reader user? A rushed mobile shopper? A non-native English speaker?"
 
 ## Format
 
-Every persona is a single JSON file. Built-in personas live in `dist/skill/resources/personas/`. Custom personas load from `.pixelslop/personas/` or the path set via `--personas-dir`. Same schema, same behavior — the scanner doesn't care where the file came from.
+Every persona is a single JSON file. Built-in personas live in `dist/skill/resources/personas/`. Custom personas load from `.pixelslop/personas/` or the path set via `--personas-dir`. Same schema, same behavior — the collector doesn't care where the file came from.
 
 ## Fields
 
@@ -81,7 +81,7 @@ Weights 1-4 for each of the 5 scoring pillars. These don't change the pillar sco
 
 ### `evaluationChecks`
 
-Array of check IDs that guide what the scanner evaluates for this persona. These are evaluation topics, not 1:1 mappings to specific `browser_evaluate` snippets. The scanner uses judgment to select the appropriate measurement approach — some checks use a11y snapshots, some use computed styles, some use visual inspection of screenshots. IDs serve as a checklist, not an API contract. Built-in check IDs:
+Array of check IDs that guide what the collector evaluates for this persona. These are evaluation topics, not 1:1 mappings to specific collector snippets. The collector uses judgment to select the appropriate measurement approach — some checks use a11y snapshots, some use computed styles, some use visual inspection of screenshots. IDs serve as a checklist, not an API contract. Built-in check IDs:
 
 - `heading-hierarchy-sequential` — h1→h2→h3 without skips
 - `landmark-regions-present` — main, nav, header, footer landmarks exist
@@ -109,15 +109,15 @@ Array of check IDs that guide what the scanner evaluates for this persona. These
 
 ### `frustrationTriggers`
 
-Human-readable descriptions of design patterns that cause problems for this user type. The scanner matches these against collected findings to generate persona-specific issues. These are qualitative — they guide the scanner's interpretation, not its measurement.
+Human-readable descriptions of design patterns that cause problems for this user type. The collector matches these against collected findings to generate persona-specific issues. These are qualitative — they guide the collector's interpretation, not its measurement.
 
 ### `positiveSignals`
 
-Design patterns that work well for this user type. The scanner notes these in the persona summary as "what's working." Helps balance the report — it's not all problems.
+Design patterns that work well for this user type. The collector notes these in the persona summary as "what's working." Helps balance the report — it's not all problems.
 
 ### `cognitiveLoadFactors`
 
-Information density checks for cognitive-load-sensitive personas. Empty array for personas where cognitive load isn't a primary concern. When populated, the scanner evaluates:
+Information density checks for cognitive-load-sensitive personas. Empty array for personas where cognitive load isn't a primary concern. When populated, the collector evaluates:
 
 - Number of competing CTAs per viewport
 - Text density (words per visible section)
@@ -126,7 +126,7 @@ Information density checks for cognitive-load-sensitive personas. Empty array fo
 
 ### `narrationStyle`
 
-Adds personality to persona findings. The `voice` field sets the tone, `sampleReactions` show example quotes. The scanner can use these to contextualize findings:
+Adds personality to persona findings. The `voice` field sets the tone, `sampleReactions` show example quotes. The collector can use these to contextualize findings:
 
 > "I can't tell what this section is — no heading or landmark." — screen-reader-user
 
@@ -134,7 +134,7 @@ This makes findings more concrete than abstract accessibility rules.
 
 ### `browserChecks`
 
-Configures the scanner's evaluation scope for this persona.
+Configures the collector's evaluation scope for this persona.
 
 - `viewports` — which viewport sizes to evaluate (most personas check desktop; rushed-mobile-user checks mobile)
 - `extraEvaluations` — additional browser checks beyond standard extraction (e.g., `a11y-snapshot-deep` for accessibility personas, `zoom-reflow-200` for low-vision)
@@ -143,9 +143,9 @@ Configures the scanner's evaluation scope for this persona.
 
 1. Create a `.json` file matching the schema above
 2. Drop it in `.pixelslop/personas/` (or your configured personas directory)
-3. Run the scanner — custom personas are auto-discovered and evaluated alongside built-ins
+3. Run the collector — custom personas are auto-discovered and evaluated alongside built-ins
 
-The filename (without `.json`) must match the `id` field. The scanner validates persona files at load time and skips any that don't match the schema, with a warning in the report.
+The filename (without `.json`) must match the `id` field. The collector validates persona files at load time and skips any that don't match the schema, with a warning in the report.
 
 ## Persona Report Format
 

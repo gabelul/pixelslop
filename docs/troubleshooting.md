@@ -64,7 +64,7 @@ The scan involves Playwright opening the page at 3 viewports, running JS evaluat
 Things that help:
 - Make sure the page is fully loaded before scanning (no pending API calls)
 - If using SSR, ensure the server is warmed up
-- Check that Playwright MCP is configured correctly: `npx pixelslop doctor`
+- Check that the browser runtime is configured correctly: `npx pixelslop doctor`
 
 ### "No servers, start targets, or HTML files found"
 

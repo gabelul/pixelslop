@@ -12,7 +12,7 @@
  * Zero npm dependencies. CJS so it runs anywhere.
  *
  * Usage: pixelslop-tools <group> <command> [options]
- * Groups: plan, checkpoint, gate, config, init, verify
+ * Groups: plan, checkpoint, gate, config, init, verify, browser
  *
  * Flags:
  *   --raw       JSON output for agent consumption
@@ -2117,13 +2117,13 @@ function parseArgs(argv) {
 /**
  * Main entry point. Parses args and routes to the appropriate handler.
  */
-function main() {
+async function main() {
   const { positional, flags } = parseArgs(process.argv.slice(2));
   const [group, command] = positional;
 
   if (!group) {
     console.log('Usage: pixelslop-tools <group> <command> [options]');
-    console.log('Groups: plan, checkpoint, gate, config, log, discover, serve, init, verify');
+    console.log('Groups: plan, checkpoint, gate, config, log, discover, serve, init, verify, browser');
     console.log('Global flags: --raw (JSON output), --cwd <path> (working directory), --debug (enable session logging)');
     console.log('Command flags:');
     console.log('  log write [--root <path>] --agent <name> --level <info|warn|error|debug> --message "..."');
@@ -2138,6 +2138,12 @@ function main() {
     console.log('  plan begin --url <url> [--root <path>] [--issues <json>] [--scores <json>]');
     console.log('  plan update <issue-id> <status> [--root <path>]');
     console.log('  plan snapshot [--root <path>]');
+    console.log('  browser detect');
+    console.log('  browser collect --url <url> [--root <path>] [--personas <ids>] [--out <file>] [--headed]');
+    console.log('  browser check --url <url> --metric <metric> [--selector <css>] [--viewport <name|WxH>]');
+    console.log('  browser styles --url <url> --selector <css>');
+    console.log('  browser snapshot --url <url>');
+    console.log('  browser screenshot --url <url> [--viewport <name|WxH>] [--out <file>]');
     console.log('  --root identifies the project being analyzed; --cwd only changes where pixelslop-tools runs.');
     process.exit(0);
   }
@@ -2237,9 +2243,15 @@ function main() {
       }
       break;
 
+    case 'browser': {
+      const { runBrowserCommand } = require('./pixelslop-browser.cjs');
+      const result = await runBrowserCommand(command, { ...flags, cwd: CWD });
+      return output(result, true);
+    }
+
     default:
-      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, log, discover, serve, init, verify`);
+      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, log, discover, serve, init, verify, browser`);
   }
 }
 
-main();
+main().catch(error => fail(error.message));

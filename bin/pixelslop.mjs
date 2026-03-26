@@ -3,7 +3,7 @@
 /**
  * pixelslop — Installer CLI for the Pixelslop design quality reviewer.
  *
- * Installs pixelslop-tools, skill files, agent specs, and Playwright MCP
+ * Installs pixelslop-tools, browser helpers, skill files, and agent specs
  * into Claude Code and Codex CLI runtimes. Handles path rewriting so
  * agent specs reference absolute paths to the install root.
  *
@@ -26,6 +26,7 @@ import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
 import { createInterface } from 'readline/promises';
+import { execFileSync } from 'child_process';
 
 // ─────────────────────────────────────────────
 // Constants
@@ -46,8 +47,8 @@ const INSTALL_ROOT = join(HOME, '.pixelslop');
 const PKG = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8'));
 const VERSION = PKG.version;
 
-/** Playwright MCP version — single source of truth */
-const PLAYWRIGHT_MCP_VERSION = '0.0.68';
+/** Browser runtime package — single source of truth */
+const PLAYWRIGHT_CORE_VERSION = (PKG.dependencies?.['playwright-core'] || '1.58.2').replace(/^[^\d]*/, '');
 
 /** Agent files to install (basenames) */
 const AGENT_FILES = [
@@ -62,7 +63,7 @@ const AGENT_FILES = [
 /**
  * Valid install scopes.
  * - global: install into user-level runtime config (~/.claude, ~/.codex)
- * - project: install into project-level runtime config (./.claude, ./.codex, ./.mcp.json)
+ * - project: install into project-level runtime config (./.claude, ./.codex)
  */
 const SCOPES = ['global', 'project'];
 const RUNTIMES = ['Claude Code', 'Codex CLI'];
@@ -111,124 +112,141 @@ export function rewriteAgentPaths(content, installRoot) {
 }
 
 // ─────────────────────────────────────────────
-// MCP Config Writers
+// Browser Runtime Detection
 // ─────────────────────────────────────────────
 
-/**
- * MCP entry that gets added to runtime configs.
- * Playwright runs locally via npx — no API key needed.
- */
-const MCP_ENTRY = {
-  command: 'npx',
-  args: ['-y', `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`],
-};
-
-/**
- * Add Playwright MCP entry to a JSON config file (Claude Code settings.json).
- * Creates the file if it doesn't exist. Preserves existing entries.
- *
- * @param {string} filePath - Path to settings.json
- * @returns {boolean} True if entry was added or already present
- */
-export function writeJsonMcp(filePath) {
-  let data = {};
-  if (existsSync(filePath)) {
-    try {
-      data = JSON.parse(readFileSync(filePath, 'utf8'));
-    } catch {
-      // If the file is corrupt, start fresh but warn
-      log('⚠', `Could not parse ${filePath} — creating new`);
-      data = {};
-    }
+function browserCandidates() {
+  if (process.platform === 'darwin') {
+    return [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    ];
   }
 
-  if (!data.mcpServers) {
-    data.mcpServers = {};
+  if (process.platform === 'win32') {
+    const local = process.env.LOCALAPPDATA || '';
+    const programFiles = process.env.PROGRAMFILES || 'C:\\Program Files';
+    const programFilesX86 = process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)';
+    return [
+      join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      join(local, 'Chromium', 'Application', 'chrome.exe'),
+      join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    ];
   }
 
-  // Don't duplicate if already present
-  if (data.mcpServers['pixelslop-playwright']) {
-    return true;
-  }
+  return [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/snap/bin/chromium',
+    '/opt/google/chrome/chrome',
+  ];
+}
 
-  data.mcpServers['pixelslop-playwright'] = MCP_ENTRY;
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n');
-  return true;
+function browserBins() {
+  if (process.platform === 'win32') return [];
+  return ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'msedge'];
 }
 
 /**
- * Remove Playwright MCP entry from a JSON config file.
- *
- * @param {string} filePath - Path to settings.json
- * @returns {boolean} True if entry was removed or wasn't present
+ * Resolve the npx executable name for the current platform.
+ * @returns {string}
  */
-export function removeJsonMcp(filePath) {
-  if (!existsSync(filePath)) return true;
+function npxBin() {
+  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
+}
 
+function which(bin) {
   try {
-    const data = JSON.parse(readFileSync(filePath, 'utf8'));
-    if (data.mcpServers && data.mcpServers['pixelslop-playwright']) {
-      delete data.mcpServers['pixelslop-playwright'];
-      writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n');
-    }
-    return true;
+    return execFileSync('which', [bin], { encoding: 'utf8' }).trim() || null;
   } catch {
-    log('⚠', `Could not parse ${filePath}`);
-    return false;
+    return null;
   }
 }
 
-/**
- * Add Playwright MCP entry to a TOML config file (Codex config.toml).
- * Appends the TOML block if not already present.
- *
- * @param {string} filePath - Path to config.toml
- * @returns {boolean} True if entry was added or already present
- */
-export function writeTomlMcp(filePath) {
-  let content = '';
-  if (existsSync(filePath)) {
-    content = readFileSync(filePath, 'utf8');
+function findPlaywrightCacheExecutable() {
+  const cacheRoots = process.platform === 'darwin'
+    ? [join(HOME, 'Library', 'Caches', 'ms-playwright')]
+    : process.platform === 'win32'
+      ? [join(process.env.LOCALAPPDATA || '', 'ms-playwright')]
+      : [join(HOME, '.cache', 'ms-playwright')];
+
+  const suffix = process.platform === 'darwin'
+    ? join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')
+    : process.platform === 'win32'
+      ? join('chrome-win', 'chrome.exe')
+      : join('chrome-linux', 'chrome');
+
+  for (const root of cacheRoots) {
+    if (!root || !existsSync(root)) continue;
+    for (const entry of readdirSync(root)) {
+      if (!entry.startsWith('chromium-')) continue;
+      const candidate = join(root, entry, suffix);
+      if (existsSync(candidate)) return candidate;
+    }
   }
 
-  // Don't duplicate — check if the section header already exists
-  if (content.includes('[mcp_servers.pixelslop-playwright]')) {
-    return true;
-  }
-
-  const tomlBlock = `
-[mcp_servers.pixelslop-playwright]
-command = "npx"
-args = ["-y", "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}"]
-`;
-
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, content.trimEnd() + '\n' + tomlBlock);
-  return true;
+  return null;
 }
 
-/**
- * Remove Playwright MCP entry from a TOML config file.
- * Uses regex to remove the [mcp_servers.pixelslop-playwright] block.
- *
- * @param {string} filePath - Path to config.toml
- * @returns {boolean} True if entry was removed or wasn't present
- */
-export function removeTomlMcp(filePath) {
-  if (!existsSync(filePath)) return true;
-
-  let content = readFileSync(filePath, 'utf8');
-
-  // Remove the entire block: header + key-value pairs until next section or EOF
-  // Match the section header and all lines until the next [section] or end of file
-  const pattern = /\n?\[mcp_servers\.pixelslop-playwright\][^\[]*/g;
-  const updated = content.replace(pattern, '\n');
-
-  if (updated !== content) {
-    writeFileSync(filePath, updated);
+export function detectBrowserRuntime() {
+  const envPath = process.env.PIXELSLOP_BROWSER_EXECUTABLE || process.env.CHROME_EXECUTABLE || process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  if (envPath && existsSync(envPath)) {
+    return { available: true, executablePath: envPath, source: 'env' };
   }
-  return true;
+
+  for (const candidate of browserCandidates()) {
+    if (existsSync(candidate)) {
+      return { available: true, executablePath: candidate, source: 'system' };
+    }
+  }
+
+  for (const bin of browserBins()) {
+    const resolved = which(bin);
+    if (resolved) {
+      return { available: true, executablePath: resolved, source: 'path' };
+    }
+  }
+
+  const playwrightCache = findPlaywrightCacheExecutable();
+  if (playwrightCache) {
+    return { available: true, executablePath: playwrightCache, source: 'playwright-cache' };
+  }
+
+  return { available: false, executablePath: null, source: null };
+}
+
+function installChromium() {
+  execFileSync(npxBin(), ['-y', `playwright@${PLAYWRIGHT_CORE_VERSION}`, 'install', 'chromium'], {
+    cwd: PACKAGE_ROOT,
+    stdio: 'inherit',
+  });
+}
+
+export function ensureBrowserRuntime(deps = {}) {
+  const detect = deps.detectBrowserRuntime || detectBrowserRuntime;
+  const install = deps.installChromium || installChromium;
+  const headerFn = deps.header || header;
+  const logFn = deps.log || log;
+
+  let runtime = detect();
+  if (runtime.available) return runtime;
+
+  headerFn('Browser runtime');
+  logFn('ℹ', 'No system Chrome/Chromium found. Installing Chromium for Playwright...');
+  install();
+
+  runtime = detect();
+  if (!runtime.available) {
+    throw new Error('Chromium install completed, but no executable was detected. Set PIXELSLOP_BROWSER_EXECUTABLE if your browser lives elsewhere.');
+  }
+
+  logFn('✓', `Browser runtime → ${runtime.executablePath} (${runtime.source})`);
+  return runtime;
 }
 
 // ─────────────────────────────────────────────
@@ -294,7 +312,7 @@ export function linkOrCopy(src, dest, forceCopy = false) {
 /**
  * Build the client registry for the given install scope.
  *
- * Each client knows how to detect its runtime, where to put agents/skills/MCP,
+ * Each client knows how to detect its runtime, where to put agents/skills,
  * and how to install/remove/check the skill directory. The install method
  * (symlink vs copy) is determined at install time by linkOrCopy and tracked
  * in the manifest.
@@ -308,16 +326,12 @@ export function getClients(scope, forceCopy = false) {
   const clients = [];
 
   // ── Claude Code ──────────────────────────────
-  // Global: ~/.claude/agents, ~/.claude/skills, ~/.claude/settings.json
-  // Project: ./.claude/agents, ./.claude/skills, ./.mcp.json
+  // Global: ~/.claude/agents, ~/.claude/skills
+  // Project: ./.claude/agents, ./.claude/skills
   const claudeBase = scope === 'project'
     ? join(projectRoot, '.claude')
     : join(HOME, '.claude');
   const claudeSkillDir = join(claudeBase, 'skills', 'pixelslop');
-
-  const claudeMcpConfig = scope === 'project'
-    ? join(projectRoot, '.mcp.json')
-    : join(HOME, '.claude', 'settings.json');
 
   clients.push({
     id: 'claude',
@@ -346,8 +360,6 @@ export function getClients(scope, forceCopy = false) {
     },
     /** Check skill exists and SKILL.md is reachable (works for both symlinks and copies) */
     checkSkill: () => existsSync(claudeSkillDir) && existsSync(join(claudeSkillDir, 'SKILL.md')),
-    mcpConfig: claudeMcpConfig,
-    mcpFormat: 'json',
   });
 
   // ── Codex CLI ────────────────────────────────
@@ -381,8 +393,6 @@ export function getClients(scope, forceCopy = false) {
       }
     },
     checkSkill: () => existsSync(codexSkillDir) && existsSync(join(codexSkillDir, 'SKILL.md')),
-    mcpConfig: join(codexBase, 'config.toml'),
-    mcpFormat: 'toml',
   });
 
   return clients;
@@ -609,7 +619,7 @@ async function collectInstallSelections({ scope, runtimeFlag }) {
           {
             label: 'Project-local',
             value: 'project',
-            detail: 'Install into .claude/, .codex/, .mcp.json for this project only.',
+            detail: 'Install into .claude/ and .codex/ for this project only.',
           },
         ]
       );
@@ -639,14 +649,15 @@ async function collectInstallSelections({ scope, runtimeFlag }) {
  * @param {object} details.installMethods - Install method per client
  *   e.g. { "Claude Code": { skill: "symlink" }, "Codex CLI": { skill: "copy" } }
  */
-function writeManifest({ clientNames, scope, installMethods }) {
+function writeManifest({ clientNames, scope, installMethods, browserRuntime }) {
   const manifest = {
     version: VERSION,
     installedAt: new Date().toISOString(),
     installRoot: INSTALL_ROOT,
     scope: scope,
     projectRoot: scope === 'project' ? process.cwd() : null,
-    playwrightMcpVersion: PLAYWRIGHT_MCP_VERSION,
+    browserPackage: `playwright-core@${PLAYWRIGHT_CORE_VERSION}`,
+    browserRuntime: browserRuntime || null,
     clients: clientNames,
     agentFiles: AGENT_FILES,
     installMethods: installMethods,
@@ -756,7 +767,7 @@ export function calculateFileDiff(backupDir, installDir) {
 
 /**
  * Install pixelslop into selected runtimes.
- * Copies tools, skill files, and agent specs. Configures MCP.
+ * Copies tools, browser helpers, skill files, and agent specs.
  * Tracks install method (symlink vs copy) per client in the manifest.
  * Runs doctor automatically after install.
  *
@@ -823,7 +834,7 @@ function install(options = {}) {
     }
   }
 
-  // Step 1: Copy pixelslop-tools to install root (always global)
+  // Step 1: Copy core CLIs to install root (always global)
   header('Installing core files');
   mkdirSync(join(INSTALL_ROOT, 'bin'), { recursive: true });
   copyFileSync(
@@ -832,8 +843,17 @@ function install(options = {}) {
   );
   chmodSync(join(INSTALL_ROOT, 'bin', 'pixelslop-tools.cjs'), 0o755);
   log('✓', 'bin/pixelslop-tools.cjs');
+  copyFileSync(
+    join(PACKAGE_ROOT, 'bin', 'pixelslop-browser.cjs'),
+    join(INSTALL_ROOT, 'bin', 'pixelslop-browser.cjs')
+  );
+  chmodSync(join(INSTALL_ROOT, 'bin', 'pixelslop-browser.cjs'), 0o755);
+  log('✓', 'bin/pixelslop-browser.cjs');
 
-  // Step 2: Copy skill directory to install root (source of truth)
+  // Step 2: Ensure a browser runtime exists before wiring clients
+  const browserRuntime = ensureBrowserRuntime();
+
+  // Step 3: Copy skill directory to install root (source of truth)
   copyDir(
     join(PACKAGE_ROOT, 'dist', 'skill'),
     join(INSTALL_ROOT, 'skill')
@@ -841,7 +861,7 @@ function install(options = {}) {
   const resourceCount = readdirSync(join(INSTALL_ROOT, 'skill', 'resources')).length;
   log('✓', `skill/SKILL.md + ${resourceCount} resources`);
 
-  // Step 3: Install into each detected client
+  // Step 4: Install into each detected client
   const installedClients = [];
   const installMethods = {};
 
@@ -881,21 +901,13 @@ function install(options = {}) {
     // Track install method for this client
     installMethods[client.name] = { skill: skillMethod };
 
-    // Add Playwright MCP entry (never symlinked — always written directly)
-    if (client.mcpFormat === 'json') {
-      writeJsonMcp(client.mcpConfig);
-    } else {
-      writeTomlMcp(client.mcpConfig);
-    }
-    log('✓', `Playwright MCP → ${client.mcpConfig}`);
-
     installedClients.push(client.name);
   }
 
-  // Step 4: Write manifest with method tracking
-  writeManifest({ clientNames: installedClients, scope, installMethods });
+  // Step 5: Write manifest with method tracking
+  writeManifest({ clientNames: installedClients, scope, installMethods, browserRuntime });
 
-  // Step 5: Run doctor
+  // Step 6: Run doctor
   console.log('');
   doctor();
 
@@ -1031,7 +1043,7 @@ function update(options = {}) {
 /**
  * Uninstall pixelslop from all runtimes.
  * Reads the manifest to determine scope, then removes agent files,
- * skill links/copies, MCP entries, and the install root.
+ * skill links/copies, and the install root.
  */
 function uninstall() {
   console.log(`\n  Uninstalling pixelslop...`);
@@ -1085,13 +1097,6 @@ function uninstall() {
     // Remove skill
     client.removeSkill();
 
-    // Remove MCP entry
-    if (client.mcpFormat === 'json') {
-      removeJsonMcp(client.mcpConfig);
-    } else {
-      removeTomlMcp(client.mcpConfig);
-    }
-
     log('✓', `Removed from ${client.name} (${scope})`);
   }
 
@@ -1112,7 +1117,7 @@ function uninstall() {
 
 /**
  * Verify installation health.
- * Checks file existence, resource counts, MCP entries, and agent files.
+ * Checks file existence, resource counts, browser runtime, and agent files.
  * Returns exit code 0 if healthy, 1 if issues found.
  */
 function doctor() {
@@ -1153,6 +1158,11 @@ function doctor() {
   check(
     'bin/pixelslop-tools.cjs',
     existsSync(join(INSTALL_ROOT, 'bin', 'pixelslop-tools.cjs')),
+    'Missing from install root'
+  );
+  check(
+    'bin/pixelslop-browser.cjs',
+    existsSync(join(INSTALL_ROOT, 'bin', 'pixelslop-browser.cjs')),
     'Missing from install root'
   );
 
@@ -1258,26 +1268,16 @@ function doctor() {
       }
     }
 
-    // MCP entry
-    if (client.mcpFormat === 'json' && existsSync(client.mcpConfig)) {
-      try {
-        const config = JSON.parse(readFileSync(client.mcpConfig, 'utf8'));
-        check(
-          `${client.name}: Playwright MCP`,
-          !!config.mcpServers?.['pixelslop-playwright'],
-          'MCP entry missing from settings.json'
-        );
-      } catch {
-        check(`${client.name}: Playwright MCP`, false, 'Could not parse settings.json');
-      }
-    } else if (client.mcpFormat === 'toml' && existsSync(client.mcpConfig)) {
-      const content = readFileSync(client.mcpConfig, 'utf8');
-      check(
-        `${client.name}: Playwright MCP`,
-        content.includes('[mcp_servers.pixelslop-playwright]'),
-        'MCP entry missing from config.toml'
-      );
-    }
+  }
+
+  const browserRuntime = detectBrowserRuntime();
+  check(
+    'Browser runtime',
+    browserRuntime.available,
+    'No Chrome/Chromium runtime found'
+  );
+  if (browserRuntime.available) {
+    log('ℹ', `Browser executable: ${browserRuntime.executablePath} (${browserRuntime.source})`);
   }
 
   // Version and scope info
@@ -1315,7 +1315,10 @@ function status() {
   log('ℹ', `Install root: ${manifest.installRoot}`);
   log('ℹ', `Installed: ${manifest.installedAt}`);
   log('ℹ', `Clients: ${(manifest.clients || []).join(', ')}`);
-  log('ℹ', `Playwright MCP: @playwright/mcp@${manifest.playwrightMcpVersion}`);
+  log('ℹ', `Browser package: ${manifest.browserPackage || `playwright-core@${PLAYWRIGHT_CORE_VERSION}`}`);
+  if (manifest.browserRuntime?.executablePath) {
+    log('ℹ', `Browser runtime: ${manifest.browserRuntime.executablePath} (${manifest.browserRuntime.source})`);
+  }
 
   const clients = resolveClients(getClients(manifest.scope || 'global'), manifest.clients || []);
   if (clients.length > 0) {
@@ -1325,7 +1328,6 @@ function status() {
       log('✓', client.name);
       log(' ', `Agents: ${client.agentDir}`);
       log(' ', `Skill: ${client.skillDir} (${skillMethod})`);
-      log(' ', `MCP:   ${client.mcpConfig}`);
     }
   }
   console.log('');
@@ -1340,7 +1342,7 @@ function status() {
  * Supports: install, update, uninstall, doctor, status, --help, --version
  *
  * Scope flags:
- *   --project  Install into project-level runtime config (.claude/, .codex/, .mcp.json)
+ *   --project  Install into project-level runtime config (.claude/, .codex/)
  *   --global   Install into user-level runtime config (~/.claude/) — default
  *
  * Method flags:
@@ -1396,7 +1398,7 @@ async function main() {
     status      Show what's installed
 
   Scope:
-    --project   Install into this project only (.claude/, .codex/, .mcp.json)
+    --project   Install into this project only (.claude/, .codex/)
     --global    Install for current user (default)
 
   Runtimes:

@@ -92,7 +92,7 @@ function parseFrontmatter(content) {
 
 /**
  * Extract all JS code blocks from a markdown file.
- * Looks for ```js ... ``` blocks (the snippets agents run via browser_evaluate).
+ * Looks for ```js ... ``` blocks (the snippets the collector runs in page context).
  *
  * @param {string} markdown - Raw markdown content
  * @returns {Array<{code: string, lineNumber: number}>} Extracted code blocks
@@ -231,22 +231,13 @@ describe('Scanner agent frontmatter', () => {
     assert.ok(frontmatter.tools, 'missing tools');
   });
 
-  it('tools list includes Playwright MCP tools', () => {
+  it('tools list keeps the scanner file read-only', () => {
     const content = readDist('agents/pixelslop-scanner.md');
     const { frontmatter } = parseFrontmatter(content);
     const tools = Array.isArray(frontmatter.tools) ? frontmatter.tools : [];
-
-    const requiredTools = [
-      'mcp__playwright__browser_navigate',
-      'mcp__playwright__browser_take_screenshot',
-      'mcp__playwright__browser_resize',
-      'mcp__playwright__browser_evaluate',
-      'mcp__playwright__browser_snapshot',
-    ];
-
-    for (const tool of requiredTools) {
-      assert.ok(tools.includes(tool), `missing tool: ${tool}`);
-    }
+    assert.ok(tools.includes('Bash'), 'scanner should shell out to pixelslop-tools');
+    assert.ok(!tools.some(tool => tool.includes('playwright') || tool.includes('browser_')),
+      'scanner should not declare Playwright MCP tools');
   });
 
   it('tools list includes Read (for loading resource files)', () => {
@@ -379,9 +370,8 @@ describe('Cross-file consistency', () => {
 
   it('scanner (evidence collector) references its resource files', () => {
     const scanner = readDist('agents/pixelslop-scanner.md');
-    assert.ok(scanner.includes('visual-eval.md'), 'scanner should reference visual-eval.md');
-    assert.ok(scanner.includes('evidence-schema.md'), 'scanner should reference evidence-schema.md');
-    assert.ok(scanner.includes('ai-slop-patterns.md'), 'scanner should reference ai-slop-patterns.md');
+    assert.ok(scanner.includes('browser collect'), 'scanner should call the direct collector');
+    assert.ok(scanner.includes('evidence bundle'), 'scanner should describe the evidence output');
   });
 
   it('all 5 pillar names are consistent across scoring.md and orchestrator', () => {
@@ -418,13 +408,13 @@ describe('Cross-file consistency', () => {
 
     // Desktop
     assert.ok(eval_.includes('1440') && eval_.includes('900'), 'visual-eval missing 1440x900');
-    assert.ok(scanner.includes('1440') && scanner.includes('900'), 'scanner missing 1440x900');
+    assert.ok(scanner.includes('browser collect'), 'scanner should defer viewport choreography to the collector');
     // Tablet
     assert.ok(eval_.includes('768') && eval_.includes('1024'), 'visual-eval missing 768x1024');
-    assert.ok(scanner.includes('768') && scanner.includes('1024'), 'scanner missing 768x1024');
+    assert.ok(scanner.includes('evidence bundle'), 'scanner should still describe the collected output');
     // Mobile
     assert.ok(eval_.includes('375') && eval_.includes('812'), 'visual-eval missing 375x812');
-    assert.ok(scanner.includes('375') && scanner.includes('812'), 'scanner missing 375x812');
+    assert.ok(scanner.includes('browser collect'), 'scanner should reference the direct collector command');
   });
 
   it('evidence-schema decoration sample matches the decoration snippet shape', () => {
@@ -457,13 +447,8 @@ describe('Cross-file consistency', () => {
 
   it('scanner bundle skeleton matches the evidence schema contract', () => {
     const scanner = readDist('agents/pixelslop-scanner.md');
-
-    assert.ok(scanner.includes('"title": "<document.title>"'),
-      'scanner bundle skeleton should include top-level title');
-    assert.ok(scanner.includes('"typography": { "h1": { "...": "..." }, "p": { "...": "..." } }'),
-      'scanner bundle skeleton should show selector-keyed typography object');
-    assert.ok(!scanner.includes('"typography": [...]'),
-      'scanner bundle skeleton should not show stale typography array form');
+    assert.ok(scanner.includes('url') && scanner.includes('viewports'),
+      'scanner should mention the required bundle keys when sanity-checking output');
   });
 
   it('evidence-schema examples match numeric and overflow fields from the snippets', () => {
@@ -559,20 +544,20 @@ describe('visual-eval.md protocol structure', () => {
 
   it('has at least 5 JS extraction snippets', () => {
     const blocks = extractJsBlocks(content);
-    // Filter out tool-call pseudo-code (browser_resize etc)
+    // Filter out collector step pseudo-code from older examples.
     const realSnippets = blocks.filter(b => !b.code.startsWith('browser_'));
     assert.ok(realSnippets.length >= 5,
       `only ${realSnippets.length} extraction snippets found, expected 5+`);
   });
 
-  it('references browser_take_screenshot (not browser_screenshot)', () => {
-    assert.ok(content.includes('browser_take_screenshot'), 'should use browser_take_screenshot');
+  it('documents screenshot capture without the legacy browser_screenshot name', () => {
+    assert.ok(content.includes('Screenshot capture'), 'should describe screenshot capture');
     assert.ok(!content.includes('browser_screenshot()'), 'should NOT have old browser_screenshot()');
   });
 
-  it('has a tool reference table', () => {
-    assert.ok(content.includes('browser_navigate'), 'tool table should list browser_navigate');
-    assert.ok(content.includes('browser_evaluate'), 'tool table should list browser_evaluate');
+  it('has a collector step reference table', () => {
+    assert.ok(content.includes('Collector Step'), 'summary table should describe collector steps');
+    assert.ok(content.includes('JS extraction snippets'), 'summary table should mention extraction snippets');
   });
 });
 
@@ -599,19 +584,12 @@ describe('Fixer agent frontmatter', () => {
     assert.ok(tools.includes('Edit'), 'fixer needs Edit tool');
   });
 
-  it('has Playwright MCP tools (read-only browser access)', () => {
+  it('does not declare Playwright MCP tools', () => {
     const content = readDist('agents/pixelslop-fixer.md');
     const { frontmatter } = parseFrontmatter(content);
     const tools = Array.isArray(frontmatter.tools) ? frontmatter.tools : [];
-    const requiredPlaywright = [
-      'mcp__playwright__browser_navigate',
-      'mcp__playwright__browser_take_screenshot',
-      'mcp__playwright__browser_evaluate',
-      'mcp__playwright__browser_snapshot',
-    ];
-    for (const tool of requiredPlaywright) {
-      assert.ok(tools.includes(tool), `fixer missing tool: ${tool}`);
-    }
+    assert.ok(!tools.some(tool => tool.includes('playwright') || tool.includes('browser_')),
+      'fixer should use pixelslop-tools browser commands, not MCP tools');
   });
 
   it('has file tools for source code manipulation', () => {
@@ -652,19 +630,12 @@ describe('Checker agent frontmatter', () => {
     assert.ok(!tools.includes('Edit'), 'checker must NOT have Edit tool');
   });
 
-  it('has Playwright MCP tools for measurement', () => {
+  it('does not declare Playwright MCP tools', () => {
     const content = readDist('agents/pixelslop-checker.md');
     const { frontmatter } = parseFrontmatter(content);
     const tools = Array.isArray(frontmatter.tools) ? frontmatter.tools : [];
-    const requiredPlaywright = [
-      'mcp__playwright__browser_navigate',
-      'mcp__playwright__browser_take_screenshot',
-      'mcp__playwright__browser_evaluate',
-      'mcp__playwright__browser_snapshot',
-    ];
-    for (const tool of requiredPlaywright) {
-      assert.ok(tools.includes(tool), `checker missing tool: ${tool}`);
-    }
+    assert.ok(!tools.some(tool => tool.includes('playwright') || tool.includes('browser_')),
+      'checker should use pixelslop-tools browser commands, not MCP tools');
   });
 
   it('has Bash tool (for rollback commands)', () => {
@@ -682,6 +653,7 @@ describe('Checker agent frontmatter', () => {
   it('references visual-eval.md (for measurement snippets)', () => {
     const content = readDist('agents/pixelslop-checker.md');
     assert.ok(content.includes('visual-eval.md'), 'checker should reference visual-eval.md');
+    assert.ok(content.includes('browser check'), 'checker should call direct browser check commands');
   });
 });
 

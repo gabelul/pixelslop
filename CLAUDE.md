@@ -128,6 +128,6 @@ Conventional commits. Always. See the global CLAUDE.md for the full format refer
 - **Run tests before committing.** `npm test` — 600+ tests, zero dependencies, takes ~10s.
 - **Path rewriting is fragile.** If you rename `bin/pixelslop-tools.cjs` or move `dist/skill/resources/`, update `rewriteAgentPaths()` in `bin/pixelslop.mjs`. The installer tests catch drift.
 
-## Playwright MCP
+## Direct Browser Runtime
 
-Configured in `.mcp.json` — uses `@playwright/mcp@0.0.68`. Tool names follow the pattern `mcp__playwright__browser_*`. The scanner needs: `browser_navigate`, `browser_take_screenshot` (not browser_screenshot), `browser_resize`, `browser_evaluate`, `browser_snapshot`, `browser_console_messages`, `browser_network_requests`.
+Pixelslop now runs deterministic browser work through `pixelslop-tools browser *` commands backed by direct Playwright execution. The collector, fixer, and checker no longer depend on Playwright MCP tool declarations.

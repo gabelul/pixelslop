@@ -6,7 +6,7 @@
 npx pixelslop install
 ```
 
-That's it. Install is interactive by default: it detects Claude Code and Codex CLI, lets you pick which runtimes to wire up, then copies agent specs, installs skill files, and configures Playwright MCP.
+That's it. Install is interactive by default: it detects Claude Code and Codex CLI, lets you pick which runtimes to wire up, then copies agent specs, installs skill files, and verifies the direct browser runtime.
 
 **You need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex CLI](https://github.com/openai/codex) already installed.** Pixelslop plugs into your existing runtime — it doesn't bundle one.
 
@@ -15,7 +15,7 @@ That's it. Install is interactive by default: it detects Claude Code and Codex C
 ```bash
 npx pixelslop install                      # interactive: pick scope + runtimes
 npx pixelslop install --global             # global install for current user
-npx pixelslop install --project            # project install (.claude/, .codex/, .mcp.json)
+npx pixelslop install --project            # project install (.claude/, .codex/)
 npx pixelslop install --claude-only        # install Claude Code only
 npx pixelslop install --codex-only         # install Codex CLI only
 npx pixelslop install --all                # install every detected runtime
@@ -25,7 +25,7 @@ npx pixelslop install --copy               # force copy mode (portable for teams
 
 Project installs now use runtime-native paths:
 
-- Claude Code: `.claude/` plus `.mcp.json`
+- Claude Code: `.claude/`
 - Codex CLI: `.codex/`
 
 ### Lifecycle
