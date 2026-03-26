@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.5](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.4...pixelslop-v0.2.5) (2026-03-26)
+
+
+### Features
+
+* replace Playwright MCP with direct browser runtime ([0a9d42e](https://github.com/gabelul/pixelslop/commit/0a9d42e7bf879ab4950ec8bbc47c9cad7c683d51))
+
+
+### Bug Fixes
+
+* CI installs playwright-core and Chromium before running tests ([7a7461c](https://github.com/gabelul/pixelslop/commit/7a7461cfc553a5cd729f2838e8e0a59eba253bc4))
+
 ## [0.2.4](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.3...pixelslop-v0.2.4) (2026-03-26)
 
 
