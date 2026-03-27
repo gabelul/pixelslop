@@ -29,6 +29,78 @@ import { createInterface } from 'readline/promises';
 import { execFileSync } from 'child_process';
 
 // ─────────────────────────────────────────────
+// Terminal styling — zero dependencies
+// ─────────────────────────────────────────────
+
+/** True when both stdout and stderr are interactive terminals */
+const isTTY = !!(process.stdout.isTTY && process.stderr.isTTY);
+
+/** Respect NO_COLOR (https://no-color.org/) and dumb terminals */
+const useColor = isTTY && !process.env.NO_COLOR && process.env.TERM !== 'dumb';
+
+/** Wrap text in an ANSI escape sequence, or return it plain when color is off */
+function c(code, text) { return useColor ? `\x1b[${code}m${text}\x1b[0m` : text; }
+
+const green   = t => c('32', t);
+const cyan    = t => c('36', t);
+const yellow  = t => c('33', t);
+const red     = t => c('31', t);
+const dim     = t => c('2', t);
+const bold    = t => c('1', t);
+const magenta = t => c('35', t);
+
+/** Map plain icons to their colored equivalents */
+const ICON_MAP = {
+  '✓': () => green('✓'),
+  '✗': () => red('✗'),
+  '⚠': () => yellow('⚠'),
+  'ℹ': () => cyan('ℹ'),
+  '·': () => dim('·'),
+  '→': () => cyan('→'),
+  '+': () => green('+'),
+  '~': () => yellow('~'),
+  '-': () => red('-'),
+};
+
+// ── Spinner ────────────────────────────────────
+// Writes to stderr so piped stdout stays clean.
+// Falls back to a static line in non-TTY environments.
+
+const SPIN_FRAMES = ['◒', '◐', '◓', '◑'];
+
+class Spinner {
+  constructor(label) {
+    this.label = label;
+    this.i = 0;
+    this.timer = null;
+  }
+
+  start() {
+    if (!isTTY) {
+      process.stderr.write(`  ${dim('...')} ${this.label}\n`);
+      return this;
+    }
+    process.stderr.write('\x1b[?25l'); // hide cursor
+    this.timer = setInterval(() => {
+      const frame = cyan(SPIN_FRAMES[this.i++ % SPIN_FRAMES.length]);
+      process.stderr.write(`\r  ${frame} ${this.label}`);
+    }, 80);
+    return this;
+  }
+
+  stop(icon = green('✓')) {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    if (isTTY) {
+      process.stderr.write(`\r  ${icon} ${this.label}\x1b[K\n`);
+      process.stderr.write('\x1b[?25h'); // restore cursor
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────
 
@@ -74,17 +146,22 @@ const RUNTIMES = ['Claude Code', 'Codex CLI'];
 
 /**
  * Print a styled log message to stdout.
- * @param {string} icon - Emoji/symbol prefix
+ * Icons get auto-colored when the terminal supports it.
+ * @param {string} icon - Symbol prefix (✓, ✗, ⚠, ℹ, etc.)
  * @param {string} msg - Message text
  */
 function log(icon, msg) {
-  console.log(`  ${icon} ${msg}`);
+  const coloredIcon = ICON_MAP[icon]?.() ?? icon;
+  console.log(`  ${coloredIcon} ${msg}`);
 }
 
-/** Print a section header */
+/**
+ * Print a section header — bold cyan text with breathing room.
+ * @param {string} text - Section title
+ */
 function header(text) {
-  console.log(`\n  ${text}`);
-  console.log(`  ${'─'.repeat(text.length)}`);
+  console.log('');
+  console.log(`  ${bold(cyan(text))}`);
 }
 
 // ─────────────────────────────────────────────
@@ -237,15 +314,21 @@ export function ensureBrowserRuntime(deps = {}) {
   if (runtime.available) return runtime;
 
   headerFn('Browser runtime');
-  logFn('ℹ', 'No system Chrome/Chromium found. Installing Chromium for Playwright...');
-  install();
+  const spin = new Spinner('Installing Chromium for Playwright...').start();
+  try {
+    install();
+    spin.stop(green('✓'));
+  } catch (err) {
+    spin.stop(red('✗'));
+    throw err;
+  }
 
   runtime = detect();
   if (!runtime.available) {
     throw new Error('Chromium install completed, but no executable was detected. Set PIXELSLOP_BROWSER_EXECUTABLE if your browser lives elsewhere.');
   }
 
-  logFn('✓', `Browser runtime → ${runtime.executablePath} (${runtime.source})`);
+  logFn('✓', `Browser runtime ${dim('→')} ${runtime.executablePath} ${dim('(' + runtime.source + ')')}`);
   return runtime;
 }
 
@@ -473,10 +556,10 @@ function parseScopeFlag(args) {
 function reportDetectedClients(allClients, detectedClients) {
   header('Detected runtimes');
   for (const client of detectedClients) {
-    log('✓', `${client.name} (${client.detectPath})`);
+    log('✓', `${client.name} ${dim(client.detectPath)}`);
   }
   for (const client of allClients.filter(item => !detectedClients.some(found => found.name === item.name))) {
-    log('·', `${client.name} (not found at ${client.detectPath})`);
+    log('·', dim(`${client.name} (not found at ${client.detectPath})`));
   }
 }
 
@@ -528,13 +611,13 @@ function validateSelectedClients(selectedClients, detectedClients) {
 async function promptChoice(rl, prompt, choices) {
   while (true) {
     for (const [index, choice] of choices.entries()) {
-      log(`${index + 1}.`, choice.label);
+      console.log(`  ${cyan(String(index + 1) + '.')} ${choice.label}`);
       if (choice.detail) {
-        log(' ', choice.detail);
+        console.log(`     ${dim(choice.detail)}`);
       }
     }
 
-    const answer = (await rl.question(`\n  ${prompt} `)).trim();
+    const answer = (await rl.question(`\n  ${bold(prompt)} `)).trim();
     const picked = Number(answer);
 
     if (Number.isInteger(picked) && picked >= 1 && picked <= choices.length) {
@@ -785,14 +868,15 @@ function install(options = {}) {
   const forceCopy = options.copy || false;
 
   if (!options.isUpdate) {
-    console.log(`\n  ╭─────────────────────────────────╮`);
-    console.log(`  │  pixelslop installer v${VERSION.padEnd(14)}│`);
-    console.log(`  ╰─────────────────────────────────╯`);
+    console.log('');
+    console.log(dim('  ┌─────────────────────────────────────────┐'));
+    console.log(`  │  ${bold(magenta('pixelslop'))}  ${dim('installer')}  ${dim('v' + VERSION)}${' '.repeat(Math.max(0, 15 - VERSION.length))}│`);
+    console.log(dim('  └─────────────────────────────────────────┘'));
     if (scope === 'project') {
-      log('ℹ', `Scope: project (${process.cwd()})`);
+      log('ℹ', `Scope: project ${dim('(' + process.cwd() + ')')}`);
     }
     if (forceCopy) {
-      log('ℹ', 'Mode: copy (symlinks disabled)');
+      log('ℹ', `Mode: copy ${dim('(symlinks disabled)')}`);
     }
   }
 
@@ -876,7 +960,7 @@ function install(options = {}) {
       const rewritten = rewriteAgentPaths(raw, INSTALL_ROOT);
       writeFileSync(join(client.agentDir, agentFile), rewritten);
     }
-    log('✓', `${AGENT_FILES.length} agent specs → ${client.agentDir}`);
+    log('✓', `${AGENT_FILES.length} agent specs ${dim('→')} ${dim(client.agentDir)}`);
 
     // Copy internal evaluator agents (not in AGENT_FILES — orchestrator-only)
     const internalSrc = join(PACKAGE_ROOT, 'dist', 'agents', 'internal');
@@ -888,7 +972,7 @@ function install(options = {}) {
         const raw = readFileSync(join(internalSrc, file), 'utf8');
         writeFileSync(join(internalDest, file), rewriteAgentPaths(raw, INSTALL_ROOT));
       }
-      log('✓', `${internalFiles.length} internal evaluators → ${internalDest}`);
+      log('✓', `${internalFiles.length} internal evaluators ${dim('→')} ${dim(internalDest)}`);
     }
 
     // Install skill via linkOrCopy — method is tracked
@@ -896,7 +980,7 @@ function install(options = {}) {
     const { path: skillPath, method: skillMethod } = client.installSkill(
       preferredMethod === 'copy' || forceCopy
     );
-    log('✓', `Skill → ${skillPath} (${skillMethod})`);
+    log('✓', `Skill ${dim('→')} ${dim(skillPath)} ${dim('(' + skillMethod + ')')}`);
 
     // Track install method for this client
     installMethods[client.name] = { skill: skillMethod };
@@ -913,11 +997,17 @@ function install(options = {}) {
 
   // Summary (skip if called from update — it prints its own)
   if (!options.isUpdate) {
-    header('Done');
-    log('→', 'Use /pixelslop <url> in Claude Code to scan a page');
+    console.log('');
+    console.log(dim('  ─────────────────────────────────────────'));
+    console.log(`  ${green('✓')} ${bold('Installation complete')}`);
+    console.log('');
+    console.log(`    ${cyan('→')} Use ${bold('/pixelslop <url>')} in Claude Code to scan a page`);
     if (selectedClients.some(client => client.name === 'Codex CLI')) {
-      log('→', 'Use $pixelslop <url> in Codex CLI');
+      console.log(`    ${cyan('→')} Use ${bold('$pixelslop <url>')} in Codex CLI`);
     }
+    console.log('');
+    console.log(`    ${dim(`v${VERSION} · ${installedClients.join(' + ')}`)}`);
+    console.log(dim('  ─────────────────────────────────────────'));
     console.log('');
   }
 
@@ -940,9 +1030,10 @@ function install(options = {}) {
  * @param {boolean} [options.copy] - Force copy mode
  */
 function update(options = {}) {
-  console.log(`\n  ╭─────────────────────────────────╮`);
-  console.log(`  │  pixelslop updater  v${VERSION.padEnd(14)}│`);
-  console.log(`  ╰─────────────────────────────────╯`);
+  console.log('');
+  console.log(dim('  ┌─────────────────────────────────────────┐'));
+  console.log(`  │  ${bold(magenta('pixelslop'))}  ${dim('updater')}    ${dim('v' + VERSION)}${' '.repeat(Math.max(0, 15 - VERSION.length))}│`);
+  console.log(dim('  └─────────────────────────────────────────┘'));
 
   // Step 1: Check for existing install
   const manifest = readManifest();
@@ -1010,13 +1101,13 @@ function update(options = {}) {
     if (added.length || changed.length || removed.length) {
       header('Changed files');
       for (const file of added) {
-        log('+', `${file} (new)`);
+        log('+', `${green(file)} ${dim('(new)')}`);
       }
       for (const file of changed) {
-        log('~', `${file} (updated)`);
+        log('~', `${yellow(file)} ${dim('(updated)')}`);
       }
       for (const file of removed) {
-        log('-', `${file} (removed)`);
+        log('-', `${red(file)} ${dim('(removed)')}`);
       }
     }
 
@@ -1277,22 +1368,22 @@ function doctor() {
     'No Chrome/Chromium runtime found'
   );
   if (browserRuntime.available) {
-    log('ℹ', `Browser executable: ${browserRuntime.executablePath} (${browserRuntime.source})`);
+    log('ℹ', `${dim('Browser:')} ${browserRuntime.executablePath} ${dim('(' + browserRuntime.source + ')')}`);
   }
 
   // Version and scope info
   if (manifest) {
-    log('ℹ', `Installed version: ${manifest.version}`);
-    log('ℹ', `Scope: ${scope}`);
-    log('ℹ', `Installed at: ${manifest.installedAt}`);
+    log('ℹ', `${dim('Version:')} ${manifest.version}`);
+    log('ℹ', `${dim('Scope:')} ${scope}`);
+    log('ℹ', `${dim('Installed:')} ${manifest.installedAt}`);
   }
 
   if (issues > 0) {
-    console.log(`\n  ${issues} issue(s) found. Run \`npx pixelslop install\` to fix.\n`);
+    console.log(`\n  ${red(bold(`${issues} issue(s) found.`))} Run ${bold('npx pixelslop install')} to fix.\n`);
     return 1;
   }
 
-  console.log(`\n  All checks passed.\n`);
+  console.log(`\n  ${green(bold('All checks passed.'))}\n`);
   return 0;
 }
 
@@ -1310,14 +1401,14 @@ function status() {
   }
 
   header('Status');
-  log('ℹ', `Version: ${manifest.version}`);
-  log('ℹ', `Scope: ${manifest.scope || 'global'}`);
-  log('ℹ', `Install root: ${manifest.installRoot}`);
-  log('ℹ', `Installed: ${manifest.installedAt}`);
-  log('ℹ', `Clients: ${(manifest.clients || []).join(', ')}`);
-  log('ℹ', `Browser package: ${manifest.browserPackage || `playwright-core@${PLAYWRIGHT_CORE_VERSION}`}`);
+  log('ℹ', `${dim('Version:')} ${manifest.version}`);
+  log('ℹ', `${dim('Scope:')} ${manifest.scope || 'global'}`);
+  log('ℹ', `${dim('Install root:')} ${manifest.installRoot}`);
+  log('ℹ', `${dim('Installed:')} ${manifest.installedAt}`);
+  log('ℹ', `${dim('Clients:')} ${(manifest.clients || []).join(', ')}`);
+  log('ℹ', `${dim('Browser package:')} ${manifest.browserPackage || `playwright-core@${PLAYWRIGHT_CORE_VERSION}`}`);
   if (manifest.browserRuntime?.executablePath) {
-    log('ℹ', `Browser runtime: ${manifest.browserRuntime.executablePath} (${manifest.browserRuntime.source})`);
+    log('ℹ', `${dim('Browser runtime:')} ${manifest.browserRuntime.executablePath} ${dim('(' + manifest.browserRuntime.source + ')')}`);
   }
 
   const clients = resolveClients(getClients(manifest.scope || 'global'), manifest.clients || []);
@@ -1325,9 +1416,9 @@ function status() {
     header('Installed runtimes');
     for (const client of clients) {
       const skillMethod = manifest.installMethods?.[client.name]?.skill || 'unknown';
-      log('✓', client.name);
-      log(' ', `Agents: ${client.agentDir}`);
-      log(' ', `Skill: ${client.skillDir} (${skillMethod})`);
+      log('✓', bold(client.name));
+      console.log(`      ${dim('Agents:')} ${client.agentDir}`);
+      console.log(`      ${dim('Skill:')}  ${client.skillDir} ${dim('(' + skillMethod + ')')}`);
     }
   }
   console.log('');
@@ -1387,50 +1478,50 @@ async function main() {
     case '--help':
     case '-h':
     case undefined:
-      console.log(`
-  pixelslop v${VERSION} — Design quality reviewer installer
-
-  Commands:
-    install     Install pixelslop into Claude Code and Codex CLI
-    update      Update an existing install to this version
-    uninstall   Remove pixelslop from all runtimes
-    doctor      Verify installation health
-    status      Show what's installed
-
-  Scope:
-    --project   Install into this project only (.claude/, .codex/)
-    --global    Install for current user (default)
-
-  Runtimes:
-    --all           Install for every detected runtime
-    --claude-only   Install for Claude Code only
-    --codex-only    Install for Codex CLI only
-
-  Options:
-    --copy      Force copy mode (no symlinks — portable for teams/CI)
-    --force     Force install/update even if same version
-    --version   Show version
-    --help      Show this help
-
-  Usage:
-    npx pixelslop install                      # interactive wizard
-    npx pixelslop install --global --all      # global, every detected runtime
-    npx pixelslop install --project --codex-only
-                                               # project-local Codex install
-    npx pixelslop install --copy              # keep wizard, force copies
-    npx pixelslop@latest update          # upgrade existing install
-    npx pixelslop doctor                 # verify health
-    npx pixelslop uninstall              # remove everything
-`);
+      console.log('');
+      console.log(`  ${bold(magenta('pixelslop'))} ${dim('v' + VERSION)} ${dim('— Design quality reviewer installer')}`);
+      console.log('');
+      console.log(`  ${bold(cyan('Commands:'))}`);
+      console.log(`    ${bold('install')}     Install pixelslop into Claude Code and Codex CLI`);
+      console.log(`    ${bold('update')}      Update an existing install to this version`);
+      console.log(`    ${bold('uninstall')}   Remove pixelslop from all runtimes`);
+      console.log(`    ${bold('doctor')}      Verify installation health`);
+      console.log(`    ${bold('status')}      Show what's installed`);
+      console.log('');
+      console.log(`  ${bold(cyan('Scope:'))}`);
+      console.log(`    ${bold('--project')}   Install into this project only (.claude/, .codex/)`);
+      console.log(`    ${bold('--global')}    Install for current user ${dim('(default)')}`);
+      console.log('');
+      console.log(`  ${bold(cyan('Runtimes:'))}`);
+      console.log(`    ${bold('--all')}           Install for every detected runtime`);
+      console.log(`    ${bold('--claude-only')}   Install for Claude Code only`);
+      console.log(`    ${bold('--codex-only')}    Install for Codex CLI only`);
+      console.log('');
+      console.log(`  ${bold(cyan('Options:'))}`);
+      console.log(`    ${bold('--copy')}      Force copy mode ${dim('(no symlinks — portable for teams/CI)')}`);
+      console.log(`    ${bold('--force')}     Force install/update even if same version`);
+      console.log(`    ${bold('--version')}   Show version`);
+      console.log(`    ${bold('--help')}      Show this help`);
+      console.log('');
+      console.log(`  ${bold(cyan('Usage:'))}`);
+      console.log(`    ${dim('$')} npx pixelslop install                    ${dim('# interactive wizard')}`);
+      console.log(`    ${dim('$')} npx pixelslop install --global --all    ${dim('# global, every detected runtime')}`);
+      console.log(`    ${dim('$')} npx pixelslop install --project --codex-only`);
+      console.log(`                                             ${dim('# project-local Codex install')}`);
+      console.log(`    ${dim('$')} npx pixelslop install --copy            ${dim('# keep wizard, force copies')}`);
+      console.log(`    ${dim('$')} npx pixelslop@latest update        ${dim('# upgrade existing install')}`);
+      console.log(`    ${dim('$')} npx pixelslop doctor               ${dim('# verify health')}`);
+      console.log(`    ${dim('$')} npx pixelslop uninstall             ${dim('# remove everything')}`);
+      console.log('');
       break;
     default:
-      console.error(`  Unknown command: ${command}`);
-      console.error(`  Run \`npx pixelslop --help\` for usage.`);
+      console.error(`  ${red('✗')} Unknown command: ${bold(command)}`);
+      console.error(`  Run ${bold('npx pixelslop --help')} for usage.`);
       process.exit(1);
   }
 }
 
 main().catch(error => {
-  console.error(`  ${error.message}`);
+  console.error(`  ${red('✗')} ${error.message}`);
   process.exit(1);
 });

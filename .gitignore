@@ -25,6 +25,9 @@ build/
 .claude/
 .mcp.json
 
+# Test sites (calibration artifacts, not test infrastructure)
+test_sites/
+
 # Other runtimes / tools
 .opencode/
 .superset/
