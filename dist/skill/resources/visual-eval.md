@@ -641,6 +641,51 @@ Each `confidence` flag tracks whether the corresponding evidence was successfull
 
 ---
 
+## 10. Deep Collection Mode
+
+Pass `--deep` to the collector for pages that need more thorough examination. This raises time budgets and element caps so the collector spends longer on each pass and captures more elements before hitting limits.
+
+```bash
+pixelslop-tools browser collect --url <url> --deep
+```
+
+### When to use it
+
+- Complex SPAs with lots of interactive elements (dashboards, admin panels, mega-menus)
+- Pages with dozens of hover states or focus targets that standard mode caps before covering
+- Full accessibility audits where you need every tab stop and promise result, not just the first handful
+- Debugging a specific interaction that standard mode's budget cuts off before reaching
+
+Standard mode is the right default for most pages. Deep mode is the "I really need everything" lever.
+
+### Budget differences
+
+| Budget | Standard | Deep |
+|--------|----------|------|
+| Total collection timeout | 120s | 180s |
+| Scroll pass | 8s | 16s |
+| Hover pass | 5s | 10s |
+| Focus pass | 3s | 6s |
+| Promises pass | 12s | 24s |
+
+### Element cap differences
+
+| Cap | Standard | Deep |
+|-----|----------|------|
+| Ref map (`MAX_REFS`) | 150 | 500 |
+| Hover targets | 15 | 75 |
+| Tab stops | 30 | 100 |
+| Promise checks | 8 | 25 |
+| Scroll folds | 10 | 20 |
+
+### What deep mode does NOT change
+
+Scoring trust stays the same. Evaluators treat deep evidence identically to standard evidence — a contrast failure found in deep mode carries the same weight as one found in standard mode. The `meta.mode` field in the evidence bundle tells you which mode ran, but it has zero effect on severity bands, confidence calculations, or pillar scores.
+
+The extraction snippets (Section 3) and accessibility snapshot protocol (Section 4) are also unchanged. Deep mode only affects the interaction passes (scroll, hover, focus, promises) and the ref map cap.
+
+---
+
 ## Reference: Collector Step Summary
 
 | Collector Step | Purpose | When Used |

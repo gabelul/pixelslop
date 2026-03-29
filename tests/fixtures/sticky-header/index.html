@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sticky Header Test Fixture</title>
+  <!--
+    Pixelslop Test Fixture: Sticky Header
+    ======================================
+    Tests behaviour with position:sticky nav and multi-fold content.
+
+    What's here:
+    - A sticky nav bar (position: sticky; top: 0)
+    - 6 content sections with different typography
+    - Total page height: well over 5 viewport heights
+    - Mixed font sizes and weights per section (tests below-fold sampling)
+
+    Serve with: npx http-server tests/fixtures/sticky-header/ -p 8888
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; color: #1a1a1a; line-height: 1.6; }
+
+    /* Sticky nav */
+    .sticky-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .sticky-nav .logo { font-weight: 700; font-size: 18px; }
+    .sticky-nav a { color: #0066cc; text-decoration: none; font-size: 14px; }
+    .sticky-nav a:hover { text-decoration: underline; }
+
+    .section {
+      min-height: 100vh;
+      padding: 48px 24px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .section:nth-child(even) { background: #fafafa; }
+
+    /* Different typography per section to test below-fold sampling */
+    .section-hero h2 { font-size: 36px; font-weight: 700; margin-bottom: 16px; }
+    .section-hero p { font-size: 18px; color: #555; }
+
+    .section-features h2 { font-size: 28px; font-weight: 600; margin-bottom: 12px; }
+    .section-features p { font-size: 15px; color: #444; margin-bottom: 10px; }
+
+    .section-stats h2 { font-size: 24px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.5px; }
+    .section-stats .stat { font-size: 48px; font-weight: 800; color: #0066cc; }
+    .section-stats .stat-label { font-size: 14px; color: #888; margin-bottom: 24px; }
+
+    .section-testimonial h2 { font-size: 22px; font-weight: 600; margin-bottom: 16px; }
+    .section-testimonial blockquote {
+      font-size: 20px; font-style: italic; color: #333;
+      border-left: 3px solid #0066cc; padding-left: 16px; margin-bottom: 12px;
+    }
+    .section-testimonial cite { font-size: 14px; color: #666; }
+
+    .section-details h2 { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+    .section-details p { font-size: 14px; color: #555; margin-bottom: 10px; }
+    .section-details ul { margin-left: 20px; margin-bottom: 10px; }
+    .section-details li { font-size: 14px; color: #555; margin-bottom: 4px; }
+
+    .section-cta h2 { font-size: 32px; font-weight: 700; margin-bottom: 12px; text-align: center; }
+    .section-cta p { font-size: 16px; color: #555; text-align: center; margin-bottom: 20px; }
+    .section-cta .btn {
+      display: block; width: 200px; margin: 0 auto;
+      padding: 12px; text-align: center; background: #0066cc;
+      color: #fff; border-radius: 6px; text-decoration: none; font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="sticky-nav">
+    <span class="logo">StickyApp</span>
+    <a href="#hero">Home</a>
+    <a href="#features">Features</a>
+    <a href="#stats">Stats</a>
+    <a href="#testimonial">Reviews</a>
+    <a href="#details">Details</a>
+    <a href="#cta">Get Started</a>
+  </nav>
+
+  <div id="hero" class="section section-hero">
+    <h2>Welcome to StickyApp</h2>
+    <p>This page tests sticky header behaviour and multi-fold content sampling. Each section uses different typography so below-fold scanning picks up varied styles.</p>
+    <p>Scroll down. The nav sticks to the top. That's the whole point.</p>
+  </div>
+
+  <div id="features" class="section section-features">
+    <h2>Features</h2>
+    <p>Real-time collaboration across teams. No setup required. Works offline, syncs when you reconnect.</p>
+    <p>Built-in analytics that actually tell you something useful instead of drowning you in vanity metrics.</p>
+    <p>Keyboard-first design. Every action reachable without a mouse. Power users don't wait for menus.</p>
+    <p>Exports to PDF, CSV, and JSON. Your data, your format, your call.</p>
+  </div>
+
+  <div id="stats" class="section section-stats">
+    <h2>By The Numbers</h2>
+    <div class="stat">12,400</div>
+    <div class="stat-label">Active teams</div>
+    <div class="stat">99.97%</div>
+    <div class="stat-label">Uptime last 12 months</div>
+    <div class="stat">2.1s</div>
+    <div class="stat-label">Average page load</div>
+  </div>
+
+  <div id="testimonial" class="section section-testimonial">
+    <h2>What People Say</h2>
+    <blockquote>"Finally, a tool that respects my time. Setup took 3 minutes and it's been solid since."</blockquote>
+    <cite>-- Mika T., Engineering Lead</cite>
+    <blockquote style="margin-top:32px;">"The keyboard shortcuts alone save me 20 minutes a day. Not exaggerating."</blockquote>
+    <cite>-- Priya S., Product Manager</cite>
+  </div>
+
+  <div id="details" class="section section-details">
+    <h2>Technical Details</h2>
+    <p>StickyApp runs on a JAMstack architecture with edge caching at 200+ global PoPs.</p>
+    <ul>
+      <li>End-to-end encryption (AES-256)</li>
+      <li>SOC 2 Type II certified</li>
+      <li>GDPR and CCPA compliant</li>
+      <li>Self-hosted option available</li>
+    </ul>
+    <p>API documentation covers 140+ endpoints with interactive examples. SDKs for Node, Python, Go, and Ruby.</p>
+    <p>Webhook support for every event type. Zapier and Make integrations out of the box.</p>
+  </div>
+
+  <div id="cta" class="section section-cta">
+    <h2>Ready?</h2>
+    <p>Free for teams under 10. No credit card. No "trial period" bait-and-switch.</p>
+    <a href="#" class="btn">Start Free</a>
+  </div>
+
+</body>
+</html>

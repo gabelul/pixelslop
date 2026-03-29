@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lazy Images Test Fixture</title>
+  <!--
+    Pixelslop Test Fixture: Lazy Images
+    ====================================
+    Tests image loading strategies and alt text presence.
+
+    What's here:
+    - 3 images above the fold (loaded normally, all have alt text)
+    - 5 images below the fold with loading="lazy"
+      - 2 missing alt text (bad)
+      - 1 with proper alt text (good)
+      - 2 with empty alt="" (decorative, acceptable)
+    - Enough content between sections to scroll
+
+    All images use inline SVG data URIs so the fixture is self-contained.
+
+    Serve with: npx http-server tests/fixtures/lazy-images/ -p 8888
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; color: #1a1a1a; line-height: 1.6; max-width: 720px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    h2 { font-size: 20px; margin: 32px 0 12px; }
+    p { margin-bottom: 12px; color: #444; }
+    .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .image-grid img { width: 100%; height: 150px; object-fit: cover; border-radius: 6px; background: #eee; }
+    .spacer { height: 120vh; display: flex; align-items: center; justify-content: center; }
+    .spacer p { font-size: 14px; color: #999; }
+  </style>
+</head>
+<body>
+
+  <h1>Image Gallery</h1>
+  <p>A mix of eagerly loaded and lazy-loaded images to test scanner behaviour.</p>
+
+  <!-- Above-the-fold images: loaded normally, all have alt -->
+  <h2>Featured (Above Fold)</h2>
+  <div class="image-grid">
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%234a90d9' width='400' height='300'/%3E%3Ctext x='200' y='155' text-anchor='middle' fill='%23fff' font-size='16'%3EMountain Lake%3C/text%3E%3C/svg%3E"
+         alt="Mountain lake at sunset with reflections on the water">
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23d94a4a' width='400' height='300'/%3E%3Ctext x='200' y='155' text-anchor='middle' fill='%23fff' font-size='16'%3ECity Skyline%3C/text%3E%3C/svg%3E"
+         alt="City skyline at dusk with lit windows">
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%234ad98a' width='400' height='300'/%3E%3Ctext x='200' y='155' text-anchor='middle' fill='%23fff' font-size='16'%3EForest Path%3C/text%3E%3C/svg%3E"
+         alt="Winding path through a dense forest">
+  </div>
+
+  <!-- Spacer to push lazy images below the fold -->
+  <div class="spacer">
+    <p>[ scroll down for more images ]</p>
+  </div>
+
+  <!-- Below-the-fold images: lazy loaded, mixed alt text quality -->
+  <h2>Gallery (Below Fold, Lazy)</h2>
+  <div class="image-grid">
+
+    <!-- Missing alt text (bad) -->
+    <img loading="lazy"
+         src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23d9a84a' width='400' height='300'/%3E%3Ctext x='200' y='155' text-anchor='middle' fill='%23fff' font-size='16'%3EDesert Dunes%3C/text%3E%3C/svg%3E">
+
+    <!-- Missing alt text (bad) -->
+    <img loading="lazy"
+         src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%239a4ad9' width='400' height='300'/%3E%3Ctext x='200' y='155' text-anchor='middle' fill='%23fff' font-size='16'%3ENight Market%3C/text%3E%3C/svg%3E">
+
+    <!-- Proper alt text (good) -->
+    <img loading="lazy"
+         alt="Ocean waves crashing on rocky shoreline"
+         src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%234ad9d9' width='400' height='300'/%3E%3Ctext x='200' y='155' text-anchor='middle' fill='%23fff' font-size='16'%3EOcean Rocks%3C/text%3E%3C/svg%3E">
+
+    <!-- Decorative (empty alt, acceptable) -->
+    <img loading="lazy" alt=""
+         src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23ccc' width='400' height='300'/%3E%3Ctext x='200' y='155' text-anchor='middle' fill='%23666' font-size='14'%3Edecorative%3C/text%3E%3C/svg%3E">
+
+    <!-- Decorative (empty alt, acceptable) -->
+    <img loading="lazy" alt=""
+         src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23ddd' width='400' height='300'/%3E%3Ctext x='200' y='155' text-anchor='middle' fill='%23666' font-size='14'%3Edecorative%3C/text%3E%3C/svg%3E">
+  </div>
+
+  <p style="margin-top:24px; font-size:13px; color:#999;">Test fixture for pixelslop lazy image and alt text detection.</p>
+
+</body>
+</html>

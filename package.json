@@ -26,7 +26,8 @@
     "test:orchestrator": "node --test tests/orchestrator.test.js",
     "test:installer": "node --test tests/installer.test.js",
     "test:persona": "node --test tests/persona.test.js",
-    "test:evaluator": "node --test tests/evaluator.test.js"
+    "test:evaluator": "node --test tests/evaluator.test.js",
+    "test:interaction": "node --test tests/interaction-substrate.test.js"
   },
   "dependencies": {
     "playwright-core": "^1.58.2"

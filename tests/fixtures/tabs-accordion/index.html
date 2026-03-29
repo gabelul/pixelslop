@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tabs &amp; Accordion Test Fixture</title>
+  <!--
+    Pixelslop Test Fixture: Tabs & Accordion
+    ==========================================
+    Tests working interactive widgets vs broken ones.
+
+    What's here:
+    - WORKING TABS: role="tablist" with 3 role="tab" buttons and 3 role="tabpanel" divs.
+      Clicking a tab shows its panel and hides others. aria-selected toggles correctly.
+    - BROKEN ACCORDION: 3 sections with aria-expanded="false" trigger buttons and
+      aria-controls pointing to content divs. Content is hidden. But clicking the
+      trigger does NOT toggle aria-expanded or show the content — it's broken.
+
+    Serve with: npx http-server tests/fixtures/tabs-accordion/ -p 8888
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; color: #1a1a1a; line-height: 1.6; max-width: 640px; margin: 0 auto; padding: 32px 24px; }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    .subtitle { font-size: 14px; color: #888; margin-bottom: 32px; }
+    h2 { font-size: 18px; margin-bottom: 12px; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 40px 0; }
+
+    /* ─── Tabs ─── */
+    .tablist { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 0; }
+    .tab-btn {
+      padding: 10px 20px; border: none; background: none; cursor: pointer;
+      font-size: 14px; color: #666; border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+    }
+    .tab-btn[aria-selected="true"] { color: #0055cc; border-bottom-color: #0055cc; font-weight: 600; }
+    .tab-btn:hover { color: #333; }
+    .tabpanel { padding: 16px 0; }
+    .tabpanel[hidden] { display: none; }
+
+    /* ─── Accordion ─── */
+    .accordion-item { border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px; }
+    .accordion-trigger {
+      width: 100%; padding: 12px 16px; border: none; background: #f8f8f8;
+      cursor: pointer; font-size: 14px; text-align: left;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .accordion-trigger:hover { background: #f0f0f0; }
+    .accordion-trigger .arrow { transition: transform 0.2s; }
+    .accordion-trigger[aria-expanded="true"] .arrow { transform: rotate(90deg); }
+    .accordion-content { padding: 12px 16px; font-size: 14px; color: #444; }
+    .accordion-content[hidden] { display: none; }
+  </style>
+</head>
+<body>
+
+  <h1>Tabs &amp; Accordion</h1>
+  <p class="subtitle">The tabs work. The accordion doesn't. Good luck.</p>
+
+  <!-- ═══ Working Tabs ═══ -->
+  <h2>Product Info (Tabs)</h2>
+  <div role="tablist" class="tablist" aria-label="Product information">
+    <button role="tab" class="tab-btn" id="tab-overview" aria-selected="true" aria-controls="panel-overview">Overview</button>
+    <button role="tab" class="tab-btn" id="tab-specs" aria-selected="false" aria-controls="panel-specs">Specs</button>
+    <button role="tab" class="tab-btn" id="tab-reviews" aria-selected="false" aria-controls="panel-reviews">Reviews</button>
+  </div>
+
+  <div role="tabpanel" class="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+    <p>A solid product that does what it says. No surprises, no hidden gotchas. Ships in 2 days.</p>
+  </div>
+  <div role="tabpanel" class="tabpanel" id="panel-specs" aria-labelledby="tab-specs" hidden>
+    <p>Weight: 340g. Dimensions: 15 x 8 x 2 cm. Material: Recycled aluminium. Battery: 4,000 mAh.</p>
+  </div>
+  <div role="tabpanel" class="tabpanel" id="panel-reviews" aria-labelledby="tab-reviews" hidden>
+    <p>4.6 out of 5 stars (1,240 reviews). Most common praise: build quality. Most common complaint: no USB-C.</p>
+  </div>
+
+  <hr>
+
+  <!-- ═══ Broken Accordion ═══ -->
+  <h2>FAQ (Accordion)</h2>
+
+  <div class="accordion-item">
+    <button class="accordion-trigger" aria-expanded="false" aria-controls="faq-1">
+      How do I reset my password? <span class="arrow">&#9654;</span>
+    </button>
+    <div class="accordion-content" id="faq-1" hidden>
+      <p>Go to Settings > Security > Reset Password. You'll get an email within 30 seconds.</p>
+    </div>
+  </div>
+
+  <div class="accordion-item">
+    <button class="accordion-trigger" aria-expanded="false" aria-controls="faq-2">
+      What's your refund policy? <span class="arrow">&#9654;</span>
+    </button>
+    <div class="accordion-content" id="faq-2" hidden>
+      <p>Full refund within 30 days, no questions asked. After 30 days, pro-rated refund minus shipping.</p>
+    </div>
+  </div>
+
+  <div class="accordion-item">
+    <button class="accordion-trigger" aria-expanded="false" aria-controls="faq-3">
+      Do you ship internationally? <span class="arrow">&#9654;</span>
+    </button>
+    <div class="accordion-content" id="faq-3" hidden>
+      <p>Yes, to 40+ countries. Shipping takes 5-10 business days. Customs fees are the buyer's responsibility.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:32px; font-size:13px; color:#999;">Test fixture for pixelslop interactive widget detection.</p>
+
+  <script>
+    /* ─── Tabs: fully working ─── */
+    document.querySelectorAll('[role="tab"]').forEach(tab => {
+      tab.addEventListener('click', () => {
+        /* Deselect all tabs, hide all panels */
+        document.querySelectorAll('[role="tab"]').forEach(t => t.setAttribute('aria-selected', 'false'));
+        document.querySelectorAll('[role="tabpanel"]').forEach(p => p.hidden = true);
+
+        /* Select clicked tab, show its panel */
+        tab.setAttribute('aria-selected', 'true');
+        const panel = document.getElementById(tab.getAttribute('aria-controls'));
+        if (panel) panel.hidden = false;
+      });
+    });
+
+    /* ─── Accordion: BROKEN on purpose ─── */
+    /* The triggers have click listeners, but they do nothing useful.
+       aria-expanded never toggles. Content never shows. */
+    document.querySelectorAll('.accordion-trigger').forEach(trigger => {
+      trigger.addEventListener('click', () => {
+        /* Intentionally empty — this is the bug */
+        console.log('Accordion clicked but handler does nothing');
+      });
+    });
+  </script>
+
+</body>
+</html>

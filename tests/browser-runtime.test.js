@@ -34,6 +34,7 @@ function makePlaywrightDeps(options = {}) {
   const state = {
     evaluateNames: [],
     screenshotViewports: [],
+    refMapMaxRefs: null,
   };
 
   const page = {
@@ -47,8 +48,19 @@ function makePlaywrightDeps(options = {}) {
       if (options.gotoError) throw new Error(options.gotoError);
     },
     async waitForLoadState() {},
+    async waitForTimeout(ms) {
+      if (options.waitForTimeout) {
+        return await options.waitForTimeout(ms, state);
+      }
+    },
     async title() {
       return options.title || 'Stub Page';
+    },
+    keyboard: {
+      async press() {},
+    },
+    mouse: {
+      async move() {},
     },
     async setViewportSize(viewport) {
       if (viewport.width === 1440) this.currentViewport = 'desktop';
@@ -64,7 +76,10 @@ function makePlaywrightDeps(options = {}) {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, `${this.currentViewport} screenshot`);
     },
-    async evaluate(fn) {
+    async evaluate(fn, ...args) {
+      if (options.evaluate) {
+        return await options.evaluate(fn, ...args, state);
+      }
       const name = fn.name;
       state.evaluateNames.push(name);
       if (options.evaluateErrors?.includes(name)) {
@@ -88,6 +103,15 @@ function makePlaywrightDeps(options = {}) {
           return { hasOverflow: false, count: 0, elements: [] };
         case 'snippetTouchTargets':
           return { totalInteractive: 1, undersized: 0, issues: [] };
+        case 'snippetBuildRefMap':
+          state.refMapMaxRefs = args[0] ?? null;
+          return [{ ref: 'r0', tag: 'button', text: 'Click me', selector: 'button', category: 'button', isSemanticInteractive: true }];
+        case 'snippetPageDimensions':
+          return { scrollHeight: 900, viewportHeight: 900, scrollWidth: 1440, viewportWidth: 1440, scrollStrategy: 'document', containerSelector: null };
+        case 'snippetStickyElements':
+          return [];
+        case 'snippetImageSrcs':
+          return [];
         case 'snippetHeadingHierarchy':
           return { passed: true, skips: [], h1Count: 1, totalHeadings: 1 };
         case 'snippetLandmarks':
@@ -103,7 +127,8 @@ function makePlaywrightDeps(options = {}) {
         case 'snippetCognitiveDensity':
           return { passed: true, ctaCount: 1, navItems: 3, denseTextBlocks: 0, visibleSections: 2 };
         default:
-          throw new Error(`Unhandled evaluate stub: ${name}`);
+          // Anonymous functions from inline evaluate calls (e.g. resetProbeState)
+          return null;
       }
     },
   };
@@ -166,8 +191,10 @@ describe('collectEvidence degraded paths', () => {
     assert.equal(bundle.navigationError, 'no browser runtime');
     assert.equal(bundle.viewports.desktop.screenshot, null);
     assert.deepEqual(Object.keys(bundle).sort(), [
-      'confidence', 'console', 'network', 'personaChecks',
-      'root', 'sourcePatterns', 'timestamp', 'title', 'url', 'viewports', 'navigationError',
+      'confidence', 'console', 'focusPass', 'hoverStates',
+      'interactiveElements', 'interactivePromises', 'meta',
+      'navigationError', 'network', 'personaChecks',
+      'root', 'scroll', 'sourcePatterns', 'timestamp', 'title', 'url', 'viewports',
     ].sort());
   });
 
@@ -265,6 +292,112 @@ describe('collectEvidence degraded paths', () => {
     assert.equal(bundle.personaChecks.landmarks.passed, true);
   });
 
+  it('keeps focusPass confidence false when the real collectEvidence path times out', async () => {
+    const root = makeTempDir();
+    writeRootFixture(root);
+    const outPath = join(root, 'evidence.json');
+
+    let focusTabCount = 0;
+    const { deps } = makePlaywrightDeps({
+      waitForTimeout: async (ms) => {
+        if (ms > 0) {
+          await new Promise(resolve => setTimeout(resolve, ms + 50));
+        }
+      },
+      evaluate: async (fn, ...args) => {
+        const name = fn.name;
+        if (name) {
+          switch (name) {
+            case 'snippetTypography':
+              return { h1: { fontFamily: 'Inter', fontSize: '32px' } };
+            case 'snippetColors':
+              return [{ tag: 'body', bg: 'rgb(0, 0, 0)', color: 'rgb(255, 255, 255)' }];
+            case 'snippetSpacing':
+              return [{ tag: 'main', padding: '24px' }];
+            case 'snippetDecorations':
+              return { counts: { shadows: 1, blurs: 0, roundedElements: 2, gradientTexts: 0 }, details: [] };
+            case 'snippetContrast':
+              return [{ tag: 'p', text: 'Hello', ratio: 4.8, passesAA: true }];
+            case 'snippetA11ySummary':
+              return { headings: [], landmarks: [], images: [], forms: [], ariaRoles: [], skipLink: false, langAttribute: 'en' };
+            case 'snippetOverflow':
+              return { hasOverflow: false, count: 0, elements: [] };
+            case 'snippetTouchTargets':
+              return { totalInteractive: 1, undersized: 0, issues: [] };
+            case 'snippetBuildRefMap':
+              return [{ ref: 'r0', tag: 'button', text: 'Click me', selector: 'button', category: 'button', isSemanticInteractive: true, rect: { top: 10, left: 0, width: 100, height: 40 } }];
+            case 'snippetPageDimensions':
+              return { scrollHeight: 900, viewportHeight: 900, scrollWidth: 1440, viewportWidth: 1440, scrollStrategy: 'document', containerSelector: null };
+            case 'snippetImageSrcs':
+              return [];
+            case 'snippetStickyElements':
+              return [];
+            case 'snippetNonSemanticClickables':
+              return [];
+            case 'snippetHeadingHierarchy':
+              return { passed: true, skips: [], h1Count: 1, totalHeadings: 1 };
+            case 'snippetLandmarks':
+              return { passed: true, missing: [] };
+            case 'snippetSkipNav':
+              return { passed: true };
+            case 'snippetAboveFoldCta':
+              return { passed: true };
+            case 'snippetReadingLevel':
+              return { passed: true, score: 8 };
+            case 'snippetImageOptimization':
+              return { passed: true, issues: [] };
+            case 'snippetCognitiveDensity':
+              return { passed: true, ctaCount: 1, navItems: 3, denseTextBlocks: 0, visibleSections: 2 };
+            default:
+              break;
+          }
+        }
+
+        const source = fn.toString();
+        if (source.includes('document.activeElement') && source.includes('blur') && !source.includes('getComputedStyle')) {
+          return undefined;
+        }
+        if (source.includes('const el = document.activeElement;') && source.includes('hasVisibleIndicator')) {
+          return {
+            selector: '#focused',
+            outline: '2px solid blue',
+            outlineOffset: '2px',
+            boxShadow: 'none',
+            borderColor: 'rgb(0, 0, 0)',
+            hasVisibleIndicator: true,
+            indicatorType: 'outline',
+            indicatorValue: '2px solid blue',
+          };
+        }
+        if (source.includes('document.activeElement') && source.includes('tagName.toLowerCase()')) {
+          focusTabCount += 1;
+          if (focusTabCount <= 30) {
+            return {
+              tag: 'button',
+              selector: `button:nth-of-type(${focusTabCount})`,
+              text: `Button ${focusTabCount}`,
+              rect: { top: 20 + focusTabCount, left: 0, width: 100, height: 40 },
+              _loopKey: `button:nth-of-type(${focusTabCount})|${20 + focusTabCount},0`,
+            };
+          }
+          return null;
+        }
+        return null;
+      },
+    });
+
+    await collectEvidence({
+      url: 'http://example.com',
+      root,
+      out: outPath,
+      personas: 'none',
+    }, deps);
+
+    const bundle = JSON.parse(readFileSync(outPath, 'utf8'));
+    assert.equal(bundle.meta.bailouts.some(entry => entry.pass === 'focus'), true, 'focus timeout should be recorded');
+    assert.equal(bundle.confidence.focusPass, false, 'timed-out focus pass should not be marked collected');
+  });
+
   it('ignores symlinked files that point outside the requested root', async () => {
     const root = makeTempDir();
     const outside = makeTempDir();
@@ -285,5 +418,81 @@ describe('collectEvidence degraded paths', () => {
     const matchedFiles = bundle.sourcePatterns.flatMap(pattern => pattern.files);
     assert.ok(matchedFiles.includes('inside.js:1'));
     assert.equal(matchedFiles.some(file => file.startsWith('leak.js:')), false);
+  });
+
+  it('deep mode sets meta.mode and populates timing fields', async () => {
+    const root = makeTempDir();
+    writeRootFixture(root);
+    const outPath = join(root, 'evidence.json');
+    const { deps } = makePlaywrightDeps();
+
+    await collectEvidence({
+      url: 'http://example.com',
+      root,
+      out: outPath,
+      personas: 'none',
+      deep: true,
+    }, deps);
+
+    const bundle = JSON.parse(readFileSync(outPath, 'utf8'));
+    assert.equal(bundle.meta.mode, 'deep', 'deep flag should set meta.mode');
+    assert.equal(typeof bundle.meta.collectionTimeMs, 'number', 'collectionTimeMs should be a number');
+    assert.ok(bundle.meta.collectionTimeMs >= 0, 'collectionTimeMs should be non-negative');
+    assert.equal(typeof bundle.meta.passTimings.scroll, 'number', 'scroll timing should be a number');
+    assert.equal(typeof bundle.meta.passTimings.hover, 'number', 'hover timing should be a number');
+    assert.equal(typeof bundle.meta.passTimings.focus, 'number', 'focus timing should be a number');
+    assert.equal(typeof bundle.meta.passTimings.promises, 'number', 'promises timing should be a number');
+  });
+
+  it('deep mode passes raised maxRefs to snippetBuildRefMap', async () => {
+    const root = makeTempDir();
+    writeRootFixture(root);
+    const outPath = join(root, 'evidence.json');
+    const { state, deps } = makePlaywrightDeps();
+
+    await collectEvidence({
+      url: 'http://example.com',
+      root,
+      out: outPath,
+      personas: 'none',
+      deep: true,
+    }, deps);
+
+    assert.equal(state.refMapMaxRefs, 500, 'deep mode should pass maxRefs=500 to snippetBuildRefMap');
+  });
+
+  it('standard mode passes default maxRefs to snippetBuildRefMap', async () => {
+    const root = makeTempDir();
+    writeRootFixture(root);
+    const outPath = join(root, 'evidence.json');
+    const { state, deps } = makePlaywrightDeps();
+
+    await collectEvidence({
+      url: 'http://example.com',
+      root,
+      out: outPath,
+      personas: 'none',
+    }, deps);
+
+    assert.equal(state.refMapMaxRefs, 150, 'standard mode should pass maxRefs=150 to snippetBuildRefMap');
+  });
+
+  it('standard mode sets meta.mode to standard with timing', async () => {
+    const root = makeTempDir();
+    writeRootFixture(root);
+    const outPath = join(root, 'evidence.json');
+    const { deps } = makePlaywrightDeps();
+
+    await collectEvidence({
+      url: 'http://example.com',
+      root,
+      out: outPath,
+      personas: 'none',
+    }, deps);
+
+    const bundle = JSON.parse(readFileSync(outPath, 'utf8'));
+    assert.equal(bundle.meta.mode, 'standard', 'default should be standard mode');
+    assert.equal(typeof bundle.meta.collectionTimeMs, 'number');
+    assert.ok(bundle.meta.collectionTimeMs >= 0);
   });
 });

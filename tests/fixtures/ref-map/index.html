@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ref Map Test Fixture</title>
+  <!--
+    Pixelslop Test Fixture: Ref Map
+    ================================
+    Tests the interactive element ref enumeration system.
+
+    What's here:
+    - Semantic buttons (3)
+    - Links with href (3)
+    - Non-semantic clickable div (cursor:pointer + onclick)
+    - Non-semantic span with tabindex="0"
+    - role="button" div
+    - Hidden elements (display:none) that should be EXCLUDED
+    - Duplicate button labels ("Submit" x3)
+    - Landmarks: header, nav, main, footer
+    - ~20 interactive elements total for ref numbering
+
+    Serve with: npx http-server tests/fixtures/ref-map/ -p 8888
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; color: #1a1a1a; line-height: 1.6; }
+    header { background: #f8f8f8; padding: 16px 24px; border-bottom: 1px solid #ddd; }
+    header h1 { font-size: 20px; }
+    nav { background: #eee; padding: 12px 24px; }
+    nav a { color: #0066cc; text-decoration: none; margin-right: 16px; }
+    nav a:hover { text-decoration: underline; }
+    main { padding: 24px; max-width: 800px; }
+    section { margin-bottom: 32px; }
+    section h2 { font-size: 18px; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+    button { padding: 8px 16px; border: 1px solid #999; border-radius: 4px; background: #fff; cursor: pointer; margin: 4px; }
+    button:hover { background: #f0f0f0; }
+    a.action-link { display: inline-block; padding: 8px 16px; color: #0066cc; margin: 4px; }
+    .fake-button { display: inline-block; padding: 8px 16px; background: #e0e0e0; border-radius: 4px; cursor: pointer; margin: 4px; }
+    .fake-button:hover { background: #d0d0d0; }
+    .tabbed-span { display: inline-block; padding: 8px 16px; background: #ffeedd; border-radius: 4px; margin: 4px; }
+    .tabbed-span:focus { outline: 2px solid blue; }
+    .role-button { display: inline-block; padding: 8px 16px; background: #ddeeff; border-radius: 4px; cursor: pointer; margin: 4px; }
+    .hidden-section { display: none; }
+    footer { background: #f8f8f8; padding: 16px 24px; border-top: 1px solid #ddd; margin-top: 32px; }
+    footer a { color: #0066cc; text-decoration: none; margin-right: 12px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Ref Map Test Page</h1>
+  </header>
+
+  <nav aria-label="Main navigation">
+    <a href="/home">Home</a>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
+  </nav>
+
+  <main>
+    <!-- Semantic buttons -->
+    <section>
+      <h2>Semantic Buttons</h2>
+      <button type="button">Save Draft</button>
+      <button type="button">Cancel</button>
+      <button type="submit">Submit</button>
+    </section>
+
+    <!-- Links -->
+    <section>
+      <h2>Action Links</h2>
+      <a href="/dashboard" class="action-link">Dashboard</a>
+      <a href="/settings" class="action-link">Settings</a>
+      <a href="/help" class="action-link">Help Center</a>
+    </section>
+
+    <!-- Non-semantic clickables -->
+    <section>
+      <h2>Non-Semantic Clickables</h2>
+      <div class="fake-button" onclick="alert('clicked')">Fake Button (div+onclick)</div>
+      <span class="tabbed-span" tabindex="0">Focusable Span (tabindex)</span>
+      <div class="role-button" role="button" tabindex="0">Role Button (div+role)</div>
+    </section>
+
+    <!-- Duplicate labels: "Submit" appears 3 times -->
+    <section>
+      <h2>Duplicate Labels</h2>
+      <button type="submit">Submit</button>
+      <button type="submit">Submit</button>
+    </section>
+
+    <!-- Select and input elements -->
+    <section>
+      <h2>Form Controls</h2>
+      <label for="email-input">Email:</label>
+      <input id="email-input" type="email" placeholder="you@example.com" style="padding:6px; margin:4px;">
+      <select style="padding:6px; margin:4px;">
+        <option>Option A</option>
+        <option>Option B</option>
+      </select>
+      <textarea rows="2" cols="30" placeholder="Notes..." style="padding:6px; margin:4px;"></textarea>
+    </section>
+
+    <!-- Hidden elements: should NOT appear in ref map -->
+    <section class="hidden-section">
+      <h2>Hidden Section</h2>
+      <button type="button">Ghost Button</button>
+      <a href="/nowhere">Ghost Link</a>
+      <div class="fake-button" onclick="alert('boo')">Ghost Div</div>
+    </section>
+  </main>
+
+  <footer>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+    <p style="margin-top:8px; font-size:13px; color:#888;">Test fixture for pixelslop ref-map enumeration.</p>
+  </footer>
+
+</body>
+</html>

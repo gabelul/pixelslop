@@ -2139,7 +2139,7 @@ async function main() {
     console.log('  plan update <issue-id> <status> [--root <path>]');
     console.log('  plan snapshot [--root <path>]');
     console.log('  browser detect');
-    console.log('  browser collect --url <url> [--root <path>] [--personas <ids>] [--out <file>] [--headed]');
+    console.log('  browser collect --url <url> [--root <path>] [--personas <ids>] [--out <file>] [--deep] [--headed]');
     console.log('  browser check --url <url> --metric <metric> [--selector <css>] [--viewport <name|WxH>]');
     console.log('  browser styles --url <url> --selector <css>');
     console.log('  browser snapshot --url <url>');

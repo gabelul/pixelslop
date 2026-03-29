@@ -40,6 +40,7 @@ You receive three values:
    - `viewports.desktop.a11ySnapshot` — heading structure (h1-h6 order, count)
    - `viewports.desktop.screenshot` — visual layout reference
    - `personaChecks.cognitiveDensity` — items per section, choice overload signals
+   - `scroll` (if present) — `scroll.folds` and `scroll.ratio` indicate page length. A ratio above 8 with primary CTAs only visible after fold 5+ suggests poor content priority. Only use `scroll.folds` and `scroll.ratio` — these are documented evaluator inputs. Do not reference other scroll sub-fields unless they are explicitly listed in the evidence schema.
 4. **Apply the rubric** from scoring.md (Pillar 1: Hierarchy). For each criterion:
    - Check visual weight distribution — does h1 dominate? Do sizes descend clearly?
    - Measure heading scale — are font sizes distinct or bunched within a few px of each other?

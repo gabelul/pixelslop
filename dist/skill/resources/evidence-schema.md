@@ -20,13 +20,24 @@ This schema is the contract. If the collector writes it and the specialist reads
     "contrastRatios": true,
     "a11ySnapshot": true,
     "sourceGrepped": false,
-    "multiViewport": true
+    "multiViewport": true,
+    "interactiveMap": false,
+    "scrollData": false,
+    "hoverStates": false,
+    "focusPass": false,
+    "interactivePromises": false
   },
   "viewports": { /* see below */ },
   "console": { /* see below */ },
   "network": { /* see below */ },
   "personaChecks": { /* see below */ },
-  "sourcePatterns": [ /* see below */ ]
+  "sourcePatterns": [ /* see below */ ],
+  "interactiveElements": null,
+  "scroll": null,
+  "hoverStates": null,
+  "focusPass": null,
+  "interactivePromises": null,
+  "meta": { "mode": "standard", "collectionTimeMs": 14320, "passTimings": {}, "bailouts": [] }
 }
 ```
 
@@ -291,6 +302,219 @@ Only populated when `--root` is provided. Grep results from the S11-S16 source p
   }
 ]
 ```
+
+---
+
+## Interactive Elements
+
+The `interactiveElements` array maps every interactive and landmark element on the page at collection time. Produced by `snippetBuildRefMap` during the desktop pass. Nullable — `null` when collection was skipped or the browser runtime was unavailable.
+
+```json
+"interactiveElements": [
+  {
+    "ref": "r0",
+    "tag": "button",
+    "text": "Get Started",
+    "classes": "btn btn-primary hero-cta",
+    "role": "button",
+    "selector": "button.btn.btn-primary.hero-cta",
+    "rect": { "top": 420, "left": 180, "width": 200, "height": 48 },
+    "isSemanticInteractive": true,
+    "category": "button",
+    "nonSemanticReason": null,
+    "ariaExpanded": null,
+    "ariaControls": null,
+    "ariaHaspopup": null
+  },
+  {
+    "ref": "r12",
+    "tag": "div",
+    "text": "Learn More",
+    "classes": "card-clickable",
+    "role": null,
+    "selector": "div.card-clickable:nth-of-type(2)",
+    "rect": { "top": 900, "left": 60, "width": 300, "height": 200 },
+    "isSemanticInteractive": false,
+    "category": "non-semantic-clickable",
+    "nonSemanticReason": "cursor:pointer, onclick",
+    "ariaExpanded": null,
+    "ariaControls": null,
+    "ariaHaspopup": null
+  }
+]
+```
+
+### Ref object fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ref` | `string` | Stable ref ID (`r0`, `r1`, ...). Unique within a single collection run. |
+| `tag` | `string` | Lowercase HTML tag name. |
+| `text` | `string` | Visible text or `aria-label`, truncated to 80 chars. |
+| `classes` | `string` | `className` string, truncated to 120 chars. Empty string if none. |
+| `role` | `string\|null` | Explicit ARIA `role` attribute, or `null`. |
+| `selector` | `string` | Best-effort CSS selector for re-finding this element via `snippetResolveRef`. |
+| `rect` | `object` | Bounding client rect: `{ top, left, width, height }` (rounded integers). |
+| `isSemanticInteractive` | `boolean` | `true` for buttons, links, form controls, tabs. `false` for non-semantic clickables and landmarks. |
+| `category` | `string` | One of: `button`, `link`, `form-input`, `tab-trigger`, `nav-item`, `non-semantic-clickable`, `landmark`. |
+| `nonSemanticReason` | `string\|null` | Why a non-semantic element was flagged (e.g. `"cursor:pointer, onclick"`). `null` for semantic elements. |
+| `ariaExpanded` | `string\|null` | Value of `aria-expanded` attribute, or `null`. |
+| `ariaControls` | `string\|null` | Value of `aria-controls` attribute, or `null`. |
+| `ariaHaspopup` | `string\|null` | Value of `aria-haspopup` attribute, or `null`. |
+
+Maximum 150 refs per collection in standard mode, 500 in deep mode (capped by `MAX_REFS`). Zero-size and `display:none`/`visibility:hidden` elements are excluded.
+
+---
+
+## Meta
+
+Collection metadata, timing, and bail-out tracking.
+
+```json
+"meta": {
+  "mode": "standard",
+  "collectionTimeMs": 14320,
+  "passTimings": {
+    "scroll": 2100,
+    "hover": 3400,
+    "focus": 1800,
+    "promises": 7020
+  },
+  "bailouts": []
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mode` | `string` | `"standard"` or `"deep"`. Deep mode raises time budgets and element caps — see `visual-eval.md` Section 10 for the full breakdown. |
+| `collectionTimeMs` | `number` | Wall-clock time for the entire collection run, in milliseconds. |
+| `passTimings` | `object` | Per-pass elapsed time. Keys: `scroll`, `hover`, `focus`, `promises`. Each value is milliseconds. Missing keys mean that pass was skipped. |
+| `bailouts` | `array` | Passes that hit their time budget and returned partial results. Each entry: `{ pass, reason, elapsedMs }`. Empty when everything completed normally. |
+
+---
+
+## Confidence Flags — Interaction Substrate
+
+The `confidence` object gained five new flags for interaction evidence:
+
+| Flag | Type | Meaning |
+|------|------|---------|
+| `interactiveMap` | `boolean` | `true` when `snippetBuildRefMap` ran and returned refs. |
+| `scrollData` | `boolean` | Reserved for future phases — scroll pass evidence collected. |
+| `hoverStates` | `boolean` | Reserved for future phases — hover pass evidence collected. |
+| `focusPass` | `boolean` | Reserved for future phases — focus/tab pass evidence collected. |
+| `interactivePromises` | `boolean` | Reserved for future phases — interactive promise (click→verify) evidence collected. |
+
+---
+
+## Scroll Evidence
+
+Present when `confidence.scrollData` is true. Contains fold-by-fold page scroll analysis.
+
+```json
+{
+  "scroll": {
+    "totalHeight": 4200,
+    "viewportHeight": 900,
+    "folds": 5,
+    "ratio": 4.67,
+    "scrollStrategy": "document",
+    "containerSelector": null,
+    "foldScreenshots": ["...-fold-2.png", "...-fold-3.png"],
+    "stickyElements": [{ "tag": "nav", "classes": "main-nav", "position": "sticky", "persistsAcrossFolds": true }],
+    "lazyImages": [{ "src": "/img/team.webp", "appearedAtFold": 3, "hasAlt": true }],
+    "belowFoldTypography": null,
+    "belowFoldColors": null
+  }
+}
+```
+
+**Evaluator-facing fields** (documented for evaluator consumption):
+
+| Field | Type | Evaluator Use |
+|-------|------|---------------|
+| `scroll.folds` | number | Page length indicator. High fold count (>8) with no sticky nav = content priority concern. |
+| `scroll.ratio` | number | Page height / viewport height. Values above 8 suggest very long pages. |
+| `scroll.stickyElements` | array | Sticky/fixed elements that persist across scroll positions. Empty = no persistent navigation. |
+
+Other scroll sub-fields (`foldScreenshots`, `lazyImages`, `belowFoldTypography`, `belowFoldColors`) are collector internals — not yet promoted to evaluator inputs.
+
+---
+
+## Focus Pass Evidence
+
+Present when `confidence.focusPass` is true. Contains keyboard Tab-through results.
+
+```json
+{
+  "focusPass": {
+    "totalFocusable": 24,
+    "tabbed": 24,
+    "withIndicator": 20,
+    "withoutIndicator": 4,
+    "missingIndicators": [{ "ref": "button.cta", "selector": "button.cta", "text": "Sign Up", "outline": "none", "boxShadow": "none" }],
+    "nonSemanticClickables": [{ "tag": "div", "classes": "card clickable", "cursor": "pointer", "hasOnclick": true, "hasRole": false }]
+  }
+}
+```
+
+**Evaluator-facing fields:**
+
+| Field | Type | Evaluator Use |
+|-------|------|---------------|
+| `focusPass.tabbed` | number | Total elements that received keyboard focus. |
+| `focusPass.withIndicator` | number | Elements with visible focus ring (outline, box-shadow, or border change). |
+| `focusPass.withoutIndicator` | number | Elements missing visible focus indicator. |
+| `focusPass.missingIndicators` | array | Specific elements without focus indicators — each has selector, text, outline value. |
+| `focusPass.nonSemanticClickables` | array | Divs/spans acting as buttons (cursor:pointer, onclick) without proper role/semantics. |
+
+---
+
+## Interactive Promise Evidence
+
+Present when `confidence.interactivePromises` is true. Contains click→verify results for detected interactive patterns.
+
+```json
+{
+  "interactivePromises": {
+    "detected": [{ "pattern": "mobile-menu", "triggerSelector": "...", "confidence": "high", "viewport": "mobile" }],
+    "results": [{
+      "pattern": "mobile-menu",
+      "triggerSelector": "button.hamburger",
+      "targetSelector": "#mobile-nav",
+      "viewport": "mobile",
+      "confidence": "high",
+      "action": "click",
+      "expected": "target nav becomes visible with at least one visible link",
+      "actual": "no visibility change (display: none, height: 0, links: 0)",
+      "passed": false
+    }]
+  }
+}
+```
+
+**Evaluator-facing fields:**
+
+| Field | Type | Evaluator Use |
+|-------|------|---------------|
+| `interactivePromises.results[].pattern` | string | Pattern type: 'mobile-menu', 'anchor-link', 'tabs', 'accordion'. |
+| `interactivePromises.results[].passed` | boolean | Whether the interaction produced the expected outcome. |
+| `interactivePromises.results[].action` | string | What was attempted. 'skipped (ambiguous selector)' means unverifiable, not broken. |
+| `interactivePromises.results[].viewport` | string | 'desktop' or 'mobile' — which viewport the probe ran at. |
+
+**Evaluator routing:** mobile-menu and anchor-link failures → responsiveness evaluator. Tabs and accordion failures (broken aria-expanded/aria-selected) → accessibility evaluator.
+
+---
+
+## Reserved Fields
+
+These fields are collected but not yet promoted to evaluator inputs:
+
+| Field | Status | Notes |
+|-------|--------|-------|
+| `hoverStates` | Collected | Before/after hover style diffs. Not yet referenced by evaluators. |
+| `scroll.belowFoldTypography` | Collected | Typography sampled at midpoint fold. Not stable enough for evaluator use yet. |
+| `scroll.belowFoldColors` | Collected | Colors sampled below fold. Same — internal use only for now. |
 
 ---
 

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anchor Links Test Fixture</title>
+  <!--
+    Pixelslop Test Fixture: Anchor Links
+    =====================================
+    Tests anchor link behaviour — working and broken.
+
+    What's here:
+    - Nav with 4 anchor links: #about, #features, #pricing, #broken-link
+    - Sections with id="about", id="features", id="pricing" — these exist
+    - NO section with id="broken-link" — this anchor goes nowhere
+    - Enough content between sections to require scrolling
+    - CSS scroll-behavior: smooth
+
+    Serve with: npx http-server tests/fixtures/anchor-links/ -p 8888
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: system-ui, sans-serif; color: #1a1a1a; line-height: 1.6; }
+
+    /* Fixed-ish nav at top */
+    .anchor-nav {
+      background: #fff; border-bottom: 1px solid #ddd;
+      padding: 12px 24px; display: flex; gap: 20px; align-items: center;
+    }
+    .anchor-nav .brand { font-weight: 700; font-size: 17px; margin-right: auto; }
+    .anchor-nav a { color: #0066cc; text-decoration: none; font-size: 14px; }
+    .anchor-nav a:hover { text-decoration: underline; }
+
+    .section {
+      min-height: 100vh; padding: 48px 24px;
+      max-width: 680px; margin: 0 auto;
+    }
+    .section h2 { font-size: 26px; font-weight: 700; margin-bottom: 16px; }
+    .section p { color: #444; margin-bottom: 12px; }
+
+    .section-about { }
+    .section-features { background: #fafafa; }
+    .section-pricing { }
+
+    .price-card {
+      display: inline-block; border: 1px solid #ddd; border-radius: 8px;
+      padding: 24px; margin: 8px; text-align: center; width: 180px; vertical-align: top;
+    }
+    .price-card .tier { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .price-card .price { font-size: 28px; font-weight: 700; color: #0055cc; }
+    .price-card .period { font-size: 13px; color: #888; }
+    .price-card ul { list-style: none; margin-top: 12px; font-size: 13px; color: #555; }
+    .price-card li { padding: 3px 0; }
+
+    footer {
+      padding: 24px; text-align: center; font-size: 13px; color: #999;
+      border-top: 1px solid #eee; margin-top: 32px;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="anchor-nav" aria-label="Page navigation">
+    <span class="brand">AnchorTest</span>
+    <a href="#about">About</a>
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <!-- This anchor target doesn't exist — broken link -->
+    <a href="#broken-link">Blog</a>
+  </nav>
+
+  <section id="about" class="section section-about">
+    <h2>About Us</h2>
+    <p>We build tools that get out of your way. No onboarding wizards, no 47-step setup flows. Install it, use it, done.</p>
+    <p>Founded in 2023 by two people who got tired of software that talks more than it works. Our team is still small — 8 engineers, no managers, no meetings on Wednesdays.</p>
+    <p>We're remote-first, profitable, and not looking for funding. The product pays for itself and then some.</p>
+    <p>Our users range from solo freelancers to 500-person engineering orgs. The common thread: they value speed over ceremony.</p>
+  </section>
+
+  <section id="features" class="section section-features">
+    <h2>Features</h2>
+    <p>Real-time sync across all your devices. Edit on your phone, see it on your laptop before you put the phone down.</p>
+    <p>Full offline support. Not the "we cached the last page" kind — the "rebuild the entire project on a plane" kind.</p>
+    <p>Keyboard-first UI. Every action has a shortcut. The command palette knows what you want before you finish typing.</p>
+    <p>Markdown-native. Write in markdown, export to anything. PDF, DOCX, HTML, LaTeX. No lock-in, no proprietary format.</p>
+    <p>Git integration that doesn't make you think about git. Branch, commit, merge — all behind a clean UI. Or drop to terminal if you prefer.</p>
+  </section>
+
+  <section id="pricing" class="section section-pricing">
+    <h2>Pricing</h2>
+    <p>Simple pricing. No "contact sales" tier. No annual commitment traps.</p>
+    <div style="margin-top:16px;">
+      <div class="price-card">
+        <div class="tier">Free</div>
+        <div class="price">$0</div>
+        <div class="period">forever</div>
+        <ul><li>3 projects</li><li>1 GB storage</li><li>Community support</li></ul>
+      </div>
+      <div class="price-card">
+        <div class="tier">Pro</div>
+        <div class="price">$12</div>
+        <div class="period">/month</div>
+        <ul><li>Unlimited projects</li><li>50 GB storage</li><li>Priority support</li></ul>
+      </div>
+      <div class="price-card">
+        <div class="tier">Team</div>
+        <div class="price">$8</div>
+        <div class="period">/user/month</div>
+        <ul><li>Everything in Pro</li><li>Admin controls</li><li>SSO &amp; SAML</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Note: there is NO #broken-link section. The nav link to #broken-link goes nowhere. -->
+
+  <footer>
+    <p>Test fixture for pixelslop anchor link detection.</p>
+  </footer>
+
+</body>
+</html>

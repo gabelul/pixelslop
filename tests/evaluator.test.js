@@ -197,6 +197,163 @@ describe('Pillar coverage', () => {
 
 
 // ─────────────────────────────────────────────
+// Tests: Accessibility evaluator prompt contracts
+// ─────────────────────────────────────────────
+
+describe('Accessibility evaluator — interaction evidence contracts', () => {
+  let content;
+
+  it('loads accessibility evaluator', () => {
+    content = readFileSync(join(INTERNAL, 'pixelslop-eval-accessibility.md'), 'utf-8');
+    assert.ok(content.length > 200);
+  });
+
+  it('only counts tabs/accordion failures when action is click', () => {
+    // The prompt must require action='click' for widget-semantics failures.
+    // Skipped probes (ambiguous/unclickable triggers) are not broken widgets.
+    assert.ok(
+      content.includes("'click'") || content.includes('"click"') || content.includes('`click`'),
+      'accessibility evaluator must gate widget failures on action being click'
+    );
+    assert.ok(
+      content.includes("'tabs'") || content.includes("'accordion'"),
+      'accessibility evaluator must scope widget failures to tabs/accordion patterns'
+    );
+    // Verify the three conditions appear together in the interactivePromises extraction
+    const promiseSection = content.split('interactivePromises')[1] || '';
+    assert.ok(
+      promiseSection.includes('click') && promiseSection.includes('passed'),
+      'interactivePromises section must require both action=click and passed=false'
+    );
+  });
+
+  it('explicitly excludes skipped probes from widget-semantics findings', () => {
+    // The prompt must tell the evaluator that skipped != broken
+    assert.ok(
+      content.includes('skipped') && content.includes('unverifiable'),
+      'accessibility evaluator must explain that skipped probes are unverifiable, not broken'
+    );
+    assert.ok(
+      content.includes("not 'skipped'") || content.includes('not skipped') ||
+      content.includes("(not 'skipped')"),
+      'accessibility evaluator must explicitly exclude skipped actions'
+    );
+  });
+
+  it('ignores anchor-link and mobile-menu patterns', () => {
+    // These belong to responsiveness, not accessibility
+    assert.ok(
+      content.includes('anchor-link') && content.includes('mobile-menu') &&
+      content.toLowerCase().includes('ignore'),
+      'accessibility evaluator must tell agent to ignore anchor-link and mobile-menu'
+    );
+  });
+
+  it('references focusPass evidence fields', () => {
+    assert.ok(content.includes('focusPass'), 'must reference focusPass');
+    assert.ok(content.includes('missingIndicators'), 'must reference missingIndicators');
+    assert.ok(content.includes('nonSemanticClickables'), 'must reference nonSemanticClickables');
+  });
+
+  it('defines score cap thresholds for interaction evidence', () => {
+    // 30% missing focus indicators = cap at 2
+    assert.ok(
+      content.includes('30%') && content.includes('cap'),
+      'must define the 30% missing-indicators score cap'
+    );
+    // >3 non-semantic clickables = cap at 2
+    assert.ok(
+      content.includes('3 non-semantic') || content.includes('3 non-semantic clickables'),
+      'must define the >3 non-semantic clickables threshold'
+    );
+  });
+});
+
+
+// ─────────────────────────────────────────────
+// Tests: Responsiveness evaluator prompt contracts
+// ─────────────────────────────────────────────
+
+describe('Responsiveness evaluator — interaction evidence contracts', () => {
+  let content;
+
+  it('loads responsiveness evaluator', () => {
+    content = readFileSync(join(INTERNAL, 'pixelslop-eval-responsiveness.md'), 'utf-8');
+    assert.ok(content.length > 200);
+  });
+
+  it('only counts mobile-menu failures when action is click', () => {
+    // Nav-adaptation criterion must gate on action='click'
+    const navSection = content.split('Navigation adaptation')[1]?.split('**Anchor')[0] || '';
+    assert.ok(
+      navSection.includes('click') && navSection.includes('passed'),
+      'navigation adaptation must require both action=click and passed=false'
+    );
+    assert.ok(
+      navSection.includes("not 'skipped'") || navSection.includes('not skipped') ||
+      navSection.includes("(not 'skipped')"),
+      'navigation adaptation must explicitly exclude skipped actions'
+    );
+  });
+
+  it('explicitly excludes skipped probes as unverifiable', () => {
+    assert.ok(
+      content.includes('skipped') && content.includes('unverifiable'),
+      'responsiveness evaluator must explain that skipped probes are unverifiable, not broken'
+    );
+    assert.ok(
+      content.toLowerCase().includes("don't penalize skipped") ||
+      content.toLowerCase().includes('do not penalize skipped'),
+      'must explicitly say not to penalize skipped probes'
+    );
+  });
+
+  it('scopes anchor-link penalties to mobile context with no sticky nav', () => {
+    const anchorSection = content.split('Anchor navigation')[1]?.split('**Font')[0] || '';
+    // Must require mobile viewport OR (long page AND no sticky nav)
+    assert.ok(
+      anchorSection.includes('mobile') && anchorSection.includes('scroll.ratio'),
+      'anchor-link criterion must reference mobile viewport and scroll.ratio'
+    );
+    assert.ok(
+      anchorSection.includes('sticky') || anchorSection.includes('stickyElements'),
+      'anchor-link criterion must check for sticky/fixed navigation'
+    );
+    // Must not penalize when sticky nav exists
+    assert.ok(
+      anchorSection.toLowerCase().includes('do not penalize') ||
+      anchorSection.toLowerCase().includes("don't penalize") ||
+      anchorSection.toLowerCase().includes('not a responsiveness failure'),
+      'must explicitly exclude pages with sticky nav from anchor-link penalties'
+    );
+  });
+
+  it('anchor-link issues are warn-level, not score caps', () => {
+    const anchorSection = content.split('Anchor navigation')[1]?.split('**Font')[0] || '';
+    assert.ok(
+      anchorSection.includes('warn'),
+      'anchor-link findings should specify warn level'
+    );
+    // The text should say anchors don't justify a score cap on their own
+    assert.ok(
+      anchorSection.includes("don't justify a score cap") ||
+      anchorSection.includes('not a score cap') ||
+      anchorSection.includes('warn, not a fail'),
+      'anchor-link criterion must clarify these are warns, not score-cap triggers'
+    );
+  });
+
+  it('mobile-menu click failures cap score at 2', () => {
+    const navSection = content.split('Navigation adaptation')[1]?.split('Anchor')[0] || '';
+    assert.ok(
+      navSection.includes('cap at 2') || navSection.includes('score cap'),
+      'broken mobile menu (click failure) must trigger score cap at 2'
+    );
+  });
+});
+
+
+// ─────────────────────────────────────────────
 // Tests: Each specialist has correct boundaries
 // ─────────────────────────────────────────────
 

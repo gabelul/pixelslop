@@ -159,7 +159,7 @@ describe('browser commands', () => {
     assert.equal(typeof result.available, 'boolean');
   });
 
-  it('browser collect captures an evidence bundle for the sloppy fixture', async (t) => {
+  it('browser collect captures an evidence bundle for the sloppy fixture', { timeout: 180000 }, async (t) => {
     const runtime = runJson('browser detect', process.cwd());
     if (!runtime.available) {
       t.skip('No local Chrome/Chromium runtime available');

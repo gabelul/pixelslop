@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focus Visible Test Fixture</title>
+  <!--
+    Pixelslop Test Fixture: Focus Visible
+    ======================================
+    Tests focus indicator detection and hover state presence.
+
+    What's here:
+    - 3 buttons WITH proper :focus-visible styles (blue outline)
+    - 3 buttons with outline:none and NO replacement indicator (bad)
+    - 3 links with good focus styles
+    - 2 links with outline:none (bad)
+    - 1 input with good focus styles
+    - Buttons with hover states (background changes)
+    - Buttons WITHOUT hover states
+    - A div with cursor:pointer but no semantic role (non-semantic clickable)
+
+    Tab through the page to see which elements have visible focus rings.
+
+    Serve with: npx http-server tests/fixtures/focus-visible/ -p 8888
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; color: #1a1a1a; line-height: 1.6; max-width: 640px; margin: 0 auto; padding: 32px 24px; }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    .subtitle { font-size: 14px; color: #888; margin-bottom: 24px; }
+    h2 { font-size: 17px; margin: 28px 0 10px; padding-bottom: 4px; border-bottom: 1px solid #eee; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+
+    /* ─── Good focus buttons ─── */
+    .btn-good {
+      padding: 10px 18px; border: 1px solid #999; border-radius: 4px;
+      background: #fff; cursor: pointer; font-size: 14px;
+    }
+    .btn-good:focus-visible { outline: 2px solid #0055cc; outline-offset: 2px; }
+    .btn-good:hover { background: #f0f0f0; }
+
+    /* ─── Bad focus buttons: outline killed, nothing replacing it ─── */
+    .btn-bad {
+      padding: 10px 18px; border: 1px solid #999; border-radius: 4px;
+      background: #fff; cursor: pointer; font-size: 14px;
+    }
+    .btn-bad:focus { outline: none; }
+    .btn-bad:hover { background: #f0f0f0; }
+
+    /* ─── Good focus links ─── */
+    .link-good { color: #0066cc; text-decoration: none; padding: 4px 8px; font-size: 14px; }
+    .link-good:focus-visible { outline: 2px solid #0055cc; outline-offset: 2px; border-radius: 2px; }
+    .link-good:hover { text-decoration: underline; }
+
+    /* ─── Bad focus links: outline killed ─── */
+    .link-bad { color: #0066cc; text-decoration: none; padding: 4px 8px; font-size: 14px; }
+    .link-bad:focus { outline: none; }
+    .link-bad:hover { text-decoration: underline; }
+
+    /* ─── Good focus input ─── */
+    .input-good { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 240px; }
+    .input-good:focus-visible { outline: 2px solid #0055cc; outline-offset: 1px; }
+
+    /* ─── Hover-only buttons (have hover, good focus too) ─── */
+    .btn-hover {
+      padding: 10px 18px; border: 1px solid #999; border-radius: 4px;
+      background: #fff; cursor: pointer; font-size: 14px;
+    }
+    .btn-hover:hover { background: #e8f0fe; border-color: #0055cc; }
+    .btn-hover:focus-visible { outline: 2px solid #0055cc; outline-offset: 2px; }
+
+    /* ─── No-hover buttons (no hover state at all) ─── */
+    .btn-nohover {
+      padding: 10px 18px; border: 1px solid #999; border-radius: 4px;
+      background: #fff; cursor: pointer; font-size: 14px;
+    }
+    .btn-nohover:focus-visible { outline: 2px solid #0055cc; outline-offset: 2px; }
+
+    /* ─── Non-semantic clickable ─── */
+    .fake-clickable {
+      display: inline-block; padding: 10px 18px; background: #ffe0e0;
+      border-radius: 4px; cursor: pointer; font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Focus & Hover States</h1>
+  <p class="subtitle">Tab through the page. Some elements have visible focus rings, others don't.</p>
+
+  <!-- Good focus buttons -->
+  <h2>Buttons With Focus Indicator</h2>
+  <div class="row">
+    <button class="btn-good">Save</button>
+    <button class="btn-good">Edit</button>
+    <button class="btn-good">Delete</button>
+  </div>
+
+  <!-- Bad focus buttons -->
+  <h2>Buttons Without Focus Indicator (Bad)</h2>
+  <div class="row">
+    <button class="btn-bad">Publish</button>
+    <button class="btn-bad">Archive</button>
+    <button class="btn-bad">Export</button>
+  </div>
+
+  <!-- Good focus links -->
+  <h2>Links With Focus Indicator</h2>
+  <div class="row">
+    <a href="/dashboard" class="link-good">Dashboard</a>
+    <a href="/reports" class="link-good">Reports</a>
+    <a href="/settings" class="link-good">Settings</a>
+  </div>
+
+  <!-- Bad focus links -->
+  <h2>Links Without Focus Indicator (Bad)</h2>
+  <div class="row">
+    <a href="/billing" class="link-bad">Billing</a>
+    <a href="/profile" class="link-bad">Profile</a>
+  </div>
+
+  <!-- Good focus input -->
+  <h2>Input With Focus Indicator</h2>
+  <div class="row">
+    <input class="input-good" type="text" placeholder="Search...">
+  </div>
+
+  <!-- Hover state buttons -->
+  <h2>Buttons With Hover State</h2>
+  <div class="row">
+    <button class="btn-hover">Hover Me A</button>
+    <button class="btn-hover">Hover Me B</button>
+  </div>
+
+  <!-- No hover state buttons -->
+  <h2>Buttons Without Hover State</h2>
+  <div class="row">
+    <button class="btn-nohover">Static A</button>
+    <button class="btn-nohover">Static B</button>
+  </div>
+
+  <!-- Non-semantic clickable -->
+  <h2>Non-Semantic Clickable</h2>
+  <div class="row">
+    <div class="fake-clickable" onclick="alert('clicked')">I look clickable but I'm a div</div>
+  </div>
+
+  <p style="margin-top:32px; font-size:13px; color:#999;">Test fixture for pixelslop focus-visible and hover detection.</p>
+
+</body>
+</html>

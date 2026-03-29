@@ -39,14 +39,17 @@ You receive three values:
    - `viewports.mobile.overflow` — horizontal overflow check at mobile
    - `viewports.mobile.touchTargets` — button/link sizes at mobile
    - `viewports.desktop.typography` and `viewports.desktop.spacing` — baseline values (only extracted at desktop)
+   - `interactivePromises.results` (if present) — look for mobile-menu failures and anchor-link failures. A broken mobile menu (hamburger detected but nav doesn't open) is a responsiveness failure. Broken anchor links affect mobile navigation UX.
+   - `scroll` (if present) — `scroll.folds` and `scroll.ratio` tell you page length. High fold counts with no scroll-to-top or fixed nav may indicate mobile navigation problems.
    - Cross-viewport comparison is visual: compare screenshots, not computed styles. Typography and spacing are only extracted at the desktop viewport. If mobile text looks smaller than 16px in the screenshot, flag it as a visual observation, not a computed measurement.
 4. **Apply the rubric** from scoring.md (Pillar 4: Responsiveness). Evaluate each criterion:
    - **Layout adaptation** — does the layout genuinely change between viewports, or is it the same grid just squeezed? Column count changes, content reflow, navigation pattern shifts = real adaptation. Everything shrinking proportionally = not.
    - **Touch targets** — interactive elements at mobile should be ≥44x44px (≥48px for score 4). Anything under 30px is broken.
    - **No horizontal overflow** — if `overflow` data shows horizontal scroll at tablet or mobile, that's an immediate problem. Automatic score cap at 2 if overflow exists.
-   - **Navigation adaptation** — does nav change form on mobile (hamburger, bottom bar, collapse)? Or is it the same desktop nav crammed into 375px?
+   - **Navigation adaptation** — does nav change form on mobile (hamburger, bottom bar, collapse)? Or is it the same desktop nav crammed into 375px? If `interactivePromises.results` contains a mobile-menu entry where `passed` is false AND `action` is 'click' (not 'skipped'), that's a broken hamburger menu — the button was clickable but the nav didn't open. This is an automatic score cap at 2. Entries where `action` starts with 'skipped' mean the trigger couldn't be resolved or clicked — that's unverifiable, not broken. Don't penalize skipped probes.
+   - **Anchor navigation (mobile context only)** — anchor-link failures are a responsiveness concern ONLY when they compound with a genuinely difficult mobile navigation situation. Both conditions must hold: (1) the probe ran at `viewport: 'mobile'`, OR the page has `scroll.ratio` above 6 AND `scroll.stickyElements` is empty or absent (no persistent navigation). If the page has sticky nav, users can still navigate — broken anchors are an inconvenience, not a responsiveness failure. Do NOT penalize anchor-link failures on pages with sticky/fixed navigation or on short pages. When conditions are met, flag as a warn, not a fail — broken anchors alone don't justify a score cap.
    - **Font sizes on mobile** — body text should be ≥16px on mobile. Below 14px is a readability failure.
-   - **Content priority** — does important content stay accessible and prominent at small sizes? Or does the mobile layout bury the CTA below three decorative sections?
+   - **Content priority** — does important content stay accessible and prominent at small sizes? Or does the mobile layout bury the CTA below three decorative sections? If `scroll.ratio` is above 8 and the page has no sticky nav or scroll-to-top, mobile users may struggle to navigate.
    - **Spacing adapts** — same 80px padding at 375px that works at 1440px is wrong. Spacing should scale down proportionally or use different values at each breakpoint.
 5. **Assign a score (1-4).** Be honest. Most sites that "work on mobile" still score 2 — responsive CSS isn't the same as responsive design.
 6. **Return JSON.**
@@ -84,7 +87,7 @@ Return exactly this structure. Nothing else.
 ```
 
 Each finding in `findings` must include:
-- `criterion` — which responsiveness aspect (layout-adaptation, touch-targets, overflow, nav-adaptation, mobile-font-sizes, content-priority, spacing-adaptation)
+- `criterion` — which responsiveness aspect (layout-adaptation, touch-targets, overflow, nav-adaptation, nav-functionality, anchor-navigation, mobile-font-sizes, content-priority, spacing-adaptation)
 - `status` — "pass", "warn", or "fail"
 - `detail` — specific measurements comparing viewports
 - `evidence` — which evidence bundle field(s) you're citing

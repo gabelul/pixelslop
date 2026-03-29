@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Broken Mobile Menu Test Fixture</title>
+  <!--
+    Pixelslop Test Fixture: Broken Mobile Menu
+    ============================================
+    Tests detection of a hamburger menu that doesn't work.
+
+    What's here:
+    - Header with logo and hamburger button
+    - Hamburger has aria-label, aria-expanded, aria-controls (looks correct)
+    - Hidden nav (id="mobile-nav", display:none at mobile)
+    - The hamburger button has NO onclick handler — clicking does nothing
+    - At desktop (>768px): nav is visible, hamburger is hidden
+    - At mobile (<=768px): nav is hidden, hamburger is shown
+    - This should trigger a "broken mobile menu" finding
+
+    Serve with: npx http-server tests/fixtures/broken-mobile-menu/ -p 8888
+  -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; color: #1a1a1a; line-height: 1.6; }
+
+    .site-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px; background: #fff; border-bottom: 1px solid #ddd;
+    }
+    .logo { font-size: 18px; font-weight: 700; }
+
+    /* Hamburger button */
+    .hamburger {
+      display: none; /* hidden on desktop */
+      background: none; border: none; cursor: pointer; padding: 8px;
+      font-size: 24px; line-height: 1;
+    }
+
+    /* Desktop nav */
+    .desktop-nav { display: flex; gap: 20px; }
+    .desktop-nav a { color: #0066cc; text-decoration: none; font-size: 14px; }
+    .desktop-nav a:hover { text-decoration: underline; }
+
+    /* Mobile nav — hidden by default, never gets toggled because the handler is missing */
+    #mobile-nav {
+      display: none;
+      background: #f8f8f8; border-bottom: 1px solid #ddd; padding: 12px 24px;
+    }
+    #mobile-nav a {
+      display: block; padding: 8px 0; color: #0066cc;
+      text-decoration: none; font-size: 15px; border-bottom: 1px solid #eee;
+    }
+    #mobile-nav a:last-child { border-bottom: none; }
+
+    /* Mobile breakpoint */
+    @media (max-width: 768px) {
+      .desktop-nav { display: none; }
+      .hamburger { display: block; }
+      /* mobile-nav stays display:none — waiting for JS that never fires */
+    }
+
+    /* Page content */
+    main { padding: 32px 24px; max-width: 640px; margin: 0 auto; }
+    main h1 { font-size: 24px; margin-bottom: 12px; }
+    main p { color: #444; margin-bottom: 12px; }
+    .card {
+      background: #f8f8f8; border: 1px solid #eee; border-radius: 6px;
+      padding: 20px; margin-bottom: 16px;
+    }
+    .card h2 { font-size: 18px; margin-bottom: 8px; }
+    .card p { font-size: 14px; color: #555; }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <span class="logo">BrokenNav Co.</span>
+    <nav class="desktop-nav" aria-label="Main navigation">
+      <a href="/features">Features</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/docs">Docs</a>
+      <a href="/contact">Contact</a>
+    </nav>
+    <!-- The button looks right (ARIA attrs set) but has NO click handler -->
+    <button class="hamburger"
+            aria-label="Toggle menu"
+            aria-expanded="false"
+            aria-controls="mobile-nav">
+      &#9776;
+    </button>
+  </header>
+
+  <!-- This nav never becomes visible on mobile because nothing toggles it -->
+  <nav id="mobile-nav" aria-label="Mobile navigation">
+    <a href="/features">Features</a>
+    <a href="/pricing">Pricing</a>
+    <a href="/docs">Docs</a>
+    <a href="/contact">Contact</a>
+  </nav>
+
+  <main>
+    <h1>Welcome</h1>
+    <p>This page has a hamburger menu that looks fine but doesn't work. On mobile, clicking the hamburger does absolutely nothing. The nav stays hidden.</p>
+
+    <div class="card">
+      <h2>Features</h2>
+      <p>All the things you'd expect. Except a working mobile menu.</p>
+    </div>
+    <div class="card">
+      <h2>Pricing</h2>
+      <p>Free if you only use desktop. Mobile users can't navigate anyway.</p>
+    </div>
+    <div class="card">
+      <h2>Documentation</h2>
+      <p>Comprehensive guides for the three pages you can actually reach.</p>
+    </div>
+  </main>
+
+</body>
+</html>
