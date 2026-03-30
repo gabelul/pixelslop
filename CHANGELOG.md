@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.5...pixelslop-v0.2.6) (2026-03-30)
+
+
+### Features
+
+* interaction evidence layer for browser collector ([a889bc0](https://github.com/gabelul/pixelslop/commit/a889bc077c95344871d53d52130e80c76ea9a787))
+
 ## [0.2.5](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.4...pixelslop-v0.2.5) (2026-03-26)
 
 
