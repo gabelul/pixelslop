@@ -27,6 +27,106 @@ args:
   - name: debug
     description: Enable session logging to .pixelslop-session.log for troubleshooting
     required: false
+  - name: settings
+    description: Open interactive settings configurator (ignores other args)
+    required: false
+---
+
+## Settings Mode
+
+When `--settings` is passed (e.g., `/pixelslop settings`), run the interactive settings configurator and stop — don't scan anything.
+
+### Step 1: Load Current Settings
+
+```bash
+node bin/pixelslop-tools.cjs config get --root "$ROOT" --raw
+```
+
+This returns the current settings with defaults filled in. Show the user what's currently set.
+
+### Step 2: Walk Through Preferences
+
+Use `AskUserQuestion` to present each setting group. Pre-select the current value so the user can skip things they don't want to change.
+
+**Browser mode:**
+```
+AskUserQuestion([{
+  question: "Browser mode during scans?",
+  options: [
+    { label: "Headless", description: "Faster, no visible browser. Good for most scans." },
+    { label: "Headed", description: "Watch the browser work. Useful for debugging or demos." }
+  ]
+}])
+```
+Map: "Headless" → `headed: false`, "Headed" → `headed: true`
+
+**Collection depth:**
+```
+AskUserQuestion([{
+  question: "How deep should the collector go?",
+  options: [
+    { label: "Standard", description: "Quick scan — hover 15 elements, tab 30, 8s scroll budget." },
+    { label: "Deep", description: "Thorough scan — doubled budgets, more elements tested. Takes longer." }
+  ]
+}])
+```
+Map: "Standard" → `deep: false`, "Deep" → `deep: true`
+
+**Confidence threshold:**
+```
+AskUserQuestion([{
+  question: "Finding confidence level?",
+  options: [
+    { label: "Normal", description: "Show findings above 65% confidence. Fewer false positives." },
+    { label: "Thorough", description: "Show findings above 50% confidence. More findings, some may be noise." }
+  ]
+}])
+```
+Map: "Normal" → `thorough: false`, "Thorough" → `thorough: true`
+
+**Persona evaluation:**
+```
+AskUserQuestion([{
+  question: "Which personas should evaluate the page?",
+  options: [
+    { label: "All 8 personas", description: "Screen reader, low vision, keyboard, mobile, slow connection, non-native English, design critic, first-time visitor." },
+    { label: "None", description: "Skip persona evaluation. Faster, but misses perspective-specific issues." },
+    { label: "Let me pick", description: "Choose specific personas to include." }
+  ]
+}])
+```
+Map: "All 8 personas" → `personas: all`, "None" → `personas: none`.
+If "Let me pick", show a follow-up with the 8 individual persona names and let the user select. Join selected IDs with commas.
+
+### Step 3: Save Settings
+
+Write all settings at once:
+
+```bash
+node bin/pixelslop-tools.cjs config set-all \
+  --headed "$HEADED" \
+  --deep "$DEEP" \
+  --thorough "$THOROUGH" \
+  --personas "$PERSONAS" \
+  --root "$ROOT" \
+  --raw
+```
+
+### Step 4: Confirm
+
+Show the user a summary of what was saved:
+
+| Setting | Value |
+|---------|-------|
+| Browser mode | Headless / Headed |
+| Collection depth | Standard / Deep |
+| Confidence | Normal / Thorough |
+| Personas | all / none / specific list |
+
+Tell them: "These settings apply to all future `/pixelslop` runs in this project. Override any setting with a CLI flag (e.g., `/pixelslop --thorough`)."
+
+**After settings mode completes, stop. Don't continue to the scan workflow.**
+
 ---
 
 ## How This Works
@@ -146,6 +246,24 @@ Run init to validate the environment:
 node bin/pixelslop-tools.cjs init scan --url "$URL" --root "$ROOT" --raw
 ```
 
+### Load Project Settings
+
+Before doing anything else, load the project settings and merge with CLI args:
+
+```bash
+node bin/pixelslop-tools.cjs config get --root "$ROOT" --raw
+```
+
+This returns `{ settings: { headed, deep, thorough, personas }, defined: [...] }`. Merge with CLI args — **CLI args always win** over saved settings, saved settings win over defaults:
+
+- If user passed `--thorough`, use that regardless of saved settings
+- If user didn't pass `--thorough` but settings has `thorough: true`, use that
+- If neither, use the default (`false`)
+
+Store the merged values as the effective settings for this session. Use them when spawning the orchestrator and collector.
+
+### Check Cached Context
+
 Check for cached technical context from a previous run:
 
 ```bash
@@ -166,12 +284,12 @@ These are optional — if the user wants to skip, proceed without them.
 
 ## Phase 3: Scan
 
-Spawn the orchestrator to scan the page. Keep the prompt short — just the essential parameters:
+Spawn the orchestrator to scan the page. Use the merged effective settings from Phase 2:
 
 ```
 Agent(
   name: "pixelslop-scan",
-  prompt: "Run pixelslop scan. URL: <url>. Root: <root>. Personas: <personas>. Thorough: <thorough>."
+  prompt: "Run pixelslop scan. URL: <url>. Root: <root>. Personas: <personas>. Thorough: <thorough>. Deep: <deep>. Headed: <headed>."
 )
 ```
 
@@ -280,6 +398,11 @@ node bin/pixelslop-tools.cjs serve stop --root $ROOT --raw
 
 # Session init
 node bin/pixelslop-tools.cjs init scan --url $URL --root $ROOT --raw
+
+# Project settings (interactive configurator writes these)
+node bin/pixelslop-tools.cjs config get --root $ROOT --raw
+node bin/pixelslop-tools.cjs config set headed true --root $ROOT --raw
+node bin/pixelslop-tools.cjs config set-all --headed true --deep false --thorough false --personas all --root $ROOT --raw
 
 # Context caching (skip setup on repeat runs)
 node bin/pixelslop-tools.cjs config save-context --root $ROOT --framework "..." --raw
