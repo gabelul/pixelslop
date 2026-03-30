@@ -1349,4 +1349,57 @@ describe('config settings', () => {
       'error should mention symlink'
     );
   });
+
+  it('config set ignores fake Settings headings inside fenced code', () => {
+    writeFileSync(join(dir, '.pixelslop.md'), [
+      '# Pixelslop — Project Design Context',
+      '',
+      '## Audience',
+      '',
+      'Reference snippet:',
+      '',
+      '```md',
+      '## Settings',
+      'headed: false',
+      '```',
+      ''
+    ].join('\n'));
+
+    runJson(`config set headed true --root "${dir}"`, dir);
+
+    const content = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(content.includes('```md'), 'should preserve fenced example opening fence');
+    assert.ok(content.includes('\n```\n'), 'should preserve fenced example closing fence');
+    assert.equal((content.match(/headed: false/g) || []).length, 1, 'fake example should stay false');
+    assert.ok(content.includes('\n## Settings\n\nheaded: true\n'), 'should append a real Settings section');
+  });
+
+  it('config set updates the real Settings section, not a fenced example', () => {
+    writeFileSync(join(dir, '.pixelslop.md'), [
+      '# Pixelslop — Project Design Context',
+      '',
+      '## Audience',
+      '',
+      'Reference snippet:',
+      '',
+      '```md',
+      '## Settings',
+      'headed: false',
+      '```',
+      '',
+      '## Settings',
+      '',
+      'headed: false',
+      'deep: true',
+      ''
+    ].join('\n'));
+
+    runJson(`config set headed true --root "${dir}"`, dir);
+
+    const content = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(content.includes('```md'), 'should preserve fenced example opening fence');
+    assert.ok(content.includes('\n```\n'), 'should preserve fenced example closing fence');
+    assert.equal((content.match(/headed: false/g) || []).length, 1, 'fake example should stay false');
+    assert.ok(content.includes('\n## Settings\n\nheaded: true\ndeep: true\n'), 'should update the real Settings section');
+  });
 });

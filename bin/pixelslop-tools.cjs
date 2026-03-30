@@ -921,24 +921,57 @@ function sanitizeSettingValue(value) {
 }
 
 /**
+ * Find a top-level markdown section while ignoring fenced code blocks.
+ * Returns line indexes so callers can read or replace the section safely.
+ * @param {string} content - markdown content
+ * @param {string} heading - exact heading text after `## `
+ * @returns {{ start: number, end: number } | null} section line range
+ */
+function findTopLevelSectionRange(content, heading) {
+  if (!content) return null;
+
+  const lines = content.split('\n');
+  let inFence = false;
+  let start = -1;
+  let end = lines.length;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+
+    const headingMatch = line.match(/^##\s+(.+?)\s*$/);
+    if (!headingMatch) continue;
+
+    if (start === -1 && headingMatch[1] === heading) {
+      start = i;
+      continue;
+    }
+    if (start !== -1) {
+      end = i;
+      break;
+    }
+  }
+
+  return start === -1 ? null : { start, end };
+}
+
+/**
  * Parse the ## Settings section from .pixelslop.md content.
- * Splits by ## headings to find the Settings section, then parses key: value lines.
- * Strips fenced code blocks first so ## inside fences doesn't fool the split.
+ * Finds the real top-level section, then parses key: value lines.
  * @param {string} content - full .pixelslop.md file content
  * @returns {object} parsed settings (only valid keys)
  */
 function parseSettings(content) {
   if (!content) return {};
-  // Strip fenced code blocks so we don't split on ## inside them
-  const stripped = content.replace(/```[\s\S]*?```/g, '');
-  // Split on ## headings and find the Settings section
-  const sections = stripped.split(/\n(?=## )/);
-  const settingsBlock = sections.find(s => s.startsWith('## Settings'));
-  if (!settingsBlock) return {};
+  const range = findTopLevelSectionRange(content, 'Settings');
+  if (!range) return {};
 
   const settings = {};
-  // Skip the heading line, parse key: value pairs
-  const lines = settingsBlock.split('\n').slice(1);
+  const lines = content.split('\n').slice(range.start + 1, range.end);
   for (const line of lines) {
     const kv = line.match(/^(\w[\w-]*):\s*(.+)$/);
     if (!kv) continue;
@@ -994,13 +1027,13 @@ function writeSettingsSection(root, settings) {
 
   const body = serializeSettings(settings);
   const newSection = `## Settings\n\n${body}\n`;
+  const newSectionLines = newSection.trimEnd().split('\n');
+  const range = findTopLevelSectionRange(content, 'Settings');
 
-  // Split-and-rejoin to replace the Settings section without fragile regex
-  const sectionParts = content.split(/\n(?=## )/);
-  const settingsIdx = sectionParts.findIndex(s => s.startsWith('## Settings'));
-  if (settingsIdx !== -1) {
-    sectionParts[settingsIdx] = newSection;
-    content = sectionParts.join('\n');
+  if (range) {
+    const lines = content.split('\n');
+    lines.splice(range.start, range.end - range.start, ...newSectionLines);
+    content = lines.join('\n');
   } else {
     content = content.trimEnd() + '\n\n' + newSection;
   }
