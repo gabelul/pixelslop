@@ -1184,3 +1184,110 @@ describe('--cwd flag', () => {
     assert.ok(result.command);
   });
 });
+
+
+// ─────────────────────────────────────────────
+// Tests: config set / get / set-all (settings)
+// ─────────────────────────────────────────────
+
+describe('config settings', () => {
+  let dir;
+
+  beforeEach(() => {
+    dir = createTestRepo({ name: 'settings-test', scripts: { build: 'echo ok' } });
+  });
+
+  it('config get returns defaults when no .pixelslop.md exists', () => {
+    // No .pixelslop.md — get should fail
+    const result = run(`config get --root "${dir}"`, dir, true);
+    assert.ok(result.exitCode !== 0, 'should fail without .pixelslop.md');
+  });
+
+  it('config set creates ## Settings section in new .pixelslop.md', () => {
+    const result = runJson(`config set headed true --root "${dir}"`, dir);
+    assert.equal(result.status, 'set');
+    assert.equal(result.key, 'headed');
+    assert.equal(result.value, true);
+
+    // Verify file was created with settings section
+    const content = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(content.includes('## Settings'), 'should have Settings section');
+    assert.ok(content.includes('headed: true'), 'should contain headed setting');
+  });
+
+  it('config get reads back a single setting', () => {
+    runJson(`config set deep true --root "${dir}"`, dir);
+    const result = runJson(`config get deep --root "${dir}"`, dir);
+    assert.equal(result.key, 'deep');
+    assert.equal(result.value, true);
+    assert.equal(result.source, 'config');
+  });
+
+  it('config get returns default for unset keys', () => {
+    // Create .pixelslop.md with one setting so get doesn't fail
+    runJson(`config set headed false --root "${dir}"`, dir);
+    const result = runJson(`config get thorough --root "${dir}"`, dir);
+    assert.equal(result.key, 'thorough');
+    assert.equal(result.value, false);
+    assert.equal(result.source, 'default');
+  });
+
+  it('config get with no key returns all settings with defaults', () => {
+    runJson(`config set headed true --root "${dir}"`, dir);
+    const result = runJson(`config get --root "${dir}"`, dir);
+    assert.ok(result.settings, 'should have settings object');
+    assert.equal(result.settings.headed, true);
+    assert.equal(result.settings.deep, false, 'unset deep should default to false');
+    assert.equal(result.settings.thorough, false, 'unset thorough should default to false');
+    assert.equal(result.settings.personas, 'all', 'unset personas should default to all');
+    assert.deepEqual(result.defined, ['headed'], 'only headed was explicitly set');
+  });
+
+  it('config set-all writes multiple settings at once', () => {
+    const result = runJson(
+      `config set-all --headed true --deep true --thorough false --personas none --root "${dir}"`,
+      dir
+    );
+    assert.equal(result.status, 'written');
+    assert.equal(result.settings.headed, true);
+    assert.equal(result.settings.deep, true);
+    assert.equal(result.settings.thorough, false);
+    assert.equal(result.settings.personas, 'none');
+  });
+
+  it('config set preserves existing design context sections', () => {
+    // Write design context first
+    runJson(
+      `config write --audience "developers" --brand "technical" --root "${dir}"`,
+      dir
+    );
+    // Now set a setting
+    runJson(`config set headed true --root "${dir}"`, dir);
+
+    const content = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(content.includes('## Audience'), 'should preserve Audience section');
+    assert.ok(content.includes('developers'), 'should preserve audience content');
+    assert.ok(content.includes('## Settings'), 'should have Settings section');
+    assert.ok(content.includes('headed: true'), 'should have the setting');
+  });
+
+  it('config set overwrites existing setting value', () => {
+    runJson(`config set personas all --root "${dir}"`, dir);
+    runJson(`config set personas none --root "${dir}"`, dir);
+    const result = runJson(`config get personas --root "${dir}"`, dir);
+    assert.equal(result.value, 'none');
+  });
+
+  it('config set rejects unknown keys', () => {
+    const result = run(`config set bogus true --root "${dir}" --raw`, dir, true);
+    assert.ok(result.exitCode !== 0, 'should reject unknown key');
+    assert.ok(result.stderr.includes('Unknown setting') || result.stdout.includes('Unknown setting'),
+      'should mention unknown setting');
+  });
+
+  it('boolean settings coerce string values', () => {
+    runJson(`config set headed true --root "${dir}"`, dir);
+    const result = runJson(`config get headed --root "${dir}"`, dir);
+    assert.strictEqual(result.value, true, 'should be boolean true, not string');
+  });
+});
