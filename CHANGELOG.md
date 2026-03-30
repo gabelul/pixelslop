@@ -2,10 +2,7 @@
 
 ## [0.2.7](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.6...pixelslop-v0.2.7) (2026-03-30)
 
-
-### Documentation
-
-* enrich 0.2.6 changelog with full release notes ([722369b](https://github.com/gabelul/pixelslop/commit/722369b003bf1c0ce31584c04403a95c8328a257))
+Release infrastructure: PR title linting, changelog section grouping, draft release PRs for review before publish. No functional changes.
 
 ## [0.2.6](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.5...pixelslop-v0.2.6) (2026-03-30)
 

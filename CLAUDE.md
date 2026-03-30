@@ -77,7 +77,7 @@ dev_docs/                          # Internal planning (gitignored)
 ## Testing
 
 ```bash
-npm test                 # Full suite (600+ tests)
+npm test                 # Full suite (780+ tests)
 npm run validate         # Resource file structure + cross-file consistency only
 npm run test:detection   # Detection logic only
 npm run test:format      # Report format only
@@ -111,6 +111,41 @@ Resource files are instructional — written to teach an agent how to evaluate d
 
 Conventional commits. Always. See the global CLAUDE.md for the full format reference.
 
+## Releases & Changelogs
+
+Releases are automated via release-please + npm publish with OIDC provenance. The changelog quality depends on how you merge.
+
+### Merging feature branches
+
+- **Multi-commit branches → `git merge` (not squash).** Each `feat:` and `fix:` commit becomes its own changelog entry, grouped into sections. This is how you get rich changelogs.
+- **Single-change branches → squash is fine.** One commit = one changelog entry.
+- **PR titles must be conventional commits.** `pr-lint.yml` enforces this. GitHub uses the PR title as the squash commit message.
+
+### Release PR workflow
+
+1. Pushing to main triggers release-please, which opens a **draft PR** with version bump + auto-generated CHANGELOG.md
+2. The changelog groups commits: Features, Bug Fixes, Refactoring (test/chore/ci/docs/style hidden)
+3. **Small releases:** mark the draft ready and merge. Auto-generated list is fine.
+4. **Big releases:** checkout the PR branch, add a summary paragraph above the auto-generated entries in CHANGELOG.md, push, then mark ready and merge. This is the only way to get prose summaries — editing the PR body does NOT change the changelog.
+5. Merging creates the GitHub release + tag, then publishes to npm
+
+### Writing good changelog entries
+
+The changelog is only as good as the commit messages. When committing on a feature branch:
+
+- **`feat:` commits** — describe the capability, not the implementation. "add scroll pass with fold-by-fold analysis" not "add collectScrollPass function"
+- **`fix:` commits** — describe what was broken from the user's perspective. "exclude skipped probes from evaluator score caps" not "fix condition in checkAccessibilityCaps"
+- **Bold the key noun** in manual changelog entries: `* **Scroll pass** — fold-by-fold page analysis...`
+- **One commit per logical change.** Don't bundle "add feature + fix test + update docs" in one commit. Split them so the changelog reads naturally.
+- For squash merges that need multiple changelog entries, use `BEGIN_COMMIT_OVERRIDE` / `END_COMMIT_OVERRIDE` in the merged PR body
+
+### What NOT to do
+
+- Don't squash a branch with 10+ meaningful commits — the changelog loses all detail
+- Don't use `docs:` commits for changelog edits — they trigger releases (before 0.2.7 fix, now hidden)
+- Don't edit the release PR body expecting it to change CHANGELOG.md — it won't
+- Don't skip the draft PR review for big releases — that's your window to write the summary
+
 ## Key Rules
 
 - **Browser evidence required.** If it can't be measured in Playwright, don't score it.
@@ -125,7 +160,7 @@ Conventional commits. Always. See the global CLAUDE.md for the full format refer
 - **Checkpoint before edit.** The fixer always creates a checkpoint via `pixelslop-tools` before modifying files. No exceptions.
 - **Build gate is non-negotiable.** If the build breaks after a fix, automatic rollback. No "but the design fix was correct."
 - **Max one retry on PARTIAL.** Keep the improvement and move on. Don't loop forever.
-- **Run tests before committing.** `npm test` — 600+ tests, zero dependencies, takes ~10s.
+- **Run tests before committing.** `npm test` — 780+ tests, zero dependencies, takes ~10s.
 - **Path rewriting is fragile.** If you rename `bin/pixelslop-tools.cjs` or move `dist/skill/resources/`, update `rewriteAgentPaths()` in `bin/pixelslop.mjs`. The installer tests catch drift.
 
 ## Direct Browser Runtime
