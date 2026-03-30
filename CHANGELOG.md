@@ -2,10 +2,28 @@
 
 ## [0.2.6](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.5...pixelslop-v0.2.6) (2026-03-30)
 
+Interaction evidence inside the existing evaluators. The browser collector now scrolls, hovers, tabs, and clicks interactive elements — then feeds what it finds into the accessibility, responsiveness, and hierarchy evaluators. No new pillar, no scoring model change. The existing /20 score gets sharper because evaluators can see things they couldn't before: missing focus indicators, divs masquerading as buttons, broken hamburger menus.
 
 ### Features
 
-* interaction evidence layer for browser collector ([a889bc0](https://github.com/gabelul/pixelslop/commit/a889bc077c95344871d53d52130e80c76ea9a787))
+* **Scroll pass** — fold-by-fold page analysis with screenshots, sticky element tracking, lazy image detection, and below-fold typography sampling. Pages that scroll for 8+ viewport heights get flagged for content priority issues.
+* **Hover pass** — before/after computed style diffs on up to 15 interactive elements at desktop. Detects elements with no hover feedback.
+* **Focus pass** — keyboard Tab-through that tests up to 30 elements for visible focus indicators. Identifies non-semantic clickables (divs/spans with `cursor:pointer` or `onclick` that should be buttons).
+* **Promise verification** — click→verify loop for mobile menus, anchor links, and tabs/accordions. Binary pass/fail outcomes — if the nav doesn't open or the anchor doesn't scroll, that's a measurable failure.
+* **`--deep` flag** — doubles all time budgets and raises element caps for extended collection on complex pages.
+* **Evaluator wiring** — accessibility evaluator now caps score at 2 when >30% of focused elements lack visible indicators, or when >3 non-semantic clickables are found. Responsiveness evaluator caps at 2 for broken mobile menus. Hierarchy evaluator uses scroll data for content priority.
+* **Skipped probe handling** — ambiguous or unclickable triggers classified as "skipped" (unverifiable), not "failed" (broken). Evaluators only penalize real click-action failures.
+
+### Architecture
+
+* Element ref system assigns stable selectors to interactive elements — buttons, links, tabs, divs-acting-as-buttons — with semantic classification.
+* Probe isolation: `resetProbeState()` between every interaction, `resetBetweenPasses()` between every pass and before viewport switches. A noisy probe never contaminates subsequent collection.
+* Per-pass time budgets (scroll 8s, hover 5s, focus 3s, promises 12s) with graceful bailout — partial results stored, confidence flagged, scan continues.
+* Evidence schema updated with formal field specifications and evaluator routing rules.
+
+### Tests
+
+* 781 tests (was 616). 7 new test fixtures, 3 new test files, prompt contract tests for accessibility and responsiveness evaluators locking the skipped-probe exclusion rules.
 
 ## [0.2.5](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.4...pixelslop-v0.2.5) (2026-03-26)
 
