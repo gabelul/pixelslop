@@ -911,17 +911,35 @@ const SETTING_DEFS = {
 };
 
 /**
+ * Sanitize a string setting value — strip newlines and control chars
+ * to prevent structure injection (a newline could add fake key: value lines).
+ * @param {string} value - raw string value
+ * @returns {string} sanitized value (single line)
+ */
+function sanitizeSettingValue(value) {
+  return String(value).replace(/[\n\r]/g, ' ').trim();
+}
+
+/**
  * Parse the ## Settings section from .pixelslop.md content.
- * Returns an object of key-value pairs. Values are coerced to
- * the expected type from SETTING_DEFS.
+ * Splits by ## headings to find the Settings section, then parses key: value lines.
+ * Strips fenced code blocks first so ## inside fences doesn't fool the split.
  * @param {string} content - full .pixelslop.md file content
  * @returns {object} parsed settings (only valid keys)
  */
 function parseSettings(content) {
-  const match = content.match(/## Settings\n\n([\s\S]*?)(?=\n## |\n*$)/);
-  if (!match) return {};
+  if (!content) return {};
+  // Strip fenced code blocks so we don't split on ## inside them
+  const stripped = content.replace(/```[\s\S]*?```/g, '');
+  // Split on ## headings and find the Settings section
+  const sections = stripped.split(/\n(?=## )/);
+  const settingsBlock = sections.find(s => s.startsWith('## Settings'));
+  if (!settingsBlock) return {};
+
   const settings = {};
-  for (const line of match[1].split('\n')) {
+  // Skip the heading line, parse key: value pairs
+  const lines = settingsBlock.split('\n').slice(1);
+  for (const line of lines) {
     const kv = line.match(/^(\w[\w-]*):\s*(.+)$/);
     if (!kv) continue;
     const key = kv[1].trim();
@@ -952,11 +970,21 @@ function serializeSettings(settings) {
 /**
  * Read the full .pixelslop.md, replace or insert the ## Settings section,
  * write it back. Preserves all other sections.
+ *
+ * Symlink safety: if .pixelslop.md is a symlink, we refuse to write
+ * through it — the target might be outside the project.
+ *
  * @param {string} root - project root
  * @param {object} settings - full settings object to write
  */
 function writeSettingsSection(root, settings) {
   const configPath = path.join(root, '.pixelslop.md');
+
+  // Refuse to write through symlinks — could clobber files outside the repo
+  if (fs.existsSync(configPath) && fs.lstatSync(configPath).isSymbolicLink()) {
+    fail('.pixelslop.md is a symlink. Remove it or replace with a regular file before writing settings.');
+  }
+
   let content = '';
   if (fs.existsSync(configPath)) {
     content = fs.readFileSync(configPath, 'utf-8');
@@ -967,11 +995,13 @@ function writeSettingsSection(root, settings) {
   const body = serializeSettings(settings);
   const newSection = `## Settings\n\n${body}\n`;
 
-  if (content.includes('## Settings')) {
-    // Replace existing section
-    content = content.replace(/## Settings\n\n[\s\S]*?(?=\n## |\n*$)/, newSection);
+  // Split-and-rejoin to replace the Settings section without fragile regex
+  const sectionParts = content.split(/\n(?=## )/);
+  const settingsIdx = sectionParts.findIndex(s => s.startsWith('## Settings'));
+  if (settingsIdx !== -1) {
+    sectionParts[settingsIdx] = newSection;
+    content = sectionParts.join('\n');
   } else {
-    // Append before first ## or at end
     content = content.trimEnd() + '\n\n' + newSection;
   }
 
@@ -1002,7 +1032,7 @@ function configSet(args) {
   if (def.type === 'boolean') {
     existing[key] = value === 'true' || value === true;
   } else {
-    existing[key] = String(value);
+    existing[key] = sanitizeSettingValue(value);
   }
 
   writeSettingsSection(root, existing);
@@ -1018,9 +1048,9 @@ function configGet(args) {
   const key = args._positional?.[0] || args.key;
   const root = resolveProjectRoot(args.root);
   const configPath = path.join(root, '.pixelslop.md');
-  if (!fs.existsSync(configPath)) fail('No .pixelslop.md found.');
 
-  const content = fs.readFileSync(configPath, 'utf-8');
+  // No config file yet — return defaults (fresh project)
+  const content = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : '';
   const settings = parseSettings(content);
 
   if (key) {
@@ -1050,21 +1080,28 @@ function configGet(args) {
  */
 function configSetAll(args) {
   const root = resolveProjectRoot(args.root);
-  const settings = {};
+  const configPath = path.join(root, '.pixelslop.md');
+
+  // Read existing settings so unspecified keys are preserved
+  const content = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : '';
+  const existing = parseSettings(content);
+
+  let changed = 0;
   for (const key of Object.keys(SETTING_DEFS)) {
     if (args[key] !== undefined) {
       const def = SETTING_DEFS[key];
       if (def.type === 'boolean') {
-        settings[key] = args[key] === 'true' || args[key] === true;
+        existing[key] = args[key] === 'true' || args[key] === true;
       } else {
-        settings[key] = String(args[key]);
+        existing[key] = sanitizeSettingValue(args[key]);
       }
+      changed++;
     }
   }
-  if (Object.keys(settings).length === 0) fail('No valid settings provided.');
+  if (changed === 0) fail('No valid settings provided.');
 
-  writeSettingsSection(root, settings);
-  output(RAW ? { status: 'written', settings } : `Settings written:\n${serializeSettings(settings)}`);
+  writeSettingsSection(root, existing);
+  output(RAW ? { status: 'written', settings: existing } : `Settings written:\n${serializeSettings(existing)}`);
 }
 
 /**
