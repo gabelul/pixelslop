@@ -898,6 +898,175 @@ function configExists(args = {}) {
   output(RAW ? { exists } : exists ? 'Config exists' : 'No config');
 }
 
+// ─────────────────────────────────────────────
+// Settings Commands (## Settings in .pixelslop.md)
+// ─────────────────────────────────────────────
+
+/** Valid setting keys and their value types/defaults */
+const SETTING_DEFS = {
+  headed:   { type: 'boolean', default: false,  description: 'Open visible browser window' },
+  deep:     { type: 'boolean', default: false,  description: 'Extended collection with doubled budgets' },
+  thorough: { type: 'boolean', default: false,  description: 'Show lower-confidence findings' },
+  personas: { type: 'string',  default: 'all',  description: 'Persona IDs (comma-separated, "all", or "none")' },
+};
+
+/**
+ * Parse the ## Settings section from .pixelslop.md content.
+ * Returns an object of key-value pairs. Values are coerced to
+ * the expected type from SETTING_DEFS.
+ * @param {string} content - full .pixelslop.md file content
+ * @returns {object} parsed settings (only valid keys)
+ */
+function parseSettings(content) {
+  const match = content.match(/## Settings\n\n([\s\S]*?)(?=\n## |\n*$)/);
+  if (!match) return {};
+  const settings = {};
+  for (const line of match[1].split('\n')) {
+    const kv = line.match(/^(\w[\w-]*):\s*(.+)$/);
+    if (!kv) continue;
+    const key = kv[1].trim();
+    const raw = kv[2].trim();
+    if (!SETTING_DEFS[key]) continue;
+    const def = SETTING_DEFS[key];
+    if (def.type === 'boolean') {
+      settings[key] = raw === 'true';
+    } else {
+      settings[key] = raw;
+    }
+  }
+  return settings;
+}
+
+/**
+ * Serialize settings object back into markdown `key: value` lines.
+ * @param {object} settings - key-value pairs
+ * @returns {string} markdown content for the ## Settings section body
+ */
+function serializeSettings(settings) {
+  return Object.entries(settings)
+    .filter(([k]) => SETTING_DEFS[k])
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n');
+}
+
+/**
+ * Read the full .pixelslop.md, replace or insert the ## Settings section,
+ * write it back. Preserves all other sections.
+ * @param {string} root - project root
+ * @param {object} settings - full settings object to write
+ */
+function writeSettingsSection(root, settings) {
+  const configPath = path.join(root, '.pixelslop.md');
+  let content = '';
+  if (fs.existsSync(configPath)) {
+    content = fs.readFileSync(configPath, 'utf-8');
+  } else {
+    content = '# Pixelslop — Project Design Context\n';
+  }
+
+  const body = serializeSettings(settings);
+  const newSection = `## Settings\n\n${body}\n`;
+
+  if (content.includes('## Settings')) {
+    // Replace existing section
+    content = content.replace(/## Settings\n\n[\s\S]*?(?=\n## |\n*$)/, newSection);
+  } else {
+    // Append before first ## or at end
+    content = content.trimEnd() + '\n\n' + newSection;
+  }
+
+  fs.writeFileSync(configPath, normalizeMd(content));
+}
+
+/**
+ * Set a single setting. Merges with existing settings.
+ * Usage: config set <key> <value> [--root <path>]
+ * @param {object} args - must have positional key and value
+ */
+function configSet(args) {
+  const key = args._positional?.[0] || args.key;
+  const value = args._positional?.[1] || args.value;
+  if (!key) fail('Missing key. Usage: config set <key> <value>');
+  if (value === undefined) fail(`Missing value for key "${key}".`);
+  if (!SETTING_DEFS[key]) {
+    const valid = Object.keys(SETTING_DEFS).join(', ');
+    fail(`Unknown setting "${key}". Valid: ${valid}`);
+  }
+
+  const root = resolveProjectRoot(args.root);
+  const configPath = path.join(root, '.pixelslop.md');
+  const content = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : '';
+  const existing = parseSettings(content);
+
+  const def = SETTING_DEFS[key];
+  if (def.type === 'boolean') {
+    existing[key] = value === 'true' || value === true;
+  } else {
+    existing[key] = String(value);
+  }
+
+  writeSettingsSection(root, existing);
+  output(RAW ? { status: 'set', key, value: existing[key] } : `Set ${key}: ${existing[key]}`);
+}
+
+/**
+ * Get a single setting or all settings.
+ * Usage: config get [<key>] [--root <path>]
+ * @param {object} args - optional positional key
+ */
+function configGet(args) {
+  const key = args._positional?.[0] || args.key;
+  const root = resolveProjectRoot(args.root);
+  const configPath = path.join(root, '.pixelslop.md');
+  if (!fs.existsSync(configPath)) fail('No .pixelslop.md found.');
+
+  const content = fs.readFileSync(configPath, 'utf-8');
+  const settings = parseSettings(content);
+
+  if (key) {
+    if (!SETTING_DEFS[key]) {
+      const valid = Object.keys(SETTING_DEFS).join(', ');
+      fail(`Unknown setting "${key}". Valid: ${valid}`);
+    }
+    const value = settings[key] !== undefined ? settings[key] : SETTING_DEFS[key].default;
+    output(RAW ? { key, value, source: settings[key] !== undefined ? 'config' : 'default' } : `${key}: ${value}`);
+  } else {
+    // Return all settings with defaults filled in
+    const merged = {};
+    for (const [k, def] of Object.entries(SETTING_DEFS)) {
+      merged[k] = settings[k] !== undefined ? settings[k] : def.default;
+    }
+    output(RAW
+      ? { settings: merged, defined: Object.keys(settings) }
+      : Object.entries(merged).map(([k, v]) => `${k}: ${v}`).join('\n')
+    );
+  }
+}
+
+/**
+ * Write all settings at once (from interactive flow).
+ * Usage: config set-all --headed true --deep false ... [--root <path>]
+ * @param {object} args - setting key-value pairs as flags
+ */
+function configSetAll(args) {
+  const root = resolveProjectRoot(args.root);
+  const settings = {};
+  for (const key of Object.keys(SETTING_DEFS)) {
+    if (args[key] !== undefined) {
+      const def = SETTING_DEFS[key];
+      if (def.type === 'boolean') {
+        settings[key] = args[key] === 'true' || args[key] === true;
+      } else {
+        settings[key] = String(args[key]);
+      }
+    }
+  }
+  if (Object.keys(settings).length === 0) fail('No valid settings provided.');
+
+  writeSettingsSection(root, settings);
+  output(RAW ? { status: 'written', settings } : `Settings written:\n${serializeSettings(settings)}`);
+}
+
 /**
  * Save auto-detected project context to .pixelslop-context.json.
  * The setup agent calls this after exploring the codebase so future
@@ -2144,6 +2313,9 @@ async function main() {
     console.log('  browser styles --url <url> --selector <css>');
     console.log('  browser snapshot --url <url>');
     console.log('  browser screenshot --url <url> [--viewport <name|WxH>] [--out <file>]');
+    console.log('  config set <key> <value> [--root <path>]     # Set a project setting');
+    console.log('  config get [<key>] [--root <path>]            # Get one or all settings');
+    console.log('  config set-all --headed true --deep false ...  # Set multiple settings at once');
     console.log('  --root identifies the project being analyzed; --cwd only changes where pixelslop-tools runs.');
     process.exit(0);
   }
@@ -2193,9 +2365,12 @@ async function main() {
         case 'write': return configWrite(flags);
         case 'read': return configRead(flags);
         case 'exists': return configExists(flags);
+        case 'set': return configSet({ ...flags, _positional: positional.slice(2) });
+        case 'get': return configGet({ ...flags, _positional: positional.slice(2) });
+        case 'set-all': return configSetAll(flags);
         case 'save-context': return configSaveContext(flags);
         case 'load-context': return configLoadContext(flags);
-        default: fail(`Unknown config command: ${command}. Valid: write, read, exists, save-context, load-context`);
+        default: fail(`Unknown config command: ${command}. Valid: write, read, exists, set, get, set-all, save-context, load-context`);
       }
       break;
 
