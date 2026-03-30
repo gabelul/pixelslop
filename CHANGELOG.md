@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.1](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.0...pixelslop-v0.3.1) (2026-03-30)
+
+
+### Features
+
+* add interactive settings flow to /pixelslop skill ([db13482](https://github.com/gabelul/pixelslop/commit/db13482fe6f8388b3e382a9502780c089fcca488))
+* add settings commands to pixelslop-tools ([d70a8d7](https://github.com/gabelul/pixelslop/commit/d70a8d7b5b202454532d80b8ef07c4e4a9576100))
+* interactive project settings for /pixelslop ([9015c5e](https://github.com/gabelul/pixelslop/commit/9015c5e1dbb53f004a6c9b9de3fbb41117fd127d))
+
+
+### Bug Fixes
+
+* address Codex review — 5 settings bugs + test gaps ([369b7c9](https://github.com/gabelul/pixelslop/commit/369b7c915a680f38e2938d1a6f5d7a6aebcd0151))
+* correct action-semantic-pull-request commit hash pin ([60b2ce6](https://github.com/gabelul/pixelslop/commit/60b2ce60f372d1eeba0f39cd7455fcf5bbc75017))
+* fence-aware section parser for settings read/write ([9827117](https://github.com/gabelul/pixelslop/commit/9827117d013cd6bd2b63c07c61a4d5c2cd3559df))
+
 ## [0.3.0](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.7...pixelslop-v0.3.0) (2026-03-30)
 
 Pixelslop 0.3.0 is a ground-up rework of how design quality gets measured. The scanner that used to be one monolithic agent is now a collector feeding 6 specialist evaluators. The browser runtime that depended on Playwright MCP is now direct Playwright execution. And the collector doesn't just look at static screenshots anymore — it scrolls, hovers, tabs through elements, and clicks interactive widgets to verify they actually work.
