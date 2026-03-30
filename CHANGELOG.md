@@ -1,5 +1,77 @@
 # Changelog
 
+## [0.3.0](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.7...pixelslop-v0.3.0) (2026-03-30)
+
+Pixelslop 0.3.0 is a ground-up rework of how design quality gets measured. The scanner that used to be one monolithic agent is now a collector feeding 6 specialist evaluators. The browser runtime that depended on Playwright MCP is now direct Playwright execution. And the collector doesn't just look at static screenshots anymore — it scrolls, hovers, tabs through elements, and clicks interactive widgets to verify they actually work.
+
+The /20 scoring model hasn't changed. The 5 pillars are the same. But the evidence behind each score is substantially deeper, and the evaluators are sharper about what they penalize.
+
+### Scanner Architecture
+
+The old scanner was a single agent that captured screenshots, extracted styles, and scored everything in one pass. That's gone.
+
+* **Evidence collector** — `pixelslop-browser.cjs` captures screenshots, computed styles, contrast ratios, typography, spacing, a11y snapshots, and persona checks across 3 viewports (1440px, 768px, 375px). Outputs a structured evidence bundle.
+* **6 specialist evaluators** — hierarchy, typography, color, responsiveness, accessibility, and slop. Each reads the evidence bundle, applies its rubric from `scoring.md`, and returns a scored JSON finding. They run in parallel, they're read-only, and they can't see each other's work.
+* **Evidence schema** — `evidence-schema.md` is the formal contract between collector and evaluators. Defines every field, its type, which evaluator owns it, and confidence flags.
+
+### Direct Browser Runtime
+
+Replaced Playwright MCP tool declarations with direct Playwright execution via `pixelslop-tools browser *` commands. The collector, fixer, and checker call Playwright directly — no MCP middleware, no tool-call overhead, no dependency on the host runtime having Playwright MCP configured.
+
+### Interaction Evidence Layer
+
+The collector now runs 4 interaction passes after the static evidence capture:
+
+* **Scroll pass** — scrolls the page fold by fold. Screenshots each fold, tracks sticky/fixed elements, detects lazy-loaded images, samples below-fold typography. Pages with scroll ratio > 8 get flagged for content priority issues.
+* **Hover pass** — hovers up to 15 interactive elements at desktop, captures before/after computed style diffs. Detects buttons and links with zero hover feedback.
+* **Focus pass** — tabs through up to 30 focusable elements, checks each for a visible focus indicator (outline, box-shadow, or border change). Identifies non-semantic clickables: divs and spans with `cursor:pointer` or `onclick` that should be `<button>` or `<a>`.
+* **Promise verification** — clicks mobile menu triggers, anchor links, and tabs/accordions, then checks whether the expected outcome happened. Binary pass/fail: did the nav open? Did the page scroll to the anchor? Did `aria-expanded` change? Skipped probes (ambiguous or unclickable triggers) are classified as unverifiable, not broken.
+
+Each pass has its own time budget (scroll 8s, hover 5s, focus 3s, promises 12s) and graceful bailout. A timeout stores partial results, flags confidence, and continues — one noisy pass never contaminates the rest.
+
+`--deep` mode doubles all budgets and raises caps for complex pages.
+
+### Evaluator Wiring
+
+Interaction evidence feeds into the existing pillar evaluators:
+
+* **Accessibility** — `focusPass.missingIndicators` (>30% missing = score cap at 2), `focusPass.nonSemanticClickables` (>3 = score cap at 2), broken tabs/accordion ARIA state from promise verification
+* **Responsiveness** — broken mobile menu from promise verification (score cap at 2), anchor-link failures scoped to mobile context with no sticky nav (warn only)
+* **Hierarchy** — scroll fold count and ratio for content priority (CTAs buried past fold 5)
+
+Prompt contract tests lock the scoring rules — if someone weakens the evaluator thresholds, the test suite catches it.
+
+### Interactive Installer
+
+`npx pixelslop install` is now an interactive wizard. Detects Claude Code and Codex CLI, lets you pick runtimes and scope, supports project-local Codex installs in `.codex/`, rewrites agent paths, configures MCP, and installs skills via symlink or copy. `npx pixelslop@latest update` upgrades with backup + diff.
+
+### Code Check Mode
+
+`--code-check` runs source-only analysis without opening a browser. 6 additional source patterns (S11-S16), cognitive load scoring, usability heuristics, and interaction design checks.
+
+### Release Infrastructure
+
+* PR titles validated as conventional commits via `amannn/action-semantic-pull-request`
+* Release PRs open as drafts for changelog review before publishing
+* Changelog sections group features/fixes/refactoring, hide test/chore/ci/docs noise
+* CI matrix: Node 18, 20, 22. npm publish with OIDC provenance.
+
+### Tests
+
+781 tests (was 470 at 0.2.0). Coverage includes:
+* 7 interaction test fixtures (ref-map, sticky-header, lazy-images, focus-visible, broken-mobile-menu, tabs-accordion, anchor-links)
+* Prompt contract tests for accessibility and responsiveness evaluators
+* Evidence schema validation
+* Installer path rewriting, MCP config, manifest structure
+* Browser runtime integration tests
+* Persona schema validation
+
+### Breaking Changes
+
+None. The /20 scoring model, report format, plan format, and CLI interface are all unchanged. Scores may shift slightly because evaluators now have more evidence to work with — that's the point.
+
+---
+
 ## [0.2.7](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.6...pixelslop-v0.2.7) (2026-03-30)
 
 Release infrastructure: PR title linting, changelog section grouping, draft release PRs for review before publish. No functional changes.
