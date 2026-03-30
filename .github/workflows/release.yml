@@ -47,6 +47,11 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # Open as draft so there's time to enrich the changelog before merge.
+          # For small releases: just mark ready and merge.
+          # For big releases: checkout the PR branch, add a summary paragraph
+          # above the auto-generated entries in CHANGELOG.md, push, then merge.
+          draft-pull-request: true
 
   publish-npm:
     name: Publish to npm
