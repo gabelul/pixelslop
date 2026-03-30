@@ -1184,3 +1184,222 @@ describe('--cwd flag', () => {
     assert.ok(result.command);
   });
 });
+
+
+// ─────────────────────────────────────────────
+// Tests: config set / get / set-all (settings)
+// ─────────────────────────────────────────────
+
+describe('config settings', () => {
+  let dir;
+
+  beforeEach(() => {
+    dir = createTestRepo({ name: 'settings-test', scripts: { build: 'echo ok' } });
+  });
+
+  it('config get returns defaults when no .pixelslop.md exists', () => {
+    // No .pixelslop.md — get should return all defaults (fresh project)
+    const result = runJson(`config get --root "${dir}"`, dir);
+    assert.ok(result.settings, 'should return settings object');
+    assert.equal(result.settings.headed, false, 'headed default is false');
+    assert.equal(result.settings.deep, false, 'deep default is false');
+    assert.equal(result.settings.thorough, false, 'thorough default is false');
+    assert.equal(result.settings.personas, 'all', 'personas default is all');
+    assert.deepEqual(result.defined, [], 'no keys explicitly defined');
+  });
+
+  it('config set creates ## Settings section in new .pixelslop.md', () => {
+    const result = runJson(`config set headed true --root "${dir}"`, dir);
+    assert.equal(result.status, 'set');
+    assert.equal(result.key, 'headed');
+    assert.equal(result.value, true);
+
+    // Verify file was created with settings section
+    const content = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(content.includes('## Settings'), 'should have Settings section');
+    assert.ok(content.includes('headed: true'), 'should contain headed setting');
+  });
+
+  it('config get reads back a single setting', () => {
+    runJson(`config set deep true --root "${dir}"`, dir);
+    const result = runJson(`config get deep --root "${dir}"`, dir);
+    assert.equal(result.key, 'deep');
+    assert.equal(result.value, true);
+    assert.equal(result.source, 'config');
+  });
+
+  it('config get returns default for unset keys', () => {
+    // Create .pixelslop.md with one setting so get doesn't fail
+    runJson(`config set headed false --root "${dir}"`, dir);
+    const result = runJson(`config get thorough --root "${dir}"`, dir);
+    assert.equal(result.key, 'thorough');
+    assert.equal(result.value, false);
+    assert.equal(result.source, 'default');
+  });
+
+  it('config get with no key returns all settings with defaults', () => {
+    runJson(`config set headed true --root "${dir}"`, dir);
+    const result = runJson(`config get --root "${dir}"`, dir);
+    assert.ok(result.settings, 'should have settings object');
+    assert.equal(result.settings.headed, true);
+    assert.equal(result.settings.deep, false, 'unset deep should default to false');
+    assert.equal(result.settings.thorough, false, 'unset thorough should default to false');
+    assert.equal(result.settings.personas, 'all', 'unset personas should default to all');
+    assert.deepEqual(result.defined, ['headed'], 'only headed was explicitly set');
+  });
+
+  it('config set-all writes multiple settings at once', () => {
+    const result = runJson(
+      `config set-all --headed true --deep true --thorough false --personas none --root "${dir}"`,
+      dir
+    );
+    assert.equal(result.status, 'written');
+    assert.equal(result.settings.headed, true);
+    assert.equal(result.settings.deep, true);
+    assert.equal(result.settings.thorough, false);
+    assert.equal(result.settings.personas, 'none');
+  });
+
+  it('config set preserves existing design context sections', () => {
+    // Write design context first
+    runJson(
+      `config write --audience "developers" --brand "technical" --root "${dir}"`,
+      dir
+    );
+    // Now set a setting
+    runJson(`config set headed true --root "${dir}"`, dir);
+
+    const content = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(content.includes('## Audience'), 'should preserve Audience section');
+    assert.ok(content.includes('developers'), 'should preserve audience content');
+    assert.ok(content.includes('## Settings'), 'should have Settings section');
+    assert.ok(content.includes('headed: true'), 'should have the setting');
+  });
+
+  it('config set overwrites existing setting value', () => {
+    runJson(`config set personas all --root "${dir}"`, dir);
+    runJson(`config set personas none --root "${dir}"`, dir);
+    const result = runJson(`config get personas --root "${dir}"`, dir);
+    assert.equal(result.value, 'none');
+  });
+
+  it('config set rejects unknown keys', () => {
+    const result = run(`config set bogus true --root "${dir}" --raw`, dir, true);
+    assert.ok(result.exitCode !== 0, 'should reject unknown key');
+    assert.ok(result.stderr.includes('Unknown setting') || result.stdout.includes('Unknown setting'),
+      'should mention unknown setting');
+  });
+
+  it('boolean settings coerce string values', () => {
+    runJson(`config set headed true --root "${dir}"`, dir);
+    const result = runJson(`config get headed --root "${dir}"`, dir);
+    assert.strictEqual(result.value, true, 'should be boolean true, not string');
+  });
+
+  it('config set-all preserves existing settings for unspecified keys', () => {
+    // Set two settings individually
+    runJson(`config set headed true --root "${dir}"`, dir);
+    runJson(`config set deep true --root "${dir}"`, dir);
+    // Now set-all with only personas — headed and deep should survive
+    runJson(`config set-all --personas none --root "${dir}"`, dir);
+    const result = runJson(`config get --root "${dir}"`, dir);
+    assert.equal(result.settings.headed, true, 'headed should be preserved');
+    assert.equal(result.settings.deep, true, 'deep should be preserved');
+    assert.equal(result.settings.personas, 'none', 'personas should be updated');
+  });
+
+  it('config set works when design context exists but no Settings section', () => {
+    // Write design context without settings
+    runJson(`config write --audience "designers" --root "${dir}"`, dir);
+    const before = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(!before.includes('## Settings'), 'should not have Settings section yet');
+
+    // Now set a setting — should add Settings section without breaking context
+    runJson(`config set deep true --root "${dir}"`, dir);
+    const after = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(after.includes('## Audience'), 'should preserve Audience section');
+    assert.ok(after.includes('designers'), 'should preserve audience content');
+    assert.ok(after.includes('## Settings'), 'should add Settings section');
+    assert.ok(after.includes('deep: true'), 'should contain the setting');
+  });
+
+  it('string settings are sanitized against newline injection', () => {
+    // Attempt newline injection in personas value
+    runJson(`config set personas "none\\nheaded: true" --root "${dir}"`, dir);
+    const result = runJson(`config get --root "${dir}"`, dir);
+    // The injected "headed: true" should not appear as a separate setting
+    assert.equal(result.settings.headed, false, 'headed should still be default false');
+    // Personas should be sanitized to a single line
+    assert.ok(!result.settings.personas.includes('\n'), 'personas should not contain newlines');
+  });
+
+  it('config set refuses to write through symlinks', () => {
+    const targetDir = mkdtempSync(join(tmpdir(), 'pixelslop-symlink-target-'));
+    writeFileSync(join(targetDir, 'target.md'), '# Target\n');
+    try {
+      symlinkSync(join(targetDir, 'target.md'), join(dir, '.pixelslop.md'));
+    } catch (e) {
+      // Skip on platforms that can't create symlinks
+      return;
+    }
+    const result = run(`config set headed true --root "${dir}" --raw`, dir, true);
+    assert.ok(result.exitCode !== 0, 'should refuse to write through symlink');
+    assert.ok(
+      result.stderr.includes('symlink') || result.stdout.includes('symlink'),
+      'error should mention symlink'
+    );
+  });
+
+  it('config set ignores fake Settings headings inside fenced code', () => {
+    writeFileSync(join(dir, '.pixelslop.md'), [
+      '# Pixelslop — Project Design Context',
+      '',
+      '## Audience',
+      '',
+      'Reference snippet:',
+      '',
+      '```md',
+      '## Settings',
+      'headed: false',
+      '```',
+      ''
+    ].join('\n'));
+
+    runJson(`config set headed true --root "${dir}"`, dir);
+
+    const content = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(content.includes('```md'), 'should preserve fenced example opening fence');
+    assert.ok(content.includes('\n```\n'), 'should preserve fenced example closing fence');
+    assert.equal((content.match(/headed: false/g) || []).length, 1, 'fake example should stay false');
+    assert.ok(content.includes('\n## Settings\n\nheaded: true\n'), 'should append a real Settings section');
+  });
+
+  it('config set updates the real Settings section, not a fenced example', () => {
+    writeFileSync(join(dir, '.pixelslop.md'), [
+      '# Pixelslop — Project Design Context',
+      '',
+      '## Audience',
+      '',
+      'Reference snippet:',
+      '',
+      '```md',
+      '## Settings',
+      'headed: false',
+      '```',
+      '',
+      '## Settings',
+      '',
+      'headed: false',
+      'deep: true',
+      ''
+    ].join('\n'));
+
+    runJson(`config set headed true --root "${dir}"`, dir);
+
+    const content = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(content.includes('```md'), 'should preserve fenced example opening fence');
+    assert.ok(content.includes('\n```\n'), 'should preserve fenced example closing fence');
+    assert.equal((content.match(/headed: false/g) || []).length, 1, 'fake example should stay false');
+    assert.ok(content.includes('\n## Settings\n\nheaded: true\ndeep: true\n'), 'should update the real Settings section');
+  });
+});

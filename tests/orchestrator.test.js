@@ -324,4 +324,40 @@ describe('agent cross-references', () => {
     assert.ok(skill.includes('serve stop'), 'SKILL should handle temp server cleanup');
     assert.ok(skill.includes('AskUserQuestion'), 'SKILL should use AskUserQuestion for user prompts');
   });
+
+  it('SKILL.md has settings arg in frontmatter', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(skill.includes('name: settings'), 'SKILL should have settings arg');
+  });
+
+  it('SKILL.md has interactive settings flow with AskUserQuestion', () => {
+    const skill = readDist('skill/SKILL.md');
+    // Settings mode section exists
+    assert.ok(skill.includes('## Settings Mode'), 'SKILL should have Settings Mode section');
+    // Uses AskUserQuestion for each setting
+    assert.ok(skill.includes('Browser mode'), 'should ask about browser mode');
+    assert.ok(skill.includes('Collection depth') || skill.includes('How deep'), 'should ask about collection depth');
+    assert.ok(skill.includes('Confidence') || skill.includes('confidence'), 'should ask about confidence threshold');
+    assert.ok(skill.includes('persona'), 'should ask about personas');
+    // Writes via pixelslop-tools
+    assert.ok(skill.includes('config set-all'), 'should use config set-all to write settings');
+  });
+
+  it('SKILL.md loads settings before orchestrator spawn', () => {
+    const skill = readDist('skill/SKILL.md');
+    // Settings loaded in Phase 2
+    assert.ok(skill.includes('config get --root'), 'SKILL should load settings via config get');
+    // Merge priority documented
+    assert.ok(
+      skill.includes('CLI args always win') || skill.includes('CLI args override'),
+      'SKILL should document CLI args override settings'
+    );
+  });
+
+  it('SKILL.md passes deep and headed to orchestrator prompt', () => {
+    const skill = readDist('skill/SKILL.md');
+    // The scan prompt should include deep and headed
+    assert.ok(skill.includes('Deep: <deep>'), 'orchestrator prompt should include Deep');
+    assert.ok(skill.includes('Headed: <headed>'), 'orchestrator prompt should include Headed');
+  });
 });
