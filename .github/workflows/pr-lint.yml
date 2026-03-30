@@ -1,0 +1,44 @@
+# pr-lint.yml — enforce conventional commit format on PR titles
+#
+# Why: when squash-merging, GitHub uses the PR title as the commit message.
+# release-please reads that commit to generate the changelog. If the PR title
+# isn't a valid conventional commit, the changelog entry is garbage.
+#
+# This action blocks merge until the PR title matches the format:
+#   type(scope): description
+#   type: description
+#
+# Valid types: feat, fix, refactor, docs, test, chore, ci, style, BREAKING CHANGE
+
+name: PR Title
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@0723387faaf9b38adef4775cd42cfd5f7536f18c # v5.5.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            docs
+            test
+            chore
+            ci
+            style
+          requireScope: false
+          subjectPattern: ^[a-z].+[^.]$
+          subjectPatternError: |
+            PR title subject must start lowercase and not end with a period.
+            Example: "feat: add interaction evidence layer"
