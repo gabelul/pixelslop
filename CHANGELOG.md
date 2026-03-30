@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.7](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.6...pixelslop-v0.2.7) (2026-03-30)
+
+
+### Documentation
+
+* enrich 0.2.6 changelog with full release notes ([722369b](https://github.com/gabelul/pixelslop/commit/722369b003bf1c0ce31584c04403a95c8328a257))
+
 ## [0.2.6](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.2.5...pixelslop-v0.2.6) (2026-03-30)
 
 Interaction evidence inside the existing evaluators. The browser collector now scrolls, hovers, tabs, and clicks interactive elements — then feeds what it finds into the accessibility, responsiveness, and hierarchy evaluators. No new pillar, no scoring model change. The existing /20 score gets sharper because evaluators can see things they couldn't before: missing focus indicators, divs masquerading as buttons, broken hamburger menus.
