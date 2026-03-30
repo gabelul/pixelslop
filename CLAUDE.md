@@ -91,6 +91,32 @@ npm run test:persona     # Persona schema validation
 
 Run `npm test` before committing changes to `dist/` or `bin/`. The validation suite catches broken JS snippets, frontmatter issues, severity band mismatches, missing pattern fields, agent tool misconfigurations, plan format contract violations, pixelslop-tools command failures, and installer drift. See `CONTRIBUTING.md` for the full contributor workflow.
 
+## Project Settings
+
+Users configure persistent scan preferences via `/pixelslop settings` (interactive) or `pixelslop-tools config set` (CLI). Settings live in `.pixelslop.md` under a `## Settings` section alongside the existing design context.
+
+**Available settings:**
+
+| Key | Type | Default | What it does |
+|-----|------|---------|-------------|
+| `headed` | boolean | `false` | Open visible browser window during scans |
+| `deep` | boolean | `false` | Extended collection — doubled budgets, more elements tested |
+| `thorough` | boolean | `false` | Show lower-confidence findings (50% vs 65% threshold) |
+| `personas` | string | `all` | Persona IDs to evaluate (comma-separated, `all`, or `none`) |
+
+**Merge priority:** CLI args > saved settings > defaults. A user who runs `/pixelslop --thorough` gets thorough mode regardless of what's in `.pixelslop.md`.
+
+**Commands:**
+
+```bash
+pixelslop-tools config set headed true --root $ROOT --raw
+pixelslop-tools config get --root $ROOT --raw           # all settings with defaults
+pixelslop-tools config get headed --root $ROOT --raw     # single setting
+pixelslop-tools config set-all --headed true --deep false --root $ROOT --raw
+```
+
+`config get` works on fresh projects (returns defaults when no `.pixelslop.md` exists). `config set-all` merges with existing settings — unspecified keys are preserved. String values are sanitized against newline injection. Symlinked `.pixelslop.md` files are refused.
+
 ## pixelslop-tools Conventions
 
 Agents use `pixelslop-tools` (bin/pixelslop-tools.cjs) for all state operations. Key rules:
