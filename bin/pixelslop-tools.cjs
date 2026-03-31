@@ -2352,6 +2352,174 @@ function parseArgs(argv) {
 // ─────────────────────────────────────────────
 // Router
 // ─────────────────────────────────────────────
+// Report generation
+// ─────────────────────────────────────────────
+
+/**
+ * Escape HTML special characters to prevent XSS when injecting content.
+ * @param {string} str - Raw text to escape
+ * @returns {string} HTML-safe string
+ */
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Read a screenshot file and return a data URI, or null if missing/oversized.
+ * Caps at 1MB base64 encoded to keep reports reasonable.
+ * @param {string} filePath - Absolute path to screenshot PNG
+ * @returns {string|null} Data URI or null
+ */
+function screenshotToDataUri(filePath) {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return null;
+    const buf = fs.readFileSync(filePath);
+    if (buf.length > 750000) return null; // ~1MB after base64
+    return `data:image/png;base64,${buf.toString('base64')}`;
+  } catch { return null; }
+}
+
+/**
+ * Generate a self-contained HTML report from scan results.
+ * Fail-soft: returns { ok: false, error } on any failure.
+ * @param {object} flags - { 'scan-results': path, 'fix-results'?: path, root?: string }
+ * @returns {{ ok: boolean, path?: string, size?: string, error?: string }}
+ */
+function reportGenerate(flags) {
+  try {
+    const scanPath = flags['scan-results'];
+    if (!scanPath) return { ok: false, error: '--scan-results path is required' };
+    if (!fs.existsSync(scanPath)) return { ok: false, error: `Scan results not found: ${scanPath}` };
+
+    const scan = JSON.parse(fs.readFileSync(scanPath, 'utf-8'));
+    const fixResults = flags['fix-results'] && fs.existsSync(flags['fix-results'])
+      ? JSON.parse(fs.readFileSync(flags['fix-results'], 'utf-8'))
+      : null;
+
+    // Resolve template from package directory
+    const templatePath = path.join(__dirname, '..', 'dist', 'skill', 'resources', 'report-template.html');
+    if (!fs.existsSync(templatePath)) return { ok: false, error: 'Report template not found' };
+    let html = fs.readFileSync(templatePath, 'utf-8');
+
+    // Extract report data with safe defaults
+    const title = scan.title || scan.url || 'Untitled';
+    const url = scan.url || '';
+    const date = scan.timestamp || scan.date || new Date().toISOString();
+    const confidence = scan.confidence || 0;
+    const scores = scan.scores || {};
+    const total = Object.values(scores).reduce((s, p) => s + (p.score || p || 0), 0);
+    const ratingBand = total >= 17 ? 'Excellent' : total >= 13 ? 'Good' : total >= 9 ? 'Needs Work' : total >= 5 ? 'Poor' : 'Critical';
+    const slopBand = scan.slop?.band || scan.slopLevel || 'CLEAN';
+    const slopCount = scan.slop?.patternCount || scan.slopCount || 0;
+
+    // Score gauge degrees (0-360, proportional to /20)
+    const scoreDegrees = Math.round((total / 20) * 360);
+
+    // Pillar bars HTML
+    const pillarOrder = ['hierarchy', 'typography', 'color', 'responsiveness', 'accessibility'];
+    const pillarBars = pillarOrder.map(name => {
+      const score = typeof scores[name] === 'object' ? scores[name].score : (scores[name] || 0);
+      const pct = (score / 4) * 100;
+      return `<div class="pillar-row"><span>${escapeHtml(name.charAt(0).toUpperCase() + name.slice(1))}</span><div class="pillar-bar"><div class="pillar-fill" style="width:${pct}%"></div></div><span class="pillar-score">${score}/4</span></div>`;
+    }).join('\n      ');
+
+    // Screenshots
+    const screenshots = scan.screenshots || {};
+    const viewports = [
+      { key: 'desktop', label: 'Desktop (1440x900)' },
+      { key: 'tablet', label: 'Tablet (768x1024)' },
+      { key: 'mobile', label: 'Mobile (375x812)' },
+    ];
+    const screenshotGrid = viewports.map(({ key, label }) => {
+      const filePath = screenshots[key];
+      const dataUri = screenshotToDataUri(filePath);
+      if (dataUri) {
+        return `<div class="screenshot-card"><img src="${dataUri}" alt="${escapeHtml(label)}"><div class="viewport-label">${escapeHtml(label)}</div></div>`;
+      }
+      return `<div class="screenshot-placeholder">${escapeHtml(label)}<br>[Screenshot not captured]</div>`;
+    }).join('\n      ');
+
+    // Persona stories
+    const personaStories = scan.personaStories || [];
+    let personaSections = '';
+    if (personaStories.length > 0) {
+      personaSections = '<h2>Persona Stories</h2>\n';
+      personaSections += personaStories.map(p => {
+        const name = escapeHtml(p.humanName || p.name || 'Unknown');
+        const fullName = escapeHtml(p.name || '');
+        const narrative = escapeHtml(p.narrative || '');
+        const issues = p.issueCount || 0;
+        const priority = escapeHtml(p.priority || 'Low');
+        const positive = escapeHtml(p.positiveSignals || '');
+        return `<div class="persona-card">
+        <h3>${name} (${fullName})</h3>
+        <div class="persona-narrative">${narrative}</div>
+        <div class="persona-meta">
+          <span><strong>Issues:</strong> ${issues}</span>
+          <span><strong>Priority:</strong> ${priority}</span>
+          ${positive ? `<span><strong>Worked well:</strong> ${positive}</span>` : ''}
+        </div>
+      </div>`;
+      }).join('\n    ');
+    }
+
+    // Findings
+    const findings = scan.findings || [];
+    const findingsHtml = findings.length > 0
+      ? findings.map(f => {
+        const text = typeof f === 'string' ? f : (f.description || '');
+        const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
+        return `<div class="finding"><span class="severity severity-${escapeHtml(priority)}">${escapeHtml(priority)}</span>${escapeHtml(text)}</div>`;
+      }).join('\n    ')
+      : '<p style="color:var(--muted)">No findings.</p>';
+
+    // Fix tracking
+    let fixHtml = '';
+    if (fixResults && Array.isArray(fixResults.fixes) && fixResults.fixes.length > 0) {
+      fixHtml = '<h2>Fix Tracking</h2>\n';
+      fixHtml += fixResults.fixes.map(f => {
+        const statusClass = f.status === 'PASS' ? 'fix-pass' : f.status === 'FAIL' ? 'fix-fail' : f.status === 'PARTIAL' ? 'fix-partial' : 'fix-open';
+        return `<div class="fix-row"><span>${escapeHtml(f.id || f.description || '')}</span><span class="fix-status ${statusClass}">${escapeHtml(f.status || 'OPEN')}</span></div>`;
+      }).join('\n    ');
+    }
+
+    // Token replacement
+    html = html.replace(/\{\{TITLE\}\}/g, escapeHtml(title));
+    html = html.replace(/\{\{URL\}\}/g, escapeHtml(url));
+    html = html.replace(/\{\{DATE\}\}/g, escapeHtml(date));
+    html = html.replace(/\{\{CONFIDENCE\}\}/g, String(confidence));
+    html = html.replace(/\{\{TOTAL\}\}/g, String(total));
+    html = html.replace(/\{\{SCORE_DEGREES\}\}/g, String(scoreDegrees));
+    html = html.replace(/\{\{RATING_BAND\}\}/g, escapeHtml(ratingBand));
+    html = html.replace(/\{\{SLOP_BAND\}\}/g, escapeHtml(slopBand));
+    html = html.replace(/\{\{SLOP_COUNT\}\}/g, String(slopCount));
+    html = html.replace(/\{\{PILLAR_BARS\}\}/g, pillarBars);
+    html = html.replace(/\{\{SCREENSHOT_GRID\}\}/g, screenshotGrid);
+    html = html.replace(/\{\{PERSONA_SECTIONS\}\}/g, personaSections);
+    html = html.replace(/\{\{FINDINGS_DETAIL\}\}/g, findingsHtml);
+    html = html.replace(/\{\{FIX_TRACKING\}\}/g, fixHtml);
+
+    // Write the report
+    const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
+    const reportsDir = path.join(root, '.pixelslop', 'reports');
+    if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const outPath = path.join(reportsDir, `report-${stamp}.html`);
+    fs.writeFileSync(outPath, html, 'utf-8');
+
+    return { ok: true, path: outPath, size: `${Math.round(html.length / 1024)}KB` };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// ─────────────────────────────────────────────
 
 /**
  * Main entry point. Parses args and routes to the appropriate handler.
@@ -2383,6 +2551,8 @@ async function main() {
     console.log('  browser styles --url <url> --selector <css>');
     console.log('  browser snapshot --url <url>');
     console.log('  browser screenshot --url <url> [--viewport <name|WxH>] [--out <file>]');
+    console.log('  browser analyze-page --url <url>               # Classify page type and suggest personas');
+    console.log('  report generate --scan-results <path> [--fix-results <path>] [--root <path>]');
     console.log('  config set <key> <value> [--root <path>]     # Set a project setting');
     console.log('  config get [<key>] [--root <path>]            # Get one or all settings');
     console.log('  config set-all --headed true --deep false ...  # Set multiple settings at once');
@@ -2494,8 +2664,16 @@ async function main() {
       return output(result, true);
     }
 
+    case 'report': {
+      switch (command) {
+        case 'generate': return output(reportGenerate(flags), true);
+        default: fail(`Unknown report command: ${command}. Valid: generate`);
+      }
+      break;
+    }
+
     default:
-      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, log, discover, serve, init, verify, browser`);
+      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, log, discover, serve, init, verify, browser, report`);
   }
 }
 
