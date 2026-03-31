@@ -30,6 +30,9 @@ args:
   - name: settings
     description: Open interactive settings configurator (ignores other args)
     required: false
+  - name: quick
+    description: Skip run-time config, use saved settings/defaults directly
+    required: false
 ---
 
 ## Settings Mode
@@ -282,9 +285,74 @@ If the init result shows `pixelslop_config` is null (no `.pixelslop.md`), option
 
 These are optional — if the user wants to skip, proceed without them.
 
+## Phase 2b: Configure This Run
+
+A lightweight pre-scan step that lets the user tweak settings for this specific run. Not a full settings rewrite — just quick adjustments.
+
+### Settings precedence (highest to lowest)
+
+| Priority | Source | Scope |
+|----------|--------|-------|
+| 1 | CLI flags | This run only — e.g., `--personas none --thorough` |
+| 2 | Per-run answers | This run only — user picks in Phase 2b |
+| 3 | Saved settings | All runs — from `.pixelslop.md` |
+| 4 | Defaults | Fallback — `personas: all`, `thorough: false`, etc. |
+
+### Skip conditions
+
+Skip Phase 2b entirely (go straight to Phase 3) if ANY of these are true:
+- `--quick` flag was passed
+- All 4 configurable settings (`--personas`, `--thorough`, `--deep`, `--headed`) were provided via CLI flags — nothing left to ask
+
+### Flow
+
+**Step 1: Determine locked vs unlocked settings.**
+
+A setting is "locked" if the user provided it via CLI flag. Locked settings are not re-asked.
+
+Example: `/pixelslop --thorough --personas none` → thorough and personas are locked; deep and headed are unlocked.
+
+**Step 2: Show effective settings and ask.**
+
+```
+AskUserQuestion([{
+  question: "Ready to scan [URL]. Current settings: [list effective settings, mark locked ones]. Configure this run?",
+  options: [
+    { label: "Go", description: "Run with these settings" },
+    { label: "Adjust", description: "Change the [N] unlocked settings for this run" }
+  ]
+}])
+```
+
+If "Go" → proceed to Phase 3 with current merged settings.
+
+**Step 3: Ask only unlocked settings.**
+
+If "Adjust" → present `AskUserQuestion` for each unlocked setting. Reuse the same question format from Settings Mode (browser mode, collection depth, confidence threshold, persona selection). Skip any setting that's already locked by CLI.
+
+**Step 4: Offer to save.**
+
+```
+AskUserQuestion([{
+  question: "Save these as your project defaults?",
+  options: [
+    { label: "No, just this run", description: "Settings apply only to this scan" },
+    { label: "Yes, save to .pixelslop.md", description: "Use these for all future scans too" }
+  ]
+}])
+```
+
+If "Yes" → call `config set-all` with the adjusted values. If "No" → use the settings ephemerally for this scan only (don't write to `.pixelslop.md`).
+
+### Relationship to --settings mode
+
+`--settings` is a standalone persistent configurator — it writes to `.pixelslop.md` and exits, no scan. Phase 2b is an ephemeral per-run config that defaults to not saving. They don't interfere with each other.
+
+---
+
 ## Phase 3: Scan
 
-Spawn the orchestrator to scan the page. Use the merged effective settings from Phase 2:
+Spawn the orchestrator to scan the page. Use the effective settings from Phase 2/2b:
 
 ```
 Agent(

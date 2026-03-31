@@ -354,6 +354,34 @@ describe('agent cross-references', () => {
     );
   });
 
+  it('SKILL.md has --quick arg in frontmatter', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(skill.includes('name: quick'), 'SKILL should have quick arg');
+  });
+
+  it('SKILL.md has Phase 2b run-time config step', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(
+      skill.includes('Phase 2b') || skill.includes('Configure This Run'),
+      'SKILL should have a Phase 2b section'
+    );
+    // Precedence documented
+    assert.ok(skill.includes('CLI flags'), 'should document CLI flag precedence');
+    assert.ok(skill.includes('Per-run answers') || skill.includes('per-run'),
+      'should document per-run answers precedence');
+    assert.ok(skill.includes('Saved settings') || skill.includes('saved settings'),
+      'should document saved settings precedence');
+  });
+
+  it('SKILL.md Phase 2b skips when --quick or all flags provided', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(skill.includes('--quick'), 'should reference --quick as skip condition');
+    assert.ok(
+      skill.includes('locked') || skill.includes('all 4'),
+      'should skip when all settings are provided via CLI'
+    );
+  });
+
   it('SKILL.md passes deep and headed to orchestrator prompt', () => {
     const skill = readDist('skill/SKILL.md');
     // The scan prompt should include deep and headed
