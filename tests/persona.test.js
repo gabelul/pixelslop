@@ -51,7 +51,7 @@ function loadPersona(filename) {
  * @returns {string[]} Array of filenames
  */
 function getPersonaFiles() {
-  return readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.json'));
+  return readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.json') && !f.startsWith('.'));
 }
 
 // ─────────────────────────────────────────────
@@ -98,7 +98,7 @@ describe('persona directory structure', () => {
 
 describe('persona JSON schema validation', () => {
   const personaFiles = existsSync(PERSONAS_DIR)
-    ? readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.json'))
+    ? readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.json') && !f.startsWith('.'))
     : [];
 
   for (const file of personaFiles) {
@@ -113,7 +113,7 @@ describe('persona JSON schema validation', () => {
       it('has all required top-level fields', () => {
         persona = loadPersona(file);
         const required = [
-          'id', 'name', 'category', 'description',
+          'id', 'name', 'humanName', 'category', 'description',
           'designPriorities', 'evaluationChecks', 'frustrationTriggers',
           'positiveSignals', 'cognitiveLoadFactors', 'narrationStyle',
           'browserChecks',
@@ -135,6 +135,13 @@ describe('persona JSON schema validation', () => {
           VALID_CATEGORIES.includes(persona.category),
           `Invalid category "${persona.category}". Valid: ${VALID_CATEGORIES.join(', ')}`
         );
+      });
+
+      it('humanName is a non-empty string', () => {
+        persona = loadPersona(file);
+        assert.equal(typeof persona.humanName, 'string', 'humanName must be a string');
+        assert.ok(persona.humanName.length >= 2, 'humanName too short — need at least 2 characters');
+        assert.ok(persona.humanName.length <= 20, 'humanName too long — keep it short for report headings');
       });
 
       it('description is non-empty string', () => {
@@ -208,7 +215,7 @@ describe('persona JSON schema validation', () => {
 
 describe('persona category coverage', () => {
   const personaFiles = existsSync(PERSONAS_DIR)
-    ? readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.json'))
+    ? readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.json') && !f.startsWith('.'))
     : [];
 
   it('has personas in the accessibility category', () => {
@@ -245,6 +252,13 @@ describe('persona cross-file consistency', () => {
     const ids = files.map(f => loadPersona(f).id);
     const unique = new Set(ids);
     assert.equal(ids.length, unique.size, `Duplicate persona IDs: ${ids.join(', ')}`);
+  });
+
+  it('all humanNames are unique', () => {
+    const files = existsSync(PERSONAS_DIR) ? getPersonaFiles() : [];
+    const names = files.map(f => loadPersona(f).humanName);
+    const unique = new Set(names);
+    assert.equal(names.length, unique.size, `Duplicate humanNames: ${names.join(', ')}`);
   });
 
   it('scanner references persona evaluation pass', () => {

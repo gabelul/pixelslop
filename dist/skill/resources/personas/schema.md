@@ -12,6 +12,7 @@ Every persona is a single JSON file. Built-in personas live in `dist/skill/resou
 {
   "id": "string — kebab-case unique identifier, matches filename",
   "name": "string — human-readable name",
+  "humanName": "string — gender-neutral first name for narrative reports",
   "category": "string — one of: accessibility, context, international, professional",
   "description": "string — what this persona evaluates and why",
 
@@ -58,6 +59,14 @@ Every persona is a single JSON file. Built-in personas live in `dist/skill/resou
 ### `id`
 
 Kebab-case, matches the JSON filename (without `.json`). Used in `--personas screen-reader-user,keyboard-user` flag values and in the report output. Must be unique across all personas (built-in and custom).
+
+### `humanName`
+
+A short, gender-neutral first name used in narrative persona reports. Report headings use this name: "#### Sam (Screen Reader User)" instead of the full `name` field.
+
+**Required for built-in personas.** Optional for custom personas — if absent, the report falls back to `name`. Must be unique across all loaded personas (built-in + custom) to avoid confusion in reports.
+
+Built-in names: Sam, Pat, Alex, Casey, Jordan, Morgan, Ren, Quinn.
 
 ### `category`
 
@@ -149,24 +158,24 @@ The filename (without `.json`) must match the `id` field. The collector validate
 
 ## Persona Report Format
 
-Persona findings appear after the standard 5-pillar scores and slop classification:
+Persona findings appear after the standard 5-pillar scores and slop classification. Each persona gets a narrative section written in the persona's voice, followed by machine-parseable metadata anchors.
 
 ```
 ### Persona Insights
 
-#### screen-reader-user (Accessibility)
-Issues: 3 | Weighted priority: High
-- Missing landmark regions — no <main>, <nav>, or <footer> detected
-- Heading hierarchy skips h2 (h1 → h3 in features section)
-- Buttons labeled "Click here" — not descriptive for screen readers
+#### Sam (Screen Reader User)
 
-Positive: Clean heading text, form inputs have labels
+I can navigate the main sections thanks to the landmark regions, but the features section is a maze. Headings jump from h1 straight to h3 — my screen reader tells me there's a subsection, but I missed whatever h2 was supposed to introduce it. Three buttons in the hero all say "Click here," which is useless when I can't see what they point to. The contact form is better — every input has a proper label, so I know what goes where.
 
-#### rushed-mobile-user (Context)
-Issues: 1 | Weighted priority: Medium
-- Primary CTA below fold on mobile — requires scrolling to find action
+**Issues:** 3 | **Priority:** High
+**Worked well:** form input labels, landmark regions
 
-Positive: Touch targets meet 44px minimum, page loads in < 3s
+#### Casey (Rushed Mobile User)
+
+The main CTA is buried below the fold — I have to scroll past two full sections of text before I can actually do anything. On the plus side, once I find the buttons they're easy to tap and the page loads fast enough that I'm not waiting around.
+
+**Issues:** 1 | **Priority:** Medium
+**Worked well:** touch targets meet 44px minimum, page loads in < 3s
 ```
 
-Each persona section includes: issue count, weighted priority (based on `designPriorities`), specific issues with evidence, and positive signals found.
+Each persona section includes: a narrative in the persona's voice (using `narrationStyle` as tone guide), an `**Issues:**` count with weighted priority (based on `designPriorities`), and a `**Worked well:**` line for positive signals. The `**Issues:**` and `**Worked well:**` lines are machine-parseable anchors — downstream agents and parsers depend on them.

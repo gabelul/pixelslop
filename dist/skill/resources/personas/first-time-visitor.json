@@ -1,6 +1,7 @@
 {
   "id": "first-time-visitor",
   "name": "First-Time Visitor",
+  "humanName": "Jordan",
   "category": "context",
   "description": "Has never seen this product before. Tests whether the page communicates what it does, why it matters, and what to do next — all within the first few seconds. Evaluates onboarding clarity, value proposition visibility, trust signals, and cognitive load for someone with zero context.",
 

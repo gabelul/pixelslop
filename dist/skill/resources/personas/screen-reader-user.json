@@ -1,6 +1,7 @@
 {
   "id": "screen-reader-user",
   "name": "Screen Reader User",
+  "humanName": "Sam",
   "category": "accessibility",
   "description": "Navigates entirely via screen reader. Tests semantic structure, ARIA, and non-visual information architecture. If the page doesn't make sense without seeing it, this persona will find the gaps.",
 
