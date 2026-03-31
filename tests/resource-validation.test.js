@@ -198,6 +198,8 @@ describe('Required files exist', () => {
     'skill/resources/code-check-eval.md',
     // Evidence bundle schema
     'skill/resources/evidence-schema.md',
+    // HTML report template
+    'skill/resources/report-template.html',
   ];
 
   for (const file of required) {
