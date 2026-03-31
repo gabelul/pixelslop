@@ -760,10 +760,112 @@ function parseViewport(viewportArg) {
   return { width: Number(match[1]), height: Number(match[2]) };
 }
 
+/**
+ * Page-type → persona mapping. Each type recommends 4 personas
+ * most relevant for that kind of page. Uses humanNames for display.
+ * @type {Record<string, {ids: string[], names: string[]}>}
+ */
+const PAGE_TYPE_PERSONAS = {
+  'landing-page': {
+    ids: ['rushed-mobile-user', 'first-time-visitor', 'design-critic', 'non-native-english'],
+    names: ['Casey', 'Jordan', 'Quinn', 'Ren'],
+  },
+  'e-commerce': {
+    ids: ['rushed-mobile-user', 'keyboard-user', 'screen-reader-user', 'low-vision-user'],
+    names: ['Casey', 'Alex', 'Sam', 'Pat'],
+  },
+  'content': {
+    ids: ['non-native-english', 'low-vision-user', 'screen-reader-user', 'design-critic'],
+    names: ['Ren', 'Pat', 'Sam', 'Quinn'],
+  },
+  'form-heavy': {
+    ids: ['keyboard-user', 'screen-reader-user', 'low-vision-user', 'first-time-visitor'],
+    names: ['Alex', 'Sam', 'Pat', 'Jordan'],
+  },
+  'app-like': {
+    ids: ['keyboard-user', 'rushed-mobile-user', 'screen-reader-user', 'slow-connection-user'],
+    names: ['Alex', 'Casey', 'Sam', 'Morgan'],
+  },
+  'general': {
+    ids: ['screen-reader-user', 'rushed-mobile-user', 'first-time-visitor', 'design-critic'],
+    names: ['Sam', 'Casey', 'Jordan', 'Quinn'],
+  },
+};
+
+/**
+ * Lightweight page-type classification from DOM signals.
+ * Runs in-browser, no screenshots or full collection needed.
+ * Returns { type, signals, suggestedPersonas } or falls back to 'general'.
+ * @param {import('playwright').Page} page - Playwright page after navigation
+ * @returns {Promise<{type: string, signals: object, suggestedPersonas: {ids: string[], names: string[]}}>}
+ */
+async function analyzePageType(page) {
+  const signals = await page.evaluate(() => {
+    const qs = (sel) => document.querySelectorAll(sel).length;
+    return {
+      hasForm: qs('form') > 0,
+      hasCart: qs('[class*=cart], [data-cart], [class*=checkout]') > 0,
+      hasPricing: qs('[class*=pricing], [class*=price], [class*=plan]') > 0,
+      hasArticle: qs('article, [role=article]') > 0,
+      hasHero: qs('[class*=hero], [class*=banner], [class*=jumbotron]') > 0,
+      navItemCount: qs('nav a, nav button'),
+      sectionCount: qs('section, [role=region]'),
+      formFieldCount: qs('input, select, textarea'),
+      imageCount: qs('img'),
+      textDensity: (document.body?.innerText || '').split(/\s+/).length,
+    };
+  }).catch(() => null);
+
+  if (!signals) {
+    return { type: 'general', signals: {}, suggestedPersonas: PAGE_TYPE_PERSONAS['general'] };
+  }
+
+  let type = 'general';
+  if (signals.hasCart || signals.hasPricing) type = 'e-commerce';
+  else if (signals.hasArticle && signals.textDensity > 500) type = 'content';
+  else if (signals.formFieldCount > 3) type = 'form-heavy';
+  else if (signals.hasHero && signals.sectionCount >= 3) type = 'landing-page';
+  else if (signals.navItemCount > 10) type = 'app-like';
+
+  return { type, signals, suggestedPersonas: PAGE_TYPE_PERSONAS[type] };
+}
+
+/**
+ * Standalone page-type analysis command. Navigates to URL, classifies
+ * the page, and returns suggested personas. Fast (< 2s, no screenshots).
+ * @param {object} args - { url, headed? }
+ * @returns {Promise<{ok: boolean, type: string, signals: object, suggestedPersonas: object}>}
+ */
+async function analyzePageCommand(args) {
+  if (!args.url) throw new Error('--url is required');
+  const navigationUrl = validateTargetUrl(String(args.url).trim());
+  const runtime = detectBrowserRuntime();
+  if (!runtime.available) {
+    return { ok: false, type: 'general', error: runtime.message, suggestedPersonas: PAGE_TYPE_PERSONAS['general'] };
+  }
+
+  const { chromium } = requirePlaywright();
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: !args.headed, executablePath: runtime.executablePath });
+    const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+    const page = await context.newPage();
+    await page.goto(navigationUrl, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS });
+    const result = await analyzePageType(page);
+    return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, type: 'general', error: err.message, suggestedPersonas: PAGE_TYPE_PERSONAS['general'] };
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
+}
+
 async function runBrowserCommand(command, args) {
   switch (command) {
     case 'collect':
       return await collectEvidence(args);
+    case 'analyze-page':
+      return await analyzePageCommand(args);
     case 'check':
       return await browserCheck(args);
     case 'styles':

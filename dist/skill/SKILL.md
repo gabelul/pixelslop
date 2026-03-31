@@ -312,11 +312,21 @@ A setting is "locked" if the user provided it via CLI flag. Locked settings are 
 
 Example: `/pixelslop --thorough --personas none` → thorough and personas are locked; deep and headed are unlocked.
 
-**Step 2: Show effective settings and ask.**
+**Step 2: Smart persona analysis (if personas unlocked).**
+
+If the `--personas` flag was NOT provided via CLI, run a quick page-type analysis to suggest relevant personas:
+
+```bash
+node bin/pixelslop-tools.cjs browser analyze-page --url "$URL" --raw
+```
+
+This returns `{ type, signals, suggestedPersonas: { ids, names } }`. Fast (< 2s, no screenshots). If it fails, fall back to `type: "general"`.
+
+**Step 3: Show effective settings and ask.**
 
 ```
 AskUserQuestion([{
-  question: "Ready to scan [URL]. Current settings: [list effective settings, mark locked ones]. Configure this run?",
+  question: "Ready to scan [URL] (detected: [page type]). Current settings: [list effective settings, mark locked ones]. Configure this run?",
   options: [
     { label: "Go", description: "Run with these settings" },
     { label: "Adjust", description: "Change the [N] unlocked settings for this run" }
@@ -326,11 +336,25 @@ AskUserQuestion([{
 
 If "Go" → proceed to Phase 3 with current merged settings.
 
-**Step 3: Ask only unlocked settings.**
+**Step 4: Ask only unlocked settings.**
 
-If "Adjust" → present `AskUserQuestion` for each unlocked setting. Reuse the same question format from Settings Mode (browser mode, collection depth, confidence threshold, persona selection). Skip any setting that's already locked by CLI.
+If "Adjust" → present `AskUserQuestion` for each unlocked setting. For the persona question, include the smart pick option based on page-type analysis:
 
-**Step 4: Offer to save.**
+```
+AskUserQuestion([{
+  question: "This looks like a [page type]. Which personas?",
+  options: [
+    { label: "Smart pick ([N])", description: "[humanNames] — best for [page type] pages" },
+    { label: "All 8 personas", description: "Full evaluation from every perspective" },
+    { label: "None", description: "Skip persona evaluation" },
+    { label: "Let me pick", description: "Choose specific personas" }
+  ]
+}])
+```
+
+Reuse the same question format from Settings Mode for other settings (browser mode, collection depth, confidence threshold). Skip any setting that's already locked by CLI.
+
+**Step 5: Offer to save.**
 
 ```
 AskUserQuestion([{

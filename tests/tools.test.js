@@ -247,6 +247,71 @@ describe('browser commands', () => {
     assert.equal(exitCode, 1);
     assert.ok(stderr.includes('Unsupported URL protocol'), 'should reject non-http URLs');
   });
+
+  it('browser analyze-page classifies sloppy-app fixture', { timeout: 60000 }, async (t) => {
+    const runtime = runJson('browser detect', process.cwd());
+    if (!runtime.available) {
+      t.skip('No local Chrome/Chromium runtime available');
+    }
+
+    const fixtureDir = join(__dirname, 'fixtures', 'sloppy-app');
+    const start = runJson('serve start --root .', fixtureDir);
+
+    try {
+      const result = runJson(`browser analyze-page --url "${start.url}" --raw`, fixtureDir);
+      assert.ok(result.ok, 'analyze-page should succeed');
+      assert.ok(typeof result.type === 'string', 'should return a page type');
+      assert.ok(result.suggestedPersonas, 'should return suggestedPersonas');
+      assert.ok(Array.isArray(result.suggestedPersonas.ids), 'suggestedPersonas.ids should be array');
+      assert.ok(result.suggestedPersonas.ids.length >= 3, 'should suggest at least 3 personas');
+      assert.ok(Array.isArray(result.suggestedPersonas.names), 'suggestedPersonas.names should be array');
+    } finally {
+      runJson('serve stop --root .', fixtureDir);
+    }
+  });
+
+  it('browser analyze-page always includes screen-reader-user in general fallback', { timeout: 60000 }, async (t) => {
+    const runtime = runJson('browser detect', process.cwd());
+    if (!runtime.available) {
+      t.skip('No local Chrome/Chromium runtime available');
+    }
+
+    // form-page has >3 form fields, should classify as form-heavy
+    const fixtureDir = join(__dirname, 'fixtures', 'form-page');
+    const start = runJson('serve start --root .', fixtureDir);
+
+    try {
+      const result = runJson(`browser analyze-page --url "${start.url}" --raw`, fixtureDir);
+      assert.ok(result.ok, 'analyze-page should succeed');
+      assert.equal(result.type, 'form-heavy', 'form-page fixture should classify as form-heavy');
+      assert.ok(result.suggestedPersonas.ids.includes('keyboard-user'),
+        'form-heavy pages should suggest keyboard-user');
+      assert.ok(result.suggestedPersonas.ids.includes('screen-reader-user'),
+        'form-heavy pages should suggest screen-reader-user');
+    } finally {
+      runJson('serve stop --root .', fixtureDir);
+    }
+  });
+
+  it('browser analyze-page classifies article fixture as content', { timeout: 60000 }, async (t) => {
+    const runtime = runJson('browser detect', process.cwd());
+    if (!runtime.available) {
+      t.skip('No local Chrome/Chromium runtime available');
+    }
+
+    const fixtureDir = join(__dirname, 'fixtures', 'article-page');
+    const start = runJson('serve start --root .', fixtureDir);
+
+    try {
+      const result = runJson(`browser analyze-page --url "${start.url}" --raw`, fixtureDir);
+      assert.ok(result.ok, 'analyze-page should succeed');
+      assert.equal(result.type, 'content', 'article-page fixture should classify as content');
+      assert.ok(result.suggestedPersonas.ids.includes('non-native-english'),
+        'content pages should suggest non-native-english');
+    } finally {
+      runJson('serve stop --root .', fixtureDir);
+    }
+  });
 });
 
 // ─────────────────────────────────────────────
