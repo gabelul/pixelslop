@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixelslop Report — {{TITLE}}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #fafafa; --surface: #fff; --text: #1a1a1a; --muted: #6b7280;
+      --border: #e5e7eb; --accent: #2563eb; --accent-soft: #dbeafe;
+      --green: #16a34a; --yellow: #ca8a04; --red: #dc2626; --orange: #ea580c;
+      --score-track: #e5e7eb; --pillar-bar: #2563eb;
+      --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f0f0f; --surface: #1a1a1a; --text: #e5e5e5; --muted: #9ca3af;
+        --border: #2d2d2d; --accent: #60a5fa; --accent-soft: #1e3a5f;
+        --score-track: #2d2d2d;
+      }
+    }
+
+    body {
+      font-family: var(--font); background: var(--bg); color: var(--text);
+      line-height: 1.6; max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem;
+    }
+
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.35rem; font-weight: 600; margin: 2.5rem 0 1rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
+
+    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; }
+    .meta a { color: var(--accent); text-decoration: none; }
+
+    /* Score gauge */
+    .score-row { display: flex; gap: 2rem; align-items: center; flex-wrap: wrap; margin-bottom: 2rem; }
+    .score-gauge {
+      width: 120px; height: 120px; border-radius: 50%; position: relative;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .score-gauge .number { font-size: 2rem; font-weight: 700; }
+    .score-gauge .label { font-size: 0.75rem; color: var(--muted); position: absolute; bottom: 14px; }
+    .slop-badge {
+      display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px;
+      font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .slop-CLEAN { background: #dcfce7; color: #166534; }
+    .slop-MILD { background: #fef9c3; color: #854d0e; }
+    .slop-SLOPPY { background: #fed7aa; color: #9a3412; }
+    .slop-TERMINAL { background: #fecaca; color: #991b1b; }
+
+    @media (prefers-color-scheme: dark) {
+      .slop-CLEAN { background: #14532d; color: #86efac; }
+      .slop-MILD { background: #713f12; color: #fde047; }
+      .slop-SLOPPY { background: #7c2d12; color: #fdba74; }
+      .slop-TERMINAL { background: #7f1d1d; color: #fca5a5; }
+    }
+
+    /* Pillar bars */
+    .pillar-list { display: grid; gap: 0.5rem; }
+    .pillar-row { display: grid; grid-template-columns: 140px 1fr 40px; align-items: center; gap: 0.75rem; font-size: 0.875rem; }
+    .pillar-bar { height: 8px; background: var(--score-track); border-radius: 4px; overflow: hidden; }
+    .pillar-fill { height: 100%; border-radius: 4px; background: var(--pillar-bar); transition: width 0.3s; }
+    .pillar-score { font-weight: 600; text-align: right; }
+
+    /* Screenshots */
+    .screenshot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    .screenshot-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+    .screenshot-card img { width: 100%; height: auto; display: block; }
+    .screenshot-card .viewport-label { padding: 0.5rem; font-size: 0.75rem; color: var(--muted); text-align: center; }
+    .screenshot-placeholder {
+      padding: 2rem; text-align: center; color: var(--muted); font-size: 0.85rem;
+      background: var(--surface); border: 1px dashed var(--border); border-radius: 8px;
+    }
+
+    /* Persona cards */
+    .persona-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 1.25rem; margin-bottom: 1rem;
+    }
+    .persona-card h3 { margin: 0 0 0.75rem; font-size: 1rem; }
+    .persona-narrative { margin-bottom: 0.75rem; font-size: 0.9rem; line-height: 1.65; }
+    .persona-meta { font-size: 0.8rem; color: var(--muted); display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .persona-meta strong { color: var(--text); }
+
+    /* Findings */
+    .finding { padding: 0.75rem 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+    .finding:last-child { border-bottom: none; }
+    .severity { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-right: 0.5rem; }
+    .severity-P0 { background: #fecaca; color: #991b1b; }
+    .severity-P1 { background: #fed7aa; color: #9a3412; }
+    .severity-P2 { background: #fef9c3; color: #854d0e; }
+
+    @media (prefers-color-scheme: dark) {
+      .severity-P0 { background: #7f1d1d; color: #fca5a5; }
+      .severity-P1 { background: #7c2d12; color: #fdba74; }
+      .severity-P2 { background: #713f12; color: #fde047; }
+    }
+
+    /* Fix tracking */
+    .fix-row { display: grid; grid-template-columns: 1fr auto; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.875rem; }
+    .fix-status { font-weight: 600; }
+    .fix-pass { color: var(--green); }
+    .fix-fail { color: var(--red); }
+    .fix-partial { color: var(--orange); }
+    .fix-open { color: var(--muted); }
+
+    /* Print */
+    @media print {
+      body { max-width: 100%; padding: 1rem; }
+      .score-gauge { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .pillar-fill, .slop-badge, .severity { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+
+    footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pixelslop Report</h1>
+    <div class="meta">
+      <a href="{{URL}}">{{URL}}</a> &middot; {{DATE}} &middot; Confidence: {{CONFIDENCE}}%
+    </div>
+  </header>
+
+  <section id="summary">
+    <div class="score-row">
+      <div class="score-gauge" style="background: conic-gradient(var(--accent) {{SCORE_DEGREES}}deg, var(--score-track) 0);">
+        <span class="number">{{TOTAL}}</span>
+        <span class="label">/20 {{RATING_BAND}}</span>
+      </div>
+      <div>
+        <span class="slop-badge slop-{{SLOP_BAND}}">{{SLOP_BAND}}</span>
+        <span style="margin-left: 0.5rem; font-size: 0.85rem; color: var(--muted);">{{SLOP_COUNT}} patterns detected</span>
+      </div>
+    </div>
+    <div class="pillar-list">
+      {{PILLAR_BARS}}
+    </div>
+  </section>
+
+  <section id="screenshots">
+    <h2>Screenshots</h2>
+    <div class="screenshot-grid">
+      {{SCREENSHOT_GRID}}
+    </div>
+  </section>
+
+  <section id="persona-stories">
+    {{PERSONA_SECTIONS}}
+  </section>
+
+  <section id="findings">
+    <h2>Findings</h2>
+    {{FINDINGS_DETAIL}}
+  </section>
+
+  <section id="fix-tracking">
+    {{FIX_TRACKING}}
+  </section>
+
+  <footer>
+    Generated by <strong>pixelslop</strong> &middot; Browser-first design quality review
+  </footer>
+</body>
+</html>
