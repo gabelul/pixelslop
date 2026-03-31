@@ -228,7 +228,11 @@ Patterns detected: [patternCount]
 [merge all specialist findings, sort by priority]
 
 ### Persona Insights
-[apply persona frustrationTriggers/positiveSignals against specialist findings using evidence bundle personaChecks data]
+[For each evaluated persona: read the persona JSON's humanName, name, narrationStyle.voice, and sampleReactions.
+Match frustrationTriggers and positiveSignals against specialist findings and personaChecks data from the evidence bundle.
+Write a 1-3 paragraph narrative in the persona's voice — see scoring.md Persona Report Format for contract and examples.
+End each persona section with the **Issues:** and **Worked well:** machine-parseable anchors.
+Skip personas with zero issues and no notable positives.]
 
 ### Screenshots
 [reference from evidence bundle]
@@ -290,14 +294,24 @@ Present the scan results clearly:
 
 ### Persona Insights (if evaluated)
 
-**screen-reader-user**: 3 issues (missing landmarks, heading skip, no skip-nav)
-**rushed-mobile-user**: 1 issue (CTA below fold, touch targets borderline)
-**low-vision-user**: 2 issues (no zoom reflow, low contrast on secondary text)
+#### Sam (Screen Reader User)
+
+The landmark regions are solid — I can jump between sections. But the features section headings jump from h1 to h3 with no h2, so my heading navigation skips whatever that section introduces. Three hero buttons all say "Click here" with no distinguishing context.
+
+**Issues:** 3 | **Priority:** High
+**Worked well:** landmark regions, form input labels
+
+#### Casey (Rushed Mobile User)
+
+The CTA is buried below two text sections — on mobile I'm scrolling past features before I can act. Touch targets are fine once I find them.
+
+**Issues:** 1 | **Priority:** Medium
+**Worked well:** touch targets, fast page load
 ```
 
 Persona findings map to existing fix categories. When the user selects issues to fix, persona-flagged issues appear alongside pillar-flagged issues in the same category groups. No separate persona fix track — the fixer uses the same guides regardless of which lens found the issue.
 
-Present the scan results and return them to the parent session. Include all scores, issues, and persona insights in your response. **In scan mode, you're done here — return and let the parent handle the fix strategy.**
+Present the scan results and return them to the parent session. Include all scores, issues, and persona insights in your response — use humanName from the persona JSONs, not IDs. **In scan mode, you're done here — return and let the parent handle the fix strategy.**
 
 In `visual-report-only` mode, just return the report.
 

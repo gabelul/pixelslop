@@ -302,32 +302,66 @@ Screenshots are references to captured images, not inline data. If a screenshot 
 
 ## Persona Report Format
 
-When personas are evaluated, append a `### Persona Insights` section after `### Findings`. Each persona gets a subheading with its name and category, an issue summary, specific findings, and positive signals.
+When personas are evaluated, append a `### Persona Insights` section after `### Findings`. Each persona gets a narrative section written in the persona's voice, followed by machine-parseable metadata anchors.
+
+### Format contract
 
 ```
 ### Persona Insights
 
-#### [persona-name] ([category])
-Issues: [count] | Weighted priority: [High/Medium/Low]
-- [Issue description with specific evidence]
-- [Issue description with specific evidence]
+#### [humanName] ([name])
 
-Positive: [Comma-separated list of positive signals found]
+[1-3 paragraph narrative in the persona's voice. Opens with the persona's
+overall experience of the page, details specific friction points with
+evidence citations, closes with what worked. Use narrationStyle.voice as
+tone guide and sampleReactions as style anchors — write new text that
+matches the voice, don't copy sample reactions verbatim.]
 
-#### [next-persona-name] ([category])
+**Issues:** [count] | **Priority:** [High/Medium/Low]
+**Worked well:** [comma-separated positive signals]
+
+#### [next humanName] ([next name])
 ...
 ```
 
-**Rules for persona findings:**
+The heading uses `humanName` (from the persona JSON) with the full `name` in parentheses. The `**Issues:**` and `**Worked well:**` lines are **machine-parseable anchors** — downstream agents and parsers extract structured data from them. Always include both lines, even when issue count is 0 (though rule 6 says to skip empty personas entirely).
 
-1. **Evidence required.** Persona findings must reference the same browser evidence as pillar findings. "Screen reader user would struggle with heading hierarchy" must cite the specific heading skip found in the a11y snapshot.
+### Example narratives
 
-2. **Weighted priority.** Calculated from the persona's `designPriorities` and the severity of the issues found. High = multiple issues in priority-4 pillars. Medium = issues in priority-2-3 pillars. Low = minor issues in priority-1 pillars only.
+**Accessibility persona (Sam — Screen Reader User, voice: methodical):**
 
-3. **Map to fix categories.** Persona findings map to the same fix categories as pillar findings (accessibility, typography, layout, responsiveness, color, slop, copy). The orchestrator uses this mapping to group persona issues with existing findings — no parallel fix track.
+```
+#### Sam (Screen Reader User)
 
-4. **Narration optional.** The scanner may use `narrationStyle.sampleReactions` from the persona JSON to contextualize findings. This adds color but is not required.
+The landmark regions are solid — main, nav, and footer are all present, so I can jump between sections. But the features section is a problem. Headings jump from h1 to h3 with no h2 in between, so my heading navigation skips whatever that section is supposed to introduce. Three buttons in the hero all say "Click here." I have no idea which one does what without sighted context. The contact form is the bright spot — every input has a proper label, and focus moves logically through the fields.
 
-5. **Positive signals are brief.** One line, comma-separated. Don't pad the report with paragraphs about what's working.
+**Issues:** 3 | **Priority:** High
+**Worked well:** landmark regions, form input labels, logical focus order
+```
 
-6. **Skip empty personas.** If a persona has zero issues and no notable positive signals, omit it from the report entirely. Don't include "No issues found" sections.
+**Context persona (Casey — Rushed Mobile User, voice: impatient):**
+
+```
+#### Casey (Rushed Mobile User)
+
+I can't find the main action. The CTA is buried below two full text sections — on my phone I'm scrolling through a wall of features before I can do anything. The touch targets are fine once I find them (48px, easy to hit), and the page loaded in under 2 seconds, so at least I'm not waiting. But that doesn't matter if I bounce before I reach the button.
+
+**Issues:** 1 | **Priority:** Medium
+**Worked well:** touch targets meet 44px minimum, fast page load
+```
+
+### Rules for persona findings
+
+1. **Evidence required.** Persona findings must cite specific browser evidence. "Heading hierarchy skips h2" must reference the actual heading sequence from the a11y snapshot. No vague claims.
+
+2. **Weighted priority.** Calculated from the persona's `designPriorities` and severity of issues. High = multiple issues in priority-4 pillars. Medium = issues in priority-2-3 pillars. Low = minor issues in priority-1 pillars only.
+
+3. **Map to fix categories.** Persona findings map to the same fix categories as pillar findings (accessibility, typography, layout, responsiveness, color, slop, copy). The orchestrator groups persona issues with existing findings — no parallel fix track.
+
+4. **Narration required.** Write the narrative in the persona's voice. Read `narrationStyle.voice` for tone (methodical, impatient, critical, etc.) and `sampleReactions` for style reference. The narrative should feel like a real person describing their experience, not a test report listing failures.
+
+5. **Machine anchors required.** Always include the `**Issues:** N | **Priority:** X` and `**Worked well:** ...` lines after the narrative. Parsers depend on these exact formats. Don't rename, restyle, or omit them.
+
+6. **Positive signals are brief.** The `**Worked well:**` line is one line, comma-separated. The narrative can mention positives in context, but the anchor line stays short.
+
+7. **Skip empty personas.** If a persona has zero issues and no notable positive signals, omit it from the report entirely. Don't write "No issues found" sections.

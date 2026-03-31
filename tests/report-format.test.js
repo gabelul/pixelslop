@@ -63,6 +63,28 @@ function parseReport(markdown) {
   const patternCountMatch = markdown.match(/Patterns detected:\s*(\d+)/);
   report.slopCount = patternCountMatch ? parseInt(patternCountMatch[1]) : null;
 
+  // Persona Insights — extract structured data from narrative sections
+  report.personas = [];
+  const personaHeadingRegex = /#### (.+?) \((.+?)\)/g;
+  let personaMatch;
+  while ((personaMatch = personaHeadingRegex.exec(markdown)) !== null) {
+    const humanName = personaMatch[1].trim();
+    const name = personaMatch[2].trim();
+
+    // Find the **Issues:** line after this heading
+    const afterHeading = markdown.slice(personaMatch.index);
+    const issuesMatch = afterHeading.match(/\*\*Issues:\*\*\s*(\d+)\s*\|\s*\*\*Priority:\*\*\s*(High|Medium|Low)/);
+    const workedMatch = afterHeading.match(/\*\*Worked well:\*\*\s*(.+)/);
+
+    report.personas.push({
+      humanName,
+      name,
+      issueCount: issuesMatch ? parseInt(issuesMatch[1]) : 0,
+      priority: issuesMatch ? issuesMatch[2] : null,
+      positiveSignals: workedMatch ? workedMatch[1].trim() : null,
+    });
+  }
+
   // Screenshots
   report.screenshots = {};
   const desktopScreen = markdown.match(/Desktop \(1440x900\):\s*(.+)/);
@@ -119,7 +141,18 @@ function buildReport(input) {
   ];
 
   if (personas.length > 0) {
-    lines.push('', '### Persona Insights', ...personas);
+    lines.push('', '### Persona Insights');
+    for (const p of personas) {
+      lines.push(
+        '',
+        `#### ${p.humanName} (${p.name})`,
+        '',
+        p.narrative,
+        '',
+        `**Issues:** ${p.issueCount} | **Priority:** ${p.priority}`,
+        `**Worked well:** ${p.positiveSignals}`,
+      );
+    }
   }
 
   lines.push(
@@ -168,8 +201,32 @@ const SAMPLE_INPUT = {
   personas: [],
 };
 
-// --- Sample report for testing (built from structured outputs) ---
+/** Sample input WITH persona data for narrative format testing */
+const SAMPLE_INPUT_WITH_PERSONAS = {
+  ...SAMPLE_INPUT,
+  personas: [
+    {
+      humanName: 'Sam',
+      name: 'Screen Reader User',
+      narrative: 'The landmark regions are solid — main, nav, and footer are all present. But the features section headings jump from h1 to h3 with no h2. Three buttons in the hero all say "Click here" with no distinguishing context. The contact form is the bright spot — every input has a proper label.',
+      issueCount: 3,
+      priority: 'High',
+      positiveSignals: 'landmark regions, form input labels, logical focus order',
+    },
+    {
+      humanName: 'Casey',
+      name: 'Rushed Mobile User',
+      narrative: 'The CTA is buried below two full text sections — on my phone I scroll through features before I can do anything. Touch targets are fine once I find them, and the page loaded fast.',
+      issueCount: 1,
+      priority: 'Medium',
+      positiveSignals: 'touch targets meet 44px minimum, fast page load',
+    },
+  ],
+};
+
+// --- Sample reports for testing (built from structured outputs) ---
 const SAMPLE_REPORT = buildReport(SAMPLE_INPUT);
+const SAMPLE_REPORT_WITH_PERSONAS = buildReport(SAMPLE_INPUT_WITH_PERSONAS);
 
 
 describe('Report Format Parser', () => {
@@ -263,6 +320,72 @@ describe('Report Format Parser', () => {
   it('omits Persona Insights when no personas were evaluated', () => {
     assert.ok(!SAMPLE_REPORT.includes('### Persona Insights'),
       'report should omit Persona Insights when persona list is empty');
+  });
+});
+
+describe('Persona Narrative Format', () => {
+
+  it('persona headings use humanName (Full Name) format', () => {
+    assert.ok(
+      SAMPLE_REPORT_WITH_PERSONAS.includes('#### Sam (Screen Reader User)'),
+      'should use humanName in heading with full name in parens'
+    );
+    assert.ok(
+      SAMPLE_REPORT_WITH_PERSONAS.includes('#### Casey (Rushed Mobile User)'),
+      'second persona should also use humanName format'
+    );
+  });
+
+  it('persona sections contain narrative paragraphs', () => {
+    // Narrative should be prose, not bullet lists
+    const samSection = SAMPLE_REPORT_WITH_PERSONAS.split('#### Sam')[1].split('####')[0];
+    assert.ok(samSection.includes('landmark regions are solid'), 'narrative should contain prose text');
+    assert.ok(!samSection.match(/^- /m) || samSection.match(/^- /m).length === 0,
+      'narrative should not be a bullet list');
+  });
+
+  it('parseReport extracts personas array with correct shape', () => {
+    const r = parseReport(SAMPLE_REPORT_WITH_PERSONAS);
+    assert.ok(Array.isArray(r.personas), 'personas should be an array');
+    assert.equal(r.personas.length, 2, 'should find 2 personas');
+
+    const sam = r.personas[0];
+    assert.equal(sam.humanName, 'Sam');
+    assert.equal(sam.name, 'Screen Reader User');
+    assert.equal(sam.issueCount, 3);
+    assert.equal(sam.priority, 'High');
+    assert.ok(sam.positiveSignals.includes('landmark regions'), 'should parse positive signals');
+
+    const casey = r.personas[1];
+    assert.equal(casey.humanName, 'Casey');
+    assert.equal(casey.name, 'Rushed Mobile User');
+    assert.equal(casey.issueCount, 1);
+    assert.equal(casey.priority, 'Medium');
+  });
+
+  it('parseReport returns empty personas array when no personas evaluated', () => {
+    const r = parseReport(SAMPLE_REPORT);
+    assert.ok(Array.isArray(r.personas), 'personas should be an array');
+    assert.equal(r.personas.length, 0, 'should be empty when no persona section');
+  });
+
+  it('report omits Persona Insights section when persona list is empty', () => {
+    assert.ok(!SAMPLE_REPORT.includes('### Persona Insights'),
+      'report without personas should omit the section entirely');
+  });
+
+  it('report includes Persona Insights section when personas are present', () => {
+    assert.ok(SAMPLE_REPORT_WITH_PERSONAS.includes('### Persona Insights'),
+      'report with personas should include the section');
+  });
+
+  it('**Issues:** and **Worked well:** anchors are present for each persona', () => {
+    const r = parseReport(SAMPLE_REPORT_WITH_PERSONAS);
+    for (const p of r.personas) {
+      assert.ok(typeof p.issueCount === 'number', `${p.humanName} should have numeric issueCount`);
+      assert.ok(['High', 'Medium', 'Low'].includes(p.priority), `${p.humanName} should have valid priority`);
+      assert.ok(typeof p.positiveSignals === 'string', `${p.humanName} should have positiveSignals string`);
+    }
   });
 });
 
