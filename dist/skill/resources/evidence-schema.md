@@ -31,7 +31,6 @@ This schema is the contract. If the collector writes it and the specialist reads
   "console": { /* see below */ },
   "network": { /* see below */ },
   "personaChecks": { /* see below */ },
-  "pageType": { "type": "landing-page", "signals": { /* DOM classification signals */ }, "suggestedPersonas": { "ids": [], "names": [] } },
   "sourcePatterns": [ /* see below */ ],
   "interactiveElements": null,
   "scroll": null,

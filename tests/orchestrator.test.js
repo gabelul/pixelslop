@@ -382,6 +382,15 @@ describe('agent cross-references', () => {
     );
   });
 
+  it('scan workflow documents best-effort HTML report generation', () => {
+    const skill = readDist('skill/SKILL.md');
+    const orchestrator = readDist('agents/pixelslop.md');
+    assert.ok(skill.includes('HTML export') || skill.includes('.pixelslop/reports'),
+      'SKILL should mention the non-blocking HTML report artifact');
+    assert.ok(orchestrator.includes('report generate'),
+      'orchestrator should document the report generate command after scan results');
+  });
+
   it('SKILL.md passes deep and headed to orchestrator prompt', () => {
     const skill = readDist('skill/SKILL.md');
     // The scan prompt should include deep and headed

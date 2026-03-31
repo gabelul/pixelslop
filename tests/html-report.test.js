@@ -92,7 +92,7 @@ describe('report template structure', () => {
   it('has all required token placeholders', () => {
     template = readFileSync(TEMPLATE_PATH, 'utf-8');
     const required = [
-      '{{TITLE}}', '{{URL}}', '{{DATE}}', '{{CONFIDENCE}}',
+      '{{TITLE}}', '{{URL_META}}', '{{DATE}}', '{{CONFIDENCE}}',
       '{{TOTAL}}', '{{RATING_BAND}}', '{{SLOP_BAND}}', '{{SLOP_COUNT}}',
       '{{PILLAR_BARS}}', '{{SCREENSHOT_GRID}}', '{{PERSONA_SECTIONS}}',
       '{{FINDINGS_DETAIL}}', '{{FIX_TRACKING}}', '{{SCORE_DEGREES}}',
@@ -157,6 +157,13 @@ describe('report generate command', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  function writeFakeScreenshot(relativePath, size = 32) {
+    const absolutePath = join(dir, relativePath);
+    mkdirSync(dirname(absolutePath), { recursive: true });
+    writeFileSync(absolutePath, Buffer.alloc(size, 1));
+    return absolutePath;
+  }
+
   it('generates HTML from valid scan results', () => {
     const scanPath = join(dir, 'scan.json');
     writeFileSync(scanPath, JSON.stringify(makeScanFixture()));
@@ -220,6 +227,36 @@ describe('report generate command', () => {
     assert.ok(html.includes('&lt;script&gt;'), 'Should contain escaped script tag');
   });
 
+  it('sanitizes numeric-looking fields before injecting them into HTML', () => {
+    const fixture = makeScanFixture({
+      confidence: '<img src=x onerror=alert(1)>',
+      slopCount: '<script>alert(1)</script>',
+      scores: {
+        hierarchy: { score: '0</span><script>alert(1)</script>' },
+        typography: { score: 2 },
+        color: { score: 2 },
+        responsiveness: { score: 2 },
+        accessibility: { score: 2 },
+      },
+    });
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(fixture));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(!html.includes('<script>alert(1)</script>'), 'raw script payload should not survive');
+    assert.ok(!html.includes('onerror=alert(1)'), 'raw event handler payload should not survive');
+  });
+
+  it('neutralizes dangerous URL schemes in the report header', () => {
+    const fixture = makeScanFixture({ url: 'javascript:alert(1)' });
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(fixture));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(!html.includes('href="javascript:alert(1)"'), 'javascript: URLs should not remain clickable');
+    assert.ok(html.includes('<span>javascript:alert(1)</span>'), 'unsafe URL should render as plain text');
+  });
+
   it('fails soft with missing scan results file', () => {
     const result = runJson(`report generate --scan-results "${join(dir, 'nonexistent.json')}" --root "${dir}" --raw`, dir);
     assert.equal(result.ok, false, 'Should return ok: false');
@@ -265,6 +302,30 @@ describe('report generate command', () => {
     const html = readFileSync(result.path, 'utf-8');
     assert.ok(!/<link[^>]+href\s*=\s*["']https?:/.test(html), 'No external stylesheets');
     assert.ok(!/<script[^>]+src\s*=/.test(html), 'No external scripts');
+  });
+
+  it('resolves relative screenshot paths against --root', () => {
+    writeFakeScreenshot('.pixelslop/screenshots/desktop.png');
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(makeScanFixture({
+      screenshots: { desktop: '.pixelslop/screenshots/desktop.png', tablet: null, mobile: null },
+    })));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(html.includes('data:image/png;base64,'), 'safe relative screenshot should embed as data URI');
+  });
+
+  it('refuses screenshot paths outside .pixelslop/screenshots', () => {
+    const outsidePath = join(dir, 'outside.png');
+    writeFileSync(outsidePath, Buffer.alloc(32, 2));
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(makeScanFixture({
+      screenshots: { desktop: outsidePath, tablet: null, mobile: null },
+    })));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(!html.includes('data:image/png;base64,'), 'outside screenshot should not be embedded');
+    assert.ok(html.includes('Screenshot not captured'), 'outside screenshot should fall back to placeholder');
   });
 
   it('report generate command appears in help output', () => {

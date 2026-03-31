@@ -247,6 +247,8 @@ Calculate confidence from the evidence bundle's `confidence` flags:
 - +5% if sourceGrepped
 - +5% if multiViewport compared
 
+Write the structured scan results you just assembled to a temporary JSON file (for example `/tmp/pixelslop-scan-<timestamp>.json`) and keep that path as `$SCAN_RESULTS_PATH`. The HTML export step later reads this file — it is not the raw evidence bundle.
+
 **Log after aggregation:**
 ```bash
 node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --message "Report assembled: $TOTAL/20, $N_ISSUES issues, slop=$SLOP_BAND"
@@ -311,7 +313,18 @@ The CTA is buried below two text sections — on mobile I'm scrolling past featu
 
 Persona findings map to existing fix categories. When the user selects issues to fix, persona-flagged issues appear alongside pillar-flagged issues in the same category groups. No separate persona fix track — the fixer uses the same guides regardless of which lens found the issue.
 
-Present the scan results and return them to the parent session. Include all scores, issues, and persona insights in your response — use humanName from the persona JSONs, not IDs. **In scan mode, you're done here — return and let the parent handle the fix strategy.**
+After presenting the scan results, generate the HTML report as a best-effort artifact:
+
+```bash
+node bin/pixelslop-tools.cjs report generate \
+  --scan-results "$SCAN_RESULTS_PATH" \
+  --root "$ROOT" \
+  --raw
+```
+
+If the command succeeds, include the output path in your response. If it returns `{ ok: false, error: "..." }`, mention that the HTML report failed and continue — this report is bonus output, not part of the critical path.
+
+Present the scan results and return them to the parent session. Include all scores, issues, persona insights, and the HTML report path when available — use humanName from the persona JSONs, not IDs. **In scan mode, you're done here — return and let the parent handle the fix strategy.**
 
 In `visual-report-only` mode, just return the report.
 

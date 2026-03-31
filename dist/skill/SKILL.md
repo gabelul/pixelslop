@@ -389,7 +389,9 @@ Add design context only if it was collected: `Design context: audience=<...>, br
 
 The orchestrator scans the page, groups findings, and returns results. This takes 2-4 minutes.
 
-When the orchestrator returns, present the scan results to the user. If the mode is `visual-editable`, use `AskUserQuestion` to ask the fix strategy:
+The orchestrator also attempts a best-effort HTML export after scan results are assembled. On success, it returns a report path under `.pixelslop/reports/`. If export fails, the scan still succeeds — mention the warning and keep going.
+
+When the orchestrator returns, present the scan results to the user. Include the HTML report path when present. If the mode is `visual-editable`, use `AskUserQuestion` to ask the fix strategy:
 
 - "Fix everything" — all issues by category
 - "Critical only" — P0 + P1 issues only

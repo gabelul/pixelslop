@@ -2371,15 +2371,91 @@ function escapeHtml(str) {
 }
 
 /**
+ * Coerce arbitrary input to a finite non-negative number.
+ * @param {*} value - Raw input
+ * @param {number} fallback - Value returned when coercion fails
+ * @returns {number} Safe numeric value
+ */
+function safeNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return fallback;
+  return numeric;
+}
+
+/**
+ * Check whether a resolved path lives under the allowed directory.
+ * @param {string} candidate - Candidate file path
+ * @param {string} allowedDir - Directory root that contains allowed files
+ * @returns {boolean} True when the candidate is inside the allowed directory
+ */
+function isWithinDir(candidate, allowedDir) {
+  const relative = path.relative(allowedDir, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/**
+ * Build a safe link target for the report header.
+ * Only http/https URLs remain clickable.
+ * @param {*} rawUrl - Raw URL from scan JSON
+ * @returns {{ href: string, text: string, clickable: boolean }} Safe URL parts
+ */
+function buildSafeReportUrl(rawUrl) {
+  const text = typeof rawUrl === 'string' ? rawUrl : '';
+  if (!text) return { href: '', text: '', clickable: false };
+
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { href: '', text, clickable: false };
+    }
+    return { href: parsed.href, text, clickable: true };
+  } catch {
+    return { href: '', text, clickable: false };
+  }
+}
+
+/**
+ * Resolve a screenshot path safely inside the project's screenshot directory.
+ * Refuses paths that escape .pixelslop/screenshots, including symlink escapes.
+ * @param {string} filePath - Screenshot path from scan JSON
+ * @param {string} projectRoot - Absolute project root
+ * @returns {string|null} Safe absolute screenshot path or null
+ */
+function resolveSafeScreenshotPath(filePath, projectRoot) {
+  if (typeof filePath !== 'string' || filePath.trim() === '') return null;
+
+  const screenshotDir = path.join(projectRoot, '.pixelslop', 'screenshots');
+  const candidatePath = path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(projectRoot, filePath);
+
+  if (!fs.existsSync(candidatePath)) return null;
+
+  try {
+    const resolvedCandidate = fs.realpathSync(candidatePath);
+    const resolvedScreenshotDir = fs.existsSync(screenshotDir)
+      ? fs.realpathSync(screenshotDir)
+      : screenshotDir;
+
+    if (!isWithinDir(resolvedCandidate, resolvedScreenshotDir)) return null;
+    return resolvedCandidate;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Read a screenshot file and return a data URI, or null if missing/oversized.
  * Caps at 1MB base64 encoded to keep reports reasonable.
- * @param {string} filePath - Absolute path to screenshot PNG
+ * @param {string} filePath - Screenshot path from scan JSON
+ * @param {string} projectRoot - Absolute project root
  * @returns {string|null} Data URI or null
  */
-function screenshotToDataUri(filePath) {
+function screenshotToDataUri(filePath, projectRoot) {
   try {
-    if (!filePath || !fs.existsSync(filePath)) return null;
-    const buf = fs.readFileSync(filePath);
+    const safePath = resolveSafeScreenshotPath(filePath, projectRoot);
+    if (!safePath) return null;
+    const buf = fs.readFileSync(safePath);
     if (buf.length > 750000) return null; // ~1MB after base64
     return `data:image/png;base64,${buf.toString('base64')}`;
   } catch { return null; }
@@ -2407,16 +2483,24 @@ function reportGenerate(flags) {
     if (!fs.existsSync(templatePath)) return { ok: false, error: 'Report template not found' };
     let html = fs.readFileSync(templatePath, 'utf-8');
 
+    const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
+
     // Extract report data with safe defaults
     const title = scan.title || scan.url || 'Untitled';
     const url = scan.url || '';
-    const date = scan.timestamp || scan.date || new Date().toISOString();
-    const confidence = scan.confidence || 0;
+    const safeUrl = buildSafeReportUrl(url);
+    const date = typeof scan.timestamp === 'string'
+      ? scan.timestamp
+      : (typeof scan.date === 'string' ? scan.date : new Date().toISOString());
+    const confidence = Math.min(100, Math.round(safeNumber(scan.confidence)));
     const scores = scan.scores || {};
-    const total = Object.values(scores).reduce((s, p) => s + (p.score || p || 0), 0);
+    const total = Math.min(20, Object.values(scores).reduce((sum, pillar) => {
+      const rawScore = typeof pillar === 'object' && pillar !== null ? pillar.score : pillar;
+      return sum + Math.min(4, safeNumber(rawScore));
+    }, 0));
     const ratingBand = total >= 17 ? 'Excellent' : total >= 13 ? 'Good' : total >= 9 ? 'Needs Work' : total >= 5 ? 'Poor' : 'Critical';
     const slopBand = scan.slop?.band || scan.slopLevel || 'CLEAN';
-    const slopCount = scan.slop?.patternCount || scan.slopCount || 0;
+    const slopCount = Math.round(safeNumber(scan.slop?.patternCount ?? scan.slopCount));
 
     // Score gauge degrees (0-360, proportional to /20)
     const scoreDegrees = Math.round((total / 20) * 360);
@@ -2424,7 +2508,8 @@ function reportGenerate(flags) {
     // Pillar bars HTML
     const pillarOrder = ['hierarchy', 'typography', 'color', 'responsiveness', 'accessibility'];
     const pillarBars = pillarOrder.map(name => {
-      const score = typeof scores[name] === 'object' ? scores[name].score : (scores[name] || 0);
+      const rawScore = typeof scores[name] === 'object' ? scores[name].score : (scores[name] || 0);
+      const score = Math.min(4, safeNumber(rawScore));
       const pct = (score / 4) * 100;
       return `<div class="pillar-row"><span>${escapeHtml(name.charAt(0).toUpperCase() + name.slice(1))}</span><div class="pillar-bar"><div class="pillar-fill" style="width:${pct}%"></div></div><span class="pillar-score">${score}/4</span></div>`;
     }).join('\n      ');
@@ -2438,7 +2523,7 @@ function reportGenerate(flags) {
     ];
     const screenshotGrid = viewports.map(({ key, label }) => {
       const filePath = screenshots[key];
-      const dataUri = screenshotToDataUri(filePath);
+      const dataUri = screenshotToDataUri(filePath, root);
       if (dataUri) {
         return `<div class="screenshot-card"><img src="${dataUri}" alt="${escapeHtml(label)}"><div class="viewport-label">${escapeHtml(label)}</div></div>`;
       }
@@ -2490,15 +2575,19 @@ function reportGenerate(flags) {
     }
 
     // Token replacement
+    const urlMeta = safeUrl.clickable
+      ? `<a href="${escapeHtml(safeUrl.href)}">${escapeHtml(safeUrl.text)}</a>`
+      : `<span>${escapeHtml(safeUrl.text)}</span>`;
+
     html = html.replace(/\{\{TITLE\}\}/g, escapeHtml(title));
-    html = html.replace(/\{\{URL\}\}/g, escapeHtml(url));
+    html = html.replace(/\{\{URL_META\}\}/g, urlMeta);
     html = html.replace(/\{\{DATE\}\}/g, escapeHtml(date));
-    html = html.replace(/\{\{CONFIDENCE\}\}/g, String(confidence));
-    html = html.replace(/\{\{TOTAL\}\}/g, String(total));
-    html = html.replace(/\{\{SCORE_DEGREES\}\}/g, String(scoreDegrees));
+    html = html.replace(/\{\{CONFIDENCE\}\}/g, escapeHtml(String(confidence)));
+    html = html.replace(/\{\{TOTAL\}\}/g, escapeHtml(String(total)));
+    html = html.replace(/\{\{SCORE_DEGREES\}\}/g, escapeHtml(String(scoreDegrees)));
     html = html.replace(/\{\{RATING_BAND\}\}/g, escapeHtml(ratingBand));
     html = html.replace(/\{\{SLOP_BAND\}\}/g, escapeHtml(slopBand));
-    html = html.replace(/\{\{SLOP_COUNT\}\}/g, String(slopCount));
+    html = html.replace(/\{\{SLOP_COUNT\}\}/g, escapeHtml(String(slopCount)));
     html = html.replace(/\{\{PILLAR_BARS\}\}/g, pillarBars);
     html = html.replace(/\{\{SCREENSHOT_GRID\}\}/g, screenshotGrid);
     html = html.replace(/\{\{PERSONA_SECTIONS\}\}/g, personaSections);
@@ -2506,7 +2595,6 @@ function reportGenerate(flags) {
     html = html.replace(/\{\{FIX_TRACKING\}\}/g, fixHtml);
 
     // Write the report
-    const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
     const reportsDir = path.join(root, '.pixelslop', 'reports');
     if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
