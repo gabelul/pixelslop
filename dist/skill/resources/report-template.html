@@ -5,146 +5,385 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pixelslop Report — {{TITLE}}</title>
   <style>
+    /* ── Pixelslop Report — Command Folio variant ──
+       Zero radius. No shadows. Tonal stacking. Monospace for data.
+       Dense, editorial, technical. Trust through clarity. */
+
+    /* Self-contained — no external font imports. Uses system fonts that
+       approximate the Command Folio stack on most platforms. */
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #fafafa; --surface: #fff; --text: #1a1a1a; --muted: #6b7280;
-      --border: #e5e7eb; --accent: #2563eb; --accent-soft: #dbeafe;
-      --green: #16a34a; --yellow: #ca8a04; --red: #dc2626; --orange: #ea580c;
-      --score-track: #e5e7eb; --pillar-bar: #2563eb;
-      --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
-      --mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
-    }
+      /* Canvas */
+      --canvas: #FAFAF8;
+      --surface-1: #F4F4F2;
+      --surface-2: #EEEEEC;
+      --surface-3: #E8E8E6;
+      --surface-white: #FFFFFF;
 
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0f0f0f; --surface: #1a1a1a; --text: #e5e5e5; --muted: #9ca3af;
-        --border: #2d2d2d; --accent: #60a5fa; --accent-soft: #1e3a5f;
-        --score-track: #2d2d2d;
-      }
+      /* Ink */
+      --ink: #111111;
+      --ink-secondary: #666666;
+      --ink-tertiary: #888888;
+      --ink-ghost: #AAAAAA;
+
+      /* Status — data types, not decoration */
+      --sage: #4A6741;
+      --orange: #C47A2C;
+      --red: #8B3A3A;
+
+      /* Borders */
+      --border-heavy: #111111;
+      --border-light: #E0E0DC;
+
+      /* Fonts — system stacks approximating Space Grotesk / Inter / JetBrains Mono */
+      --heading: system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif;
+      --body: system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif;
+      --mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
     }
 
     body {
-      font-family: var(--font); background: var(--bg); color: var(--text);
-      line-height: 1.6; max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem;
+      font-family: var(--body);
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.55;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 32px 24px;
+      font-size: 13px;
     }
 
-    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
-    h2 { font-size: 1.35rem; font-weight: 600; margin: 2.5rem 0 1rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
-    h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
-
-    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; }
-    .meta a { color: var(--accent); text-decoration: none; }
-
-    /* Score gauge */
-    .score-row { display: flex; gap: 2rem; align-items: center; flex-wrap: wrap; margin-bottom: 2rem; }
-    .score-gauge {
-      width: 120px; height: 120px; border-radius: 50%; position: relative;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    /* ── Header ── */
+    .report-header {
+      border-bottom: 2px solid var(--border-heavy);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
     }
-    .score-gauge .number { font-size: 2rem; font-weight: 700; }
-    .score-gauge .label { font-size: 0.75rem; color: var(--muted); position: absolute; bottom: 14px; }
-    .slop-badge {
-      display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px;
-      font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    .report-wordmark {
+      font-family: var(--heading);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-tertiary);
+      margin-bottom: 8px;
     }
-    .slop-CLEAN { background: #dcfce7; color: #166534; }
-    .slop-MILD { background: #fef9c3; color: #854d0e; }
-    .slop-SLOPPY { background: #fed7aa; color: #9a3412; }
-    .slop-TERMINAL { background: #fecaca; color: #991b1b; }
-
-    @media (prefers-color-scheme: dark) {
-      .slop-CLEAN { background: #14532d; color: #86efac; }
-      .slop-MILD { background: #713f12; color: #fde047; }
-      .slop-SLOPPY { background: #7c2d12; color: #fdba74; }
-      .slop-TERMINAL { background: #7f1d1d; color: #fca5a5; }
+    .report-title {
+      font-family: var(--heading);
+      font-size: 22px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+    .report-meta {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink-secondary);
+    }
+    .report-meta a {
+      color: var(--ink-secondary);
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
 
-    /* Pillar bars */
-    .pillar-list { display: grid; gap: 0.5rem; }
-    .pillar-row { display: grid; grid-template-columns: 140px 1fr 40px; align-items: center; gap: 0.75rem; font-size: 0.875rem; }
-    .pillar-bar { height: 8px; background: var(--score-track); border-radius: 4px; overflow: hidden; }
-    .pillar-fill { height: 100%; border-radius: 4px; background: var(--pillar-bar); transition: width 0.3s; }
-    .pillar-score { font-weight: 600; text-align: right; }
+    /* ── Section headers ── */
+    .section-label {
+      font-family: var(--heading);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-tertiary);
+      border-bottom: 2px solid var(--border-heavy);
+      padding-bottom: 8px;
+      margin-top: 32px;
+      margin-bottom: 16px;
+    }
 
-    /* Screenshots */
-    .screenshot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0; }
-    .screenshot-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+    /* ── KPI Strip ── */
+    .kpi-strip {
+      display: flex;
+      gap: 1px;
+      background: var(--border-light);
+      margin-bottom: 24px;
+    }
+    .kpi-block {
+      flex: 1;
+      background: var(--surface-1);
+      padding: 16px;
+      border-left: 3px solid var(--ink);
+    }
+    .kpi-block[data-status="good"] { border-left-color: var(--sage); }
+    .kpi-block[data-status="warn"] { border-left-color: var(--orange); }
+    .kpi-block[data-status="bad"] { border-left-color: var(--red); }
+    .kpi-value {
+      font-family: var(--mono);
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .kpi-label {
+      font-family: var(--body);
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--ink-tertiary);
+    }
+
+    /* ── Pillar table ── */
+    .pillar-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    .pillar-table thead th {
+      font-family: var(--heading);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: left;
+      padding: 8px 12px;
+      background: var(--ink);
+      color: var(--canvas);
+    }
+    .pillar-table thead th:last-child { text-align: right; }
+    .pillar-table tbody tr { border-bottom: 1px solid var(--border-light); }
+    .pillar-table tbody tr:nth-child(odd) { background: var(--canvas); }
+    .pillar-table tbody tr:nth-child(even) { background: var(--surface-1); }
+    .pillar-table td {
+      padding: 8px 12px;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+    .pillar-table .pillar-name {
+      font-family: var(--body);
+      font-weight: 500;
+      width: 130px;
+    }
+    .pillar-table .pillar-bar-cell { width: auto; }
+    .pillar-table .pillar-score {
+      font-family: var(--mono);
+      font-weight: 700;
+      text-align: right;
+      width: 50px;
+    }
+    .bar-track {
+      height: 6px;
+      background: var(--border-light);
+    }
+    .bar-fill {
+      height: 100%;
+      background: var(--ink);
+    }
+    .bar-fill[data-level="4"] { background: var(--sage); }
+    .bar-fill[data-level="3"] { background: var(--ink); }
+    .bar-fill[data-level="2"] { background: var(--orange); }
+    .bar-fill[data-level="1"] { background: var(--red); }
+
+    /* ── Slop badge ── */
+    .slop-status {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .slop-CLEAN { color: var(--sage); }
+    .slop-MILD { color: var(--orange); }
+    .slop-SLOPPY { color: var(--orange); }
+    .slop-TERMINAL { color: var(--red); }
+
+    /* ── Screenshots ── */
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border-light);
+      margin-bottom: 24px;
+    }
+    .screenshot-card { background: var(--surface-white); overflow: hidden; }
     .screenshot-card img { width: 100%; height: auto; display: block; }
-    .screenshot-card .viewport-label { padding: 0.5rem; font-size: 0.75rem; color: var(--muted); text-align: center; }
+    .screenshot-label {
+      padding: 6px 12px;
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-tertiary);
+      background: var(--surface-1);
+    }
     .screenshot-placeholder {
-      padding: 2rem; text-align: center; color: var(--muted); font-size: 0.85rem;
-      background: var(--surface); border: 1px dashed var(--border); border-radius: 8px;
+      padding: 32px 12px;
+      text-align: center;
+      background: var(--surface-1);
+      color: var(--ink-ghost);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
     }
 
-    /* Persona cards */
+    /* ── Persona cards ── */
     .persona-card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-      padding: 1.25rem; margin-bottom: 1rem;
+      background: var(--surface-white);
+      border-left: 3px solid var(--ink);
+      padding: 16px 20px;
+      margin-bottom: 1px;
     }
-    .persona-card h3 { margin: 0 0 0.75rem; font-size: 1rem; }
-    .persona-narrative { margin-bottom: 0.75rem; font-size: 0.9rem; line-height: 1.65; }
-    .persona-meta { font-size: 0.8rem; color: var(--muted); display: flex; gap: 1.5rem; flex-wrap: wrap; }
-    .persona-meta strong { color: var(--text); }
+    .persona-card[data-priority="High"] { border-left-color: var(--red); }
+    .persona-card[data-priority="Medium"] { border-left-color: var(--orange); }
+    .persona-card[data-priority="Low"] { border-left-color: var(--sage); }
+    .persona-name {
+      font-family: var(--heading);
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .persona-role {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-tertiary);
+      margin-bottom: 10px;
+    }
+    .persona-narrative {
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--ink-secondary);
+      margin-bottom: 12px;
+    }
+    .persona-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 11px;
+      color: var(--ink-tertiary);
+      border-top: 1px solid var(--border-light);
+      padding-top: 8px;
+    }
+    .persona-meta strong { color: var(--ink); font-weight: 600; }
 
-    /* Findings */
-    .finding { padding: 0.75rem 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-    .finding:last-child { border-bottom: none; }
-    .severity { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-right: 0.5rem; }
-    .severity-P0 { background: #fecaca; color: #991b1b; }
-    .severity-P1 { background: #fed7aa; color: #9a3412; }
-    .severity-P2 { background: #fef9c3; color: #854d0e; }
+    /* ── Findings ── */
+    .finding-row {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-light);
+      align-items: baseline;
+    }
+    .finding-row:last-child { border-bottom: none; }
+    .priority-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .priority-P0 { color: var(--red); }
+    .priority-P1 { color: var(--orange); }
+    .priority-P2 { color: var(--ink-tertiary); }
+    .finding-text { font-size: 13px; line-height: 1.5; }
 
+    /* ── Fix tracking ── */
+    .fix-table { width: 100%; border-collapse: collapse; }
+    .fix-table thead th {
+      font-family: var(--heading);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: left;
+      padding: 8px 12px;
+      background: var(--ink);
+      color: var(--canvas);
+    }
+    .fix-table tbody tr { border-bottom: 1px solid var(--border-light); }
+    .fix-table tbody tr:nth-child(odd) { background: var(--canvas); }
+    .fix-table tbody tr:nth-child(even) { background: var(--surface-1); }
+    .fix-table td { padding: 8px 12px; font-size: 13px; }
+    .fix-table .fix-id { font-family: var(--mono); font-size: 12px; }
+    .fix-status {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .fix-PASS { color: var(--sage); }
+    .fix-FAIL { color: var(--red); }
+    .fix-PARTIAL { color: var(--orange); }
+    .fix-OPEN { color: var(--ink-ghost); }
+
+    /* ── Footer ── */
+    .report-footer {
+      margin-top: 32px;
+      padding-top: 12px;
+      border-top: 2px solid var(--border-heavy);
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-ghost);
+    }
+
+    /* ── Dark mode — inverted canvas ── */
     @media (prefers-color-scheme: dark) {
-      .severity-P0 { background: #7f1d1d; color: #fca5a5; }
-      .severity-P1 { background: #7c2d12; color: #fdba74; }
-      .severity-P2 { background: #713f12; color: #fde047; }
+      :root {
+        --canvas: #111111;
+        --surface-1: #1a1a1a;
+        --surface-2: #222222;
+        --surface-3: #2a2a2a;
+        --surface-white: #1e1e1e;
+        --ink: #E5E5E5;
+        --ink-secondary: #AAAAAA;
+        --ink-tertiary: #888888;
+        --ink-ghost: #555555;
+        --sage: #6B9E60;
+        --orange: #D4943C;
+        --red: #C05555;
+        --border-heavy: #E5E5E5;
+        --border-light: #2d2d2d;
+      }
     }
 
-    /* Fix tracking */
-    .fix-row { display: grid; grid-template-columns: 1fr auto; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.875rem; }
-    .fix-status { font-weight: 600; }
-    .fix-pass { color: var(--green); }
-    .fix-fail { color: var(--red); }
-    .fix-partial { color: var(--orange); }
-    .fix-open { color: var(--muted); }
-
-    /* Print */
+    /* ── Print ── */
     @media print {
-      body { max-width: 100%; padding: 1rem; }
-      .score-gauge { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-      .pillar-fill, .slop-badge, .severity { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      body { max-width: 100%; padding: 12px; font-size: 11px; }
+      .kpi-block, .bar-fill, .priority-tag, .slop-status, .fix-status {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+      }
+      .pillar-table thead th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .fix-table thead th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     }
-
-    footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--muted); }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Pixelslop Report</h1>
-    <div class="meta">
-      {{URL_META}} &middot; {{DATE}} &middot; Confidence: {{CONFIDENCE}}%
+
+  <header class="report-header">
+    <div class="report-wordmark">Pixelslop</div>
+    <h1 class="report-title">{{TITLE}}</h1>
+    <div class="report-meta">
+      {{URL_META}} · {{DATE}} · confidence {{CONFIDENCE}}%
     </div>
   </header>
 
   <section id="summary">
-    <div class="score-row">
-      <div class="score-gauge" style="background: conic-gradient(var(--accent) {{SCORE_DEGREES}}deg, var(--score-track) 0);">
-        <span class="number">{{TOTAL}}</span>
-        <span class="label">/20 {{RATING_BAND}}</span>
-      </div>
-      <div>
-        <span class="slop-badge slop-{{SLOP_BAND}}">{{SLOP_BAND}}</span>
-        <span style="margin-left: 0.5rem; font-size: 0.85rem; color: var(--muted);">{{SLOP_COUNT}} patterns detected</span>
-      </div>
+    <div class="kpi-strip">
+      {{KPI_BLOCKS}}
     </div>
-    <div class="pillar-list">
-      {{PILLAR_BARS}}
-    </div>
+
+    <table class="pillar-table">
+      <thead>
+        <tr><th>Pillar</th><th>Score</th><th></th></tr>
+      </thead>
+      <tbody>
+        {{PILLAR_ROWS}}
+      </tbody>
+    </table>
   </section>
 
   <section id="screenshots">
-    <h2>Screenshots</h2>
+    <div class="section-label">Screenshots</div>
     <div class="screenshot-grid">
       {{SCREENSHOT_GRID}}
     </div>
@@ -155,7 +394,7 @@
   </section>
 
   <section id="findings">
-    <h2>Findings</h2>
+    <div class="section-label">Findings</div>
     {{FINDINGS_DETAIL}}
   </section>
 
@@ -163,8 +402,9 @@
     {{FIX_TRACKING}}
   </section>
 
-  <footer>
-    Generated by <strong>pixelslop</strong> &middot; Browser-first design quality review
+  <footer class="report-footer">
+    Pixelslop · Browser-first design quality review
   </footer>
+
 </body>
 </html>

@@ -93,9 +93,9 @@ describe('report template structure', () => {
     template = readFileSync(TEMPLATE_PATH, 'utf-8');
     const required = [
       '{{TITLE}}', '{{URL_META}}', '{{DATE}}', '{{CONFIDENCE}}',
-      '{{TOTAL}}', '{{RATING_BAND}}', '{{SLOP_BAND}}', '{{SLOP_COUNT}}',
-      '{{PILLAR_BARS}}', '{{SCREENSHOT_GRID}}', '{{PERSONA_SECTIONS}}',
-      '{{FINDINGS_DETAIL}}', '{{FIX_TRACKING}}', '{{SCORE_DEGREES}}',
+      '{{KPI_BLOCKS}}', '{{PILLAR_ROWS}}',
+      '{{SCREENSHOT_GRID}}', '{{PERSONA_SECTIONS}}',
+      '{{FINDINGS_DETAIL}}', '{{FIX_TRACKING}}',
     ];
     for (const token of required) {
       assert.ok(template.includes(token), `Missing token: ${token}`);
@@ -214,7 +214,7 @@ describe('report generate command', () => {
     writeFileSync(scanPath, JSON.stringify(makeScanFixture()));
     const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
     const html = readFileSync(result.path, 'utf-8');
-    assert.ok(html.includes('Screenshot not captured'), 'Should show placeholder for missing screenshots');
+    assert.ok(html.includes('Not captured'), 'Should show placeholder for missing screenshots');
   });
 
   it('escapes HTML in title to prevent XSS', () => {
@@ -325,7 +325,7 @@ describe('report generate command', () => {
     const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
     const html = readFileSync(result.path, 'utf-8');
     assert.ok(!html.includes('data:image/png;base64,'), 'outside screenshot should not be embedded');
-    assert.ok(html.includes('Screenshot not captured'), 'outside screenshot should fall back to placeholder');
+    assert.ok(html.includes('Not captured'), 'outside screenshot should fall back to placeholder');
   });
 
   it('report generate command appears in help output', () => {

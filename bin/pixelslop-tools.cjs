@@ -2502,48 +2502,56 @@ function reportGenerate(flags) {
     const slopBand = scan.slop?.band || scan.slopLevel || 'CLEAN';
     const slopCount = Math.round(safeNumber(scan.slop?.patternCount ?? scan.slopCount));
 
-    // Score gauge degrees (0-360, proportional to /20)
-    const scoreDegrees = Math.round((total / 20) * 360);
+    // KPI blocks — score, rating band, slop status
+    const scoreStatus = total >= 13 ? 'good' : total >= 9 ? 'warn' : 'bad';
+    const slopStatus = slopBand === 'CLEAN' ? 'good' : slopBand === 'TERMINAL' ? 'bad' : 'warn';
+    const kpiBlocks = [
+      `<div class="kpi-block" data-status="${scoreStatus}"><div class="kpi-value">${total}/20</div><div class="kpi-label">${escapeHtml(ratingBand)}</div></div>`,
+      `<div class="kpi-block" data-status="${slopStatus}"><div class="kpi-value"><span class="slop-status slop-${escapeHtml(slopBand)}">${escapeHtml(slopBand)}</span></div><div class="kpi-label">${slopCount} patterns detected</div></div>`,
+      `<div class="kpi-block"><div class="kpi-value">${confidence}%</div><div class="kpi-label">Confidence</div></div>`,
+    ].join('\n      ');
 
-    // Pillar bars HTML
+    // Pillar table rows
     const pillarOrder = ['hierarchy', 'typography', 'color', 'responsiveness', 'accessibility'];
-    const pillarBars = pillarOrder.map(name => {
+    const pillarRows = pillarOrder.map(name => {
       const rawScore = typeof scores[name] === 'object' ? scores[name].score : (scores[name] || 0);
       const score = Math.min(4, safeNumber(rawScore));
       const pct = (score / 4) * 100;
-      return `<div class="pillar-row"><span>${escapeHtml(name.charAt(0).toUpperCase() + name.slice(1))}</span><div class="pillar-bar"><div class="pillar-fill" style="width:${pct}%"></div></div><span class="pillar-score">${score}/4</span></div>`;
-    }).join('\n      ');
+      const label = name.charAt(0).toUpperCase() + name.slice(1);
+      return `<tr><td class="pillar-name">${escapeHtml(label)}</td><td class="pillar-bar-cell"><div class="bar-track"><div class="bar-fill" data-level="${score}" style="width:${pct}%"></div></div></td><td class="pillar-score">${score}/4</td></tr>`;
+    }).join('\n        ');
 
     // Screenshots
     const screenshots = scan.screenshots || {};
     const viewports = [
-      { key: 'desktop', label: 'Desktop (1440x900)' },
-      { key: 'tablet', label: 'Tablet (768x1024)' },
-      { key: 'mobile', label: 'Mobile (375x812)' },
+      { key: 'desktop', label: 'Desktop 1440×900' },
+      { key: 'tablet', label: 'Tablet 768×1024' },
+      { key: 'mobile', label: 'Mobile 375×812' },
     ];
     const screenshotGrid = viewports.map(({ key, label }) => {
       const filePath = screenshots[key];
       const dataUri = screenshotToDataUri(filePath, root);
       if (dataUri) {
-        return `<div class="screenshot-card"><img src="${dataUri}" alt="${escapeHtml(label)}"><div class="viewport-label">${escapeHtml(label)}</div></div>`;
+        return `<div class="screenshot-card"><img src="${dataUri}" alt="${escapeHtml(label)}"><div class="screenshot-label">${escapeHtml(label)}</div></div>`;
       }
-      return `<div class="screenshot-placeholder">${escapeHtml(label)}<br>[Screenshot not captured]</div>`;
+      return `<div class="screenshot-card"><div class="screenshot-placeholder">${escapeHtml(label)}<br>Not captured</div></div>`;
     }).join('\n      ');
 
-    // Persona stories
+    // Persona stories — Command Folio cards with left accent bar
     const personaStories = scan.personaStories || [];
     let personaSections = '';
     if (personaStories.length > 0) {
-      personaSections = '<h2>Persona Stories</h2>\n';
+      personaSections = '<div class="section-label">Persona Stories</div>\n';
       personaSections += personaStories.map(p => {
-        const name = escapeHtml(p.humanName || p.name || 'Unknown');
+        const hName = escapeHtml(p.humanName || p.name || 'Unknown');
         const fullName = escapeHtml(p.name || '');
         const narrative = escapeHtml(p.narrative || '');
-        const issues = p.issueCount || 0;
+        const issues = safeNumber(p.issueCount);
         const priority = escapeHtml(p.priority || 'Low');
         const positive = escapeHtml(p.positiveSignals || '');
-        return `<div class="persona-card">
-        <h3>${name} (${fullName})</h3>
+        return `<div class="persona-card" data-priority="${priority}">
+        <div class="persona-name">${hName}</div>
+        <div class="persona-role">${fullName}</div>
         <div class="persona-narrative">${narrative}</div>
         <div class="persona-meta">
           <span><strong>Issues:</strong> ${issues}</span>
@@ -2554,24 +2562,26 @@ function reportGenerate(flags) {
       }).join('\n    ');
     }
 
-    // Findings
+    // Findings — priority-tagged rows
     const findings = scan.findings || [];
     const findingsHtml = findings.length > 0
       ? findings.map(f => {
         const text = typeof f === 'string' ? f : (f.description || '');
         const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
-        return `<div class="finding"><span class="severity severity-${escapeHtml(priority)}">${escapeHtml(priority)}</span>${escapeHtml(text)}</div>`;
+        return `<div class="finding-row"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span><span class="finding-text">${escapeHtml(text)}</span></div>`;
       }).join('\n    ')
-      : '<p style="color:var(--muted)">No findings.</p>';
+      : '<p style="color:var(--ink-ghost);font-size:11px;text-transform:uppercase;letter-spacing:0.08em">No findings</p>';
 
-    // Fix tracking
+    // Fix tracking — data table
     let fixHtml = '';
     if (fixResults && Array.isArray(fixResults.fixes) && fixResults.fixes.length > 0) {
-      fixHtml = '<h2>Fix Tracking</h2>\n';
+      fixHtml = '<div class="section-label">Fix Tracking</div>\n';
+      fixHtml += '<table class="fix-table"><thead><tr><th>Issue</th><th>Status</th></tr></thead><tbody>\n';
       fixHtml += fixResults.fixes.map(f => {
-        const statusClass = f.status === 'PASS' ? 'fix-pass' : f.status === 'FAIL' ? 'fix-fail' : f.status === 'PARTIAL' ? 'fix-partial' : 'fix-open';
-        return `<div class="fix-row"><span>${escapeHtml(f.id || f.description || '')}</span><span class="fix-status ${statusClass}">${escapeHtml(f.status || 'OPEN')}</span></div>`;
+        const statusClass = `fix-${escapeHtml(f.status || 'OPEN')}`;
+        return `<tr><td class="fix-id">${escapeHtml(f.id || f.description || '')}</td><td><span class="fix-status ${statusClass}">${escapeHtml(f.status || 'OPEN')}</span></td></tr>`;
       }).join('\n    ');
+      fixHtml += '\n</tbody></table>';
     }
 
     // Token replacement
@@ -2583,12 +2593,8 @@ function reportGenerate(flags) {
     html = html.replace(/\{\{URL_META\}\}/g, urlMeta);
     html = html.replace(/\{\{DATE\}\}/g, escapeHtml(date));
     html = html.replace(/\{\{CONFIDENCE\}\}/g, escapeHtml(String(confidence)));
-    html = html.replace(/\{\{TOTAL\}\}/g, escapeHtml(String(total)));
-    html = html.replace(/\{\{SCORE_DEGREES\}\}/g, escapeHtml(String(scoreDegrees)));
-    html = html.replace(/\{\{RATING_BAND\}\}/g, escapeHtml(ratingBand));
-    html = html.replace(/\{\{SLOP_BAND\}\}/g, escapeHtml(slopBand));
-    html = html.replace(/\{\{SLOP_COUNT\}\}/g, escapeHtml(String(slopCount)));
-    html = html.replace(/\{\{PILLAR_BARS\}\}/g, pillarBars);
+    html = html.replace(/\{\{KPI_BLOCKS\}\}/g, kpiBlocks);
+    html = html.replace(/\{\{PILLAR_ROWS\}\}/g, pillarRows);
     html = html.replace(/\{\{SCREENSHOT_GRID\}\}/g, screenshotGrid);
     html = html.replace(/\{\{PERSONA_SECTIONS\}\}/g, personaSections);
     html = html.replace(/\{\{FINDINGS_DETAIL\}\}/g, findingsHtml);
