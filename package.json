@@ -27,6 +27,7 @@
     "test:installer": "node --test tests/installer.test.js",
     "test:persona": "node --test tests/persona.test.js",
     "test:page-type": "node --test tests/page-type.test.js",
+    "test:html-report": "node --test tests/html-report.test.js",
     "test:evaluator": "node --test tests/evaluator.test.js",
     "test:interaction": "node --test tests/interaction-substrate.test.js"
   },
