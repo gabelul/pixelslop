@@ -2772,7 +2772,7 @@ async function main() {
     console.log('  browser snapshot --url <url>');
     console.log('  browser screenshot --url <url> [--viewport <name|WxH>] [--out <file>]');
     console.log('  browser analyze-page --url <url>               # Classify page type and suggest personas');
-    console.log('  report generate --scan-results <path> [--fix-results <path>] [--root <path>]');
+    console.log('  report generate --scan-results <path> [--plan-snapshot <path>] [--root <path>]');
     console.log('  config set <key> <value> [--root <path>]     # Set a project setting');
     console.log('  config get [<key>] [--root <path>]            # Get one or all settings');
     console.log('  config set-all --headed true --deep false ...  # Set multiple settings at once');

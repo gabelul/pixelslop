@@ -413,7 +413,19 @@ node bin/pixelslop-tools.cjs browser collect --url "$URL" --root "$ROOT" --perso
 node bin/pixelslop-tools.cjs plan snapshot --raw
 ```
 
-3. Present the summary:
+3. Save the plan snapshot to a temp file and generate the final HTML report:
+```bash
+node bin/pixelslop-tools.cjs plan snapshot --raw > /tmp/pixelslop-plan-snapshot.json
+node bin/pixelslop-tools.cjs report generate \
+  --scan-results "$SCAN_RESULTS_PATH" \
+  --plan-snapshot /tmp/pixelslop-plan-snapshot.json \
+  --root "$ROOT" \
+  --raw
+```
+
+If the report succeeds, include the path in your summary. If it fails, mention it and move on — the report is bonus output.
+
+4. Present the summary:
 
 ```
 ## Pixelslop Session Complete
