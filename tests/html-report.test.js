@@ -93,9 +93,10 @@ describe('report template structure', () => {
     template = readFileSync(TEMPLATE_PATH, 'utf-8');
     const required = [
       '{{TITLE}}', '{{URL_META}}', '{{DATE}}', '{{CONFIDENCE}}',
+      '{{TAB_RADIOS}}', '{{TAB_LABELS}}',
       '{{KPI_BLOCKS}}', '{{PILLAR_ROWS}}',
       '{{SCREENSHOT_GRID}}', '{{PERSONA_SECTIONS}}',
-      '{{FINDINGS_DETAIL}}', '{{FIX_TRACKING}}',
+      '{{FINDINGS_DETAIL}}', '{{FIX_SECTION}}',
     ];
     for (const token of required) {
       assert.ok(template.includes(token), `Missing token: ${token}`);
@@ -123,11 +124,18 @@ describe('report template structure', () => {
 
   it('has required sections', () => {
     template = readFileSync(TEMPLATE_PATH, 'utf-8');
-    assert.ok(template.includes('id="summary"'), 'should have summary section');
-    assert.ok(template.includes('id="screenshots"'), 'should have screenshots section');
-    assert.ok(template.includes('id="persona-stories"'), 'should have persona-stories section');
-    assert.ok(template.includes('id="findings"'), 'should have findings section');
-    assert.ok(template.includes('id="fix-tracking"'), 'should have fix-tracking section');
+    assert.ok(template.includes('tab-section-overview'), 'should have overview section');
+    assert.ok(template.includes('tab-section-personas'), 'should reference personas section class');
+    assert.ok(template.includes('tab-section-findings'), 'should have findings section');
+    assert.ok(template.includes('tab-section-fixes'), 'should reference fixes section class');
+  });
+
+  it('has CSS-only tab navigation', () => {
+    template = readFileSync(TEMPLATE_PATH, 'utf-8');
+    assert.ok(template.includes('.tab-radio'), 'should have tab-radio class');
+    assert.ok(template.includes('.tab-bar'), 'should have tab-bar class');
+    assert.ok(template.includes('tab-overview:checked'), 'should have overview tab selector');
+    assert.ok(template.includes('tab-findings:checked'), 'should have findings tab selector');
   });
 
   it('forces light mode (no dark mode)', () => {
@@ -196,7 +204,7 @@ describe('report generate command', () => {
     writeFileSync(scanPath, JSON.stringify(fixture));
     const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
     const html = readFileSync(result.path, 'utf-8');
-    assert.ok(html.includes('Persona Stories'), 'Should have persona section heading');
+    assert.ok(html.includes('Persona'), 'Should have persona section heading');
     assert.ok(html.includes('Sam'), 'Should include persona humanName');
     assert.ok(html.includes('Screen Reader User'), 'Should include persona full name');
     assert.ok(html.includes('headings skip'), 'Should include narrative text');
@@ -207,7 +215,8 @@ describe('report generate command', () => {
     writeFileSync(scanPath, JSON.stringify(makeScanFixture({ personaStories: [] })));
     const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
     const html = readFileSync(result.path, 'utf-8');
-    assert.ok(!html.includes('Persona Stories'), 'Should omit persona heading when empty');
+    assert.ok(!html.includes('Persona Stories'), 'Should omit persona section heading when empty');
+    assert.ok(!html.includes('id="tab-personas"'), 'Should not have personas tab radio when empty');
   });
 
   it('renders screenshot placeholders when files are missing', () => {
@@ -271,29 +280,63 @@ describe('report generate command', () => {
     assert.equal(result.ok, false, 'Should return ok: false for bad JSON');
   });
 
-  it('includes fix tracking when fix results provided', () => {
+  it('includes fixes tab when plan snapshot has non-pending issues', () => {
     const scanPath = join(dir, 'scan.json');
     writeFileSync(scanPath, JSON.stringify(makeScanFixture()));
-    const fixPath = join(dir, 'fixes.json');
-    writeFileSync(fixPath, JSON.stringify({
-      fixes: [
-        { id: 'contrast-cta', status: 'PASS', description: 'Fixed CTA contrast' },
-        { id: 'touch-footer', status: 'PARTIAL', description: 'Improved touch targets' },
+    const planPath = join(dir, 'plan.json');
+    writeFileSync(planPath, JSON.stringify({
+      baseline_score: 8,
+      baseline_slop: 'SLOPPY',
+      issues: [
+        { id: 'contrast-cta', status: 'fixed', priority: 'P0', category: 'accessibility', description: 'CTA contrast' },
+        { id: 'touch-footer', status: 'partial', priority: 'P1', category: 'responsiveness', description: 'Touch targets' },
+        { id: 'font-generic', status: 'pending', priority: 'P1', category: 'typography', description: 'Generic fonts' },
       ],
+      summary: { fixed: 1, partial: 1, failed: 0, pending: 1, skipped: 0, total: 3 },
     }));
-    const result = runJson(`report generate --scan-results "${scanPath}" --fix-results "${fixPath}" --root "${dir}" --raw`, dir);
+    const result = runJson(`report generate --scan-results "${scanPath}" --plan-snapshot "${planPath}" --root "${dir}" --raw`, dir);
     const html = readFileSync(result.path, 'utf-8');
-    assert.ok(html.includes('Fix Tracking'), 'Should have fix tracking section');
-    assert.ok(html.includes('PASS'), 'Should show PASS status');
-    assert.ok(html.includes('PARTIAL'), 'Should show PARTIAL status');
+    assert.ok(html.includes('Fix Outcome'), 'should have fixes section');
+    assert.ok(html.includes('FIXED'), 'should show FIXED status');
+    assert.ok(html.includes('PARTIAL'), 'should show PARTIAL status');
+    assert.ok(html.includes('tab-fixes'), 'should have fixes tab');
+    assert.ok(html.includes('Score Comparison'), 'should have score comparison table');
   });
 
-  it('omits fix tracking when no fix results', () => {
+  it('omits fixes tab when no plan snapshot', () => {
     const scanPath = join(dir, 'scan.json');
     writeFileSync(scanPath, JSON.stringify(makeScanFixture()));
     const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
     const html = readFileSync(result.path, 'utf-8');
-    assert.ok(!html.includes('Fix Tracking'), 'Should omit fix tracking without fix results');
+    assert.ok(!html.includes('Fix Outcome'), 'should omit fixes section');
+    assert.ok(!html.includes('id="tab-fixes"'), 'should not have fixes tab radio input');
+  });
+
+  it('renders correct tab count for scan-only (2 tabs)', () => {
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(makeScanFixture({ personaStories: [] })));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    const radioCount = (html.match(/class="tab-radio"/g) || []).length;
+    assert.equal(radioCount, 2, 'scan-only should have 2 tabs (overview + findings)');
+  });
+
+  it('renders correct tab count with all data (4 tabs)', () => {
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(makeScanFixture({
+      personaStories: [
+        { humanName: 'Sam', name: 'Screen Reader User', narrative: 'Test', issueCount: 1, priority: 'High', positiveSignals: 'good' },
+      ],
+    })));
+    const planPath = join(dir, 'plan.json');
+    writeFileSync(planPath, JSON.stringify({
+      baseline_score: 8, issues: [{ id: 'x', status: 'fixed', priority: 'P1', category: 'a11y', description: 'test' }],
+      summary: { fixed: 1, partial: 0, failed: 0, pending: 0, skipped: 0, total: 1 },
+    }));
+    const result = runJson(`report generate --scan-results "${scanPath}" --plan-snapshot "${planPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    const radioCount = (html.match(/class="tab-radio"/g) || []).length;
+    assert.equal(radioCount, 4, 'full data should have 4 tabs');
   });
 
   it('output is self-contained (no external references)', () => {

@@ -2474,18 +2474,22 @@ function reportGenerate(flags) {
     if (!fs.existsSync(scanPath)) return { ok: false, error: `Scan results not found: ${scanPath}` };
 
     const scan = JSON.parse(fs.readFileSync(scanPath, 'utf-8'));
+
+    // Optional data sources — plan snapshot and legacy fix results
+    const planSnapshot = flags['plan-snapshot'] && fs.existsSync(flags['plan-snapshot'])
+      ? JSON.parse(fs.readFileSync(flags['plan-snapshot'], 'utf-8'))
+      : null;
     const fixResults = flags['fix-results'] && fs.existsSync(flags['fix-results'])
       ? JSON.parse(fs.readFileSync(flags['fix-results'], 'utf-8'))
       : null;
 
-    // Resolve template from package directory
     const templatePath = path.join(__dirname, '..', 'dist', 'skill', 'resources', 'report-template.html');
     if (!fs.existsSync(templatePath)) return { ok: false, error: 'Report template not found' };
     let html = fs.readFileSync(templatePath, 'utf-8');
 
     const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
 
-    // Extract report data with safe defaults
+    // ── Core data extraction ──
     const title = scan.title || scan.url || 'Untitled';
     const url = scan.url || '';
     const safeUrl = buildSafeReportUrl(url);
@@ -2494,15 +2498,44 @@ function reportGenerate(flags) {
       : (typeof scan.date === 'string' ? scan.date : new Date().toISOString());
     const confidence = Math.min(100, Math.round(safeNumber(scan.confidence)));
     const scores = scan.scores || {};
-    const total = Math.min(20, Object.values(scores).reduce((sum, pillar) => {
-      const rawScore = typeof pillar === 'object' && pillar !== null ? pillar.score : pillar;
-      return sum + Math.min(4, safeNumber(rawScore));
-    }, 0));
+    const pillarOrder = ['hierarchy', 'typography', 'color', 'responsiveness', 'accessibility'];
+
+    /** Extract a pillar score safely */
+    const pillarScore = (name) => {
+      const raw = scores[name];
+      return Math.min(4, safeNumber(typeof raw === 'object' && raw !== null ? raw.score : raw));
+    };
+
+    const total = Math.min(20, pillarOrder.reduce((sum, p) => sum + pillarScore(p), 0));
     const ratingBand = total >= 17 ? 'Excellent' : total >= 13 ? 'Good' : total >= 9 ? 'Needs Work' : total >= 5 ? 'Poor' : 'Critical';
     const slopBand = scan.slop?.band || scan.slopLevel || 'CLEAN';
     const slopCount = Math.round(safeNumber(scan.slop?.patternCount ?? scan.slopCount));
+    const personaStories = scan.personaStories || [];
+    const findings = scan.findings || [];
 
-    // KPI blocks — score, rating band, slop status
+    // Build issue status map from plan snapshot (id → { status, category, description })
+    const issueMap = new Map();
+    const planIssues = planSnapshot?.issues || [];
+    for (const iss of planIssues) {
+      if (iss.id) issueMap.set(iss.id, iss);
+    }
+    const hasFixData = planSnapshot && planIssues.some(i => i.status !== 'pending');
+    const hasPersonas = personaStories.length > 0;
+
+    // ── Tab radios + labels (conditional) ──
+    const tabs = [{ id: 'overview', label: 'Overview', checked: true }];
+    if (hasPersonas) tabs.push({ id: 'personas', label: 'Personas' });
+    tabs.push({ id: 'findings', label: 'Findings' });
+    if (hasFixData) tabs.push({ id: 'fixes', label: 'Fixes' });
+
+    const tabRadios = tabs.map(t =>
+      `<input type="radio" name="tab" id="tab-${t.id}" class="tab-radio"${t.checked ? ' checked' : ''}>`
+    ).join('\n  ');
+    const tabLabels = tabs.map(t =>
+      `<label for="tab-${t.id}">${escapeHtml(t.label)}</label>`
+    ).join('\n    ');
+
+    // ── KPI blocks ──
     const scoreStatus = total >= 13 ? 'good' : total >= 9 ? 'warn' : 'bad';
     const slopStatus = slopBand === 'CLEAN' ? 'good' : slopBand === 'TERMINAL' ? 'bad' : 'warn';
     const kpiBlocks = [
@@ -2511,80 +2544,171 @@ function reportGenerate(flags) {
       `<div class="kpi-block"><div class="kpi-value">${confidence}%</div><div class="kpi-label">Confidence</div></div>`,
     ].join('\n      ');
 
-    // Pillar table rows
-    const pillarOrder = ['hierarchy', 'typography', 'color', 'responsiveness', 'accessibility'];
+    // ── Pillar table rows ──
     const pillarRows = pillarOrder.map(name => {
-      const rawScore = typeof scores[name] === 'object' ? scores[name].score : (scores[name] || 0);
-      const score = Math.min(4, safeNumber(rawScore));
+      const score = pillarScore(name);
       const pct = (score / 4) * 100;
       const label = name.charAt(0).toUpperCase() + name.slice(1);
       return `<tr><td class="pillar-name">${escapeHtml(label)}</td><td class="pillar-bar-cell"><div class="bar-track"><div class="bar-fill" data-level="${score}" style="width:${pct}%"></div></div></td><td class="pillar-score">${score}/4</td></tr>`;
     }).join('\n        ');
 
-    // Screenshots
+    // ── Screenshots ──
     const screenshots = scan.screenshots || {};
     const viewports = [
-      { key: 'desktop', label: 'Desktop 1440×900' },
-      { key: 'tablet', label: 'Tablet 768×1024' },
-      { key: 'mobile', label: 'Mobile 375×812' },
+      { key: 'desktop', label: 'Desktop 1440\u00d7900' },
+      { key: 'tablet', label: 'Tablet 768\u00d71024' },
+      { key: 'mobile', label: 'Mobile 375\u00d7812' },
     ];
     const screenshotGrid = viewports.map(({ key, label }) => {
-      const filePath = screenshots[key];
-      const dataUri = screenshotToDataUri(filePath, root);
+      const dataUri = screenshotToDataUri(screenshots[key], root);
       if (dataUri) {
         return `<div class="screenshot-card"><img src="${dataUri}" alt="${escapeHtml(label)}"><div class="screenshot-label">${escapeHtml(label)}</div></div>`;
       }
       return `<div class="screenshot-card"><div class="screenshot-placeholder">${escapeHtml(label)}<br>Not captured</div></div>`;
     }).join('\n      ');
 
-    // Persona stories — Command Folio cards with left accent bar
-    const personaStories = scan.personaStories || [];
+    // ── Persona sections (entire tab-section div, or empty) ──
     let personaSections = '';
-    if (personaStories.length > 0) {
-      personaSections = '<div class="section-label">Persona Stories</div>\n';
-      personaSections += personaStories.map(p => {
+    if (hasPersonas) {
+      const cards = personaStories.map(p => {
         const hName = escapeHtml(p.humanName || p.name || 'Unknown');
         const fullName = escapeHtml(p.name || '');
         const narrative = escapeHtml(p.narrative || '');
-        const issues = safeNumber(p.issueCount);
+        const issueCount = safeNumber(p.issueCount);
         const priority = escapeHtml(p.priority || 'Low');
         const positive = escapeHtml(p.positiveSignals || '');
+
+        // Per-persona issue sub-table (from linkedIssues or plan data)
+        const linkedIssues = Array.isArray(p.linkedIssues) ? p.linkedIssues : [];
+        let issueSubTable = '';
+        if (linkedIssues.length > 0) {
+          const rows = linkedIssues.map(li => {
+            const pTag = escapeHtml(li.priority || 'P2');
+            const desc = escapeHtml(li.description || li.id || '');
+            const st = escapeHtml(li.fixStatus || 'OPEN');
+            return `<div class="persona-issue-row"><span class="priority-tag priority-${pTag}">${pTag}</span><span>${desc}</span><span class="fix-status fix-${st}">${st}</span></div>`;
+          }).join('\n          ');
+          issueSubTable = `<div class="persona-issues"><div class="section-sublabel">Issues found</div>${rows}</div>`;
+        }
+
         return `<div class="persona-card" data-priority="${priority}">
         <div class="persona-name">${hName}</div>
         <div class="persona-role">${fullName}</div>
         <div class="persona-narrative">${narrative}</div>
+        ${issueSubTable}
         <div class="persona-meta">
-          <span><strong>Issues:</strong> ${issues}</span>
+          <span><strong>Issues:</strong> ${issueCount}</span>
           <span><strong>Priority:</strong> ${priority}</span>
           ${positive ? `<span><strong>Worked well:</strong> ${positive}</span>` : ''}
         </div>
       </div>`;
       }).join('\n    ');
+
+      personaSections = `<div class="tab-section tab-section-personas">
+    <div class="section-label">Persona Stories</div>
+    ${cards}
+  </div>`;
     }
 
-    // Findings — priority-tagged rows
-    const findings = scan.findings || [];
-    const findingsHtml = findings.length > 0
-      ? findings.map(f => {
+    // ── Findings table ──
+    let findingsHtml;
+    if (hasFixData && findings.length > 0) {
+      // Full table with category + status columns
+      const rows = findings.map(f => {
         const text = typeof f === 'string' ? f : (f.description || '');
         const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
-        return `<div class="finding-row"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span><span class="finding-text">${escapeHtml(text)}</span></div>`;
-      }).join('\n    ')
-      : '<p style="color:var(--ink-ghost);font-size:11px;text-transform:uppercase;letter-spacing:0.08em">No findings</p>';
-
-    // Fix tracking — data table
-    let fixHtml = '';
-    if (fixResults && Array.isArray(fixResults.fixes) && fixResults.fixes.length > 0) {
-      fixHtml = '<div class="section-label">Fix Tracking</div>\n';
-      fixHtml += '<table class="fix-table"><thead><tr><th>Issue</th><th>Status</th></tr></thead><tbody>\n';
-      fixHtml += fixResults.fixes.map(f => {
-        const statusClass = `fix-${escapeHtml(f.status || 'OPEN')}`;
-        return `<tr><td class="fix-id">${escapeHtml(f.id || f.description || '')}</td><td><span class="fix-status ${statusClass}">${escapeHtml(f.status || 'OPEN')}</span></td></tr>`;
-      }).join('\n    ');
-      fixHtml += '\n</tbody></table>';
+        const category = typeof f === 'object' ? (f.category || '') : '';
+        // Try to match finding to plan issue for status
+        let fixStatus = 'OPEN';
+        if (typeof f === 'object' && f.id && issueMap.has(f.id)) {
+          fixStatus = (issueMap.get(f.id).status || 'pending').toUpperCase();
+        }
+        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-category">${escapeHtml(category)}</td><td class="col-finding">${escapeHtml(text)}</td><td class="col-status"><span class="fix-status fix-${escapeHtml(fixStatus)}">${escapeHtml(fixStatus)}</span></td></tr>`;
+      }).join('\n      ');
+      findingsHtml = `<table class="data-table findings-table"><thead><tr><th>Priority</th><th>Category</th><th>Finding</th><th>Status</th></tr></thead><tbody>\n      ${rows}\n    </tbody></table>`;
+    } else if (findings.length > 0) {
+      // Simple table without category/status
+      const rows = findings.map(f => {
+        const text = typeof f === 'string' ? f : (f.description || '');
+        const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
+        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-finding">${escapeHtml(text)}</td></tr>`;
+      }).join('\n      ');
+      findingsHtml = `<table class="data-table findings-table"><thead><tr><th>Priority</th><th>Finding</th></tr></thead><tbody>\n      ${rows}\n    </tbody></table>`;
+    } else {
+      findingsHtml = '<p style="color:var(--ink-ghost);font-size:11px;text-transform:uppercase;letter-spacing:0.08em">No findings</p>';
     }
 
-    // Token replacement
+    // ── Fix section (entire tab-section div, or empty) ──
+    let fixSection = '';
+    if (hasFixData) {
+      const summary = planSnapshot.summary || {};
+      const baselineScore = safeNumber(planSnapshot.baseline_score);
+
+      // Score comparison table (before/after per pillar)
+      const compareRows = pillarOrder.map(name => {
+        const after = pillarScore(name);
+        // Before score from plan's scores table, or fall back to after (no change)
+        const beforeScores = planSnapshot.beforeScores || {};
+        const before = safeNumber(beforeScores[name] ?? after);
+        const delta = after - before;
+        const deltaClass = delta > 0 ? 'delta-up' : delta < 0 ? 'delta-down' : 'delta-same';
+        const deltaText = delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : '—';
+        const label = name.charAt(0).toUpperCase() + name.slice(1);
+        return `<tr><td class="pillar-name">${escapeHtml(label)}</td><td class="compare-cell"><div class="compare-bar"><div class="bar-track"><div class="bar-fill" data-level="${before}" style="width:${(before/4)*100}%"></div></div><span class="compare-val">${before}/4</span></div></td><td class="compare-cell"><div class="compare-bar"><div class="bar-track"><div class="bar-fill" data-level="${after}" style="width:${(after/4)*100}%"></div></div><span class="compare-val">${after}/4</span></div></td><td><span class="score-delta ${deltaClass}">${deltaText}</span></td></tr>`;
+      }).join('\n        ');
+
+      // Fix summary strip
+      const fixedCount = safeNumber(summary.fixed);
+      const partialCount = safeNumber(summary.partial);
+      const failedCount = safeNumber(summary.failed);
+      const openCount = safeNumber(summary.pending) + safeNumber(summary.skipped);
+      const summaryStrip = `<div class="fix-summary-strip">
+        <div class="fix-summary-block" data-type="fixed"><div class="fix-summary-val">${fixedCount}</div><div class="fix-summary-label">Fixed</div></div>
+        <div class="fix-summary-block" data-type="partial"><div class="fix-summary-val">${partialCount}</div><div class="fix-summary-label">Partial</div></div>
+        <div class="fix-summary-block" data-type="failed"><div class="fix-summary-val">${failedCount}</div><div class="fix-summary-label">Failed</div></div>
+        <div class="fix-summary-block" data-type="open"><div class="fix-summary-val">${openCount}</div><div class="fix-summary-label">Open</div></div>
+      </div>`;
+
+      // Fix detail table from plan issues
+      const fixRows = planIssues.map(iss => {
+        const st = (iss.status || 'pending').toUpperCase();
+        return `<tr><td style="font-family:var(--mono);font-size:12px">${escapeHtml(iss.id || '')}</td><td>${escapeHtml(iss.description || '')}</td><td><span class="fix-status fix-${escapeHtml(st)}">${escapeHtml(st)}</span></td></tr>`;
+      }).join('\n        ');
+
+      const totalDelta = total - baselineScore;
+      const totalDeltaClass = totalDelta > 0 ? 'delta-up' : totalDelta < 0 ? 'delta-down' : 'delta-same';
+      const totalDeltaText = totalDelta > 0 ? `+${totalDelta}` : totalDelta < 0 ? `${totalDelta}` : '—';
+
+      fixSection = `<div class="tab-section tab-section-fixes">
+    <div class="section-label">Fix Outcome</div>
+    <div style="display:flex;gap:24px;align-items:baseline;margin-bottom:24px">
+      <div><span style="font-family:var(--mono);font-size:28px;font-weight:700">${baselineScore}</span><span style="color:var(--ink-tertiary);font-size:11px;margin-left:4px">/20 before</span></div>
+      <div style="font-size:20px;color:var(--ink-ghost)">\u2192</div>
+      <div><span style="font-family:var(--mono);font-size:28px;font-weight:700">${total}</span><span style="color:var(--ink-tertiary);font-size:11px;margin-left:4px">/20 after</span></div>
+      <div><span class="score-delta ${totalDeltaClass}" style="font-size:16px">${totalDeltaText}</span></div>
+    </div>
+
+    ${summaryStrip}
+
+    <div class="section-label">Score Comparison</div>
+    <table class="data-table score-compare">
+      <thead><tr><th>Pillar</th><th>Before</th><th>After</th><th></th></tr></thead>
+      <tbody>
+        ${compareRows}
+      </tbody>
+    </table>
+
+    <div class="section-label">All Issues</div>
+    <table class="data-table">
+      <thead><tr><th>Issue</th><th>Description</th><th>Status</th></tr></thead>
+      <tbody>
+        ${fixRows}
+      </tbody>
+    </table>
+  </div>`;
+    }
+
+    // ── Token replacement ──
     const urlMeta = safeUrl.clickable
       ? `<a href="${escapeHtml(safeUrl.href)}">${escapeHtml(safeUrl.text)}</a>`
       : `<span>${escapeHtml(safeUrl.text)}</span>`;
@@ -2593,12 +2717,14 @@ function reportGenerate(flags) {
     html = html.replace(/\{\{URL_META\}\}/g, urlMeta);
     html = html.replace(/\{\{DATE\}\}/g, escapeHtml(date));
     html = html.replace(/\{\{CONFIDENCE\}\}/g, escapeHtml(String(confidence)));
+    html = html.replace(/\{\{TAB_RADIOS\}\}/g, tabRadios);
+    html = html.replace(/\{\{TAB_LABELS\}\}/g, tabLabels);
     html = html.replace(/\{\{KPI_BLOCKS\}\}/g, kpiBlocks);
     html = html.replace(/\{\{PILLAR_ROWS\}\}/g, pillarRows);
     html = html.replace(/\{\{SCREENSHOT_GRID\}\}/g, screenshotGrid);
     html = html.replace(/\{\{PERSONA_SECTIONS\}\}/g, personaSections);
     html = html.replace(/\{\{FINDINGS_DETAIL\}\}/g, findingsHtml);
-    html = html.replace(/\{\{FIX_TRACKING\}\}/g, fixHtml);
+    html = html.replace(/\{\{FIX_SECTION\}\}/g, fixSection);
 
     // Write the report
     const reportsDir = path.join(root, '.pixelslop', 'reports');
