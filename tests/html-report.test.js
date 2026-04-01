@@ -130,9 +130,10 @@ describe('report template structure', () => {
     assert.ok(template.includes('id="fix-tracking"'), 'should have fix-tracking section');
   });
 
-  it('has dark mode support', () => {
+  it('forces light mode (no dark mode)', () => {
     template = readFileSync(TEMPLATE_PATH, 'utf-8');
-    assert.ok(template.includes('prefers-color-scheme: dark'), 'should have dark mode media query');
+    assert.ok(!template.includes('prefers-color-scheme: dark'), 'should not have dark mode — report is always light');
+    assert.ok(template.includes('color-scheme: light'), 'should force light color scheme');
   });
 
   it('has print stylesheet', () => {
