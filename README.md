@@ -44,7 +44,9 @@ Or skip the URL — pixelslop finds running servers, detects static HTML sites, 
 /pixelslop
 ```
 
-It scores 5 pillars (Hierarchy, Typography, Color, Responsiveness, Accessibility), detects slop patterns, groups findings by priority, asks what you want to fix, then runs the fix loop with automatic checkpoints and rollback.
+It scores 5 pillars (Hierarchy, Typography, Color, Responsiveness, Accessibility), detects slop patterns, evaluates from named personas (Sam, Alex, Casey, Quinn...), and generates a self-contained HTML report. If you want fixes, it runs a fix loop with automatic checkpoints and rollback.
+
+**Scanning works on any page** — no setup needed. **Fixing** works best with a git repo (for safe rollback), but pixelslop also supports no-git mode with file-based backups if your project isn't in git yet.
 
 Full walkthrough: **[docs/getting-started.md](docs/getting-started.md)**
 
@@ -66,7 +68,7 @@ I built [stitch-kit](https://github.com/gabelul/stitch-kit) to teach AI agents h
 ## Tests
 
 ```bash
-npm test                 # 540 tests, zero dependencies
+npm test                 # 850+ tests, zero dependencies
 npm run test:tools       # pixelslop-tools CLI
 npm run test:installer   # installer unit tests
 npm run test:orchestrator # agent spec validation
