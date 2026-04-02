@@ -157,6 +157,22 @@
     .pillar-table .pillar-score {
       font-family: var(--mono); font-weight: 700; text-align: right; width: 50px;
     }
+    .pillar-table .pillar-evidence {
+      font-size: 12px; color: var(--ink-secondary); max-width: 350px;
+    }
+
+    /* ── Slop patterns list ── */
+    .slop-patterns {
+      margin: 0 0 24px; padding: 12px 16px; background: var(--surface-1);
+    }
+    .slop-patterns .section-sublabel {
+      font-family: var(--heading); font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-tertiary);
+      margin-bottom: 8px;
+    }
+    .slop-patterns ul { margin: 0 0 0 16px; font-size: 12px; color: var(--ink-secondary); }
+    .slop-patterns li { margin-bottom: 4px; }
+    .slop-patterns li strong { color: var(--ink); }
     .bar-track { height: 6px; background: var(--border-light); }
     .bar-fill { height: 100%; background: var(--ink); }
     .bar-fill[data-level="4"] { background: var(--sage); }
@@ -344,9 +360,11 @@
       {{KPI_BLOCKS}}
     </div>
 
+    {{SLOP_PATTERNS}}
+
     <table class="data-table pillar-table">
       <thead>
-        <tr><th>Pillar</th><th>Score</th><th></th></tr>
+        <tr><th>Pillar</th><th>Score</th><th></th><th>Key Observation</th></tr>
       </thead>
       <tbody>
         {{PILLAR_ROWS}}

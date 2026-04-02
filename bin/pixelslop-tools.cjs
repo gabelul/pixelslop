@@ -2540,6 +2540,11 @@ function reportGenerate(flags) {
       const raw = scores[name];
       return Math.min(4, safeNumber(typeof raw === 'object' && raw !== null ? raw.score : raw));
     };
+    /** Extract pillar evidence string */
+    const pillarEvidence = (name) => {
+      const raw = scores[name];
+      return (typeof raw === 'object' && raw !== null) ? (raw.evidence || '') : '';
+    };
 
     const total = Math.min(20, pillarOrder.reduce((sum, p) => sum + pillarScore(p), 0));
     const ratingBand = total >= 17 ? 'Excellent' : total >= 13 ? 'Good' : total >= 9 ? 'Needs Work' : total >= 5 ? 'Poor' : 'Critical';
@@ -2579,12 +2584,25 @@ function reportGenerate(flags) {
       `<div class="kpi-block"><div class="kpi-value">${confidence}%</div><div class="kpi-label">Confidence</div></div>`,
     ].join('\n      ');
 
-    // ── Pillar table rows ──
+    // ── Slop patterns list (below KPI strip, before pillar table) ──
+    const slopPatterns = scan.slop?.patterns || [];
+    let slopPatternsHtml = '';
+    if (slopPatterns.length > 0) {
+      const items = slopPatterns.map(p => {
+        const pName = escapeHtml(typeof p === 'string' ? p : (p.name || ''));
+        const pEv = escapeHtml(typeof p === 'object' ? (p.evidence || '') : '');
+        return `<li><strong>${pName}</strong>${pEv ? ` \u2014 ${pEv}` : ''}</li>`;
+      }).join('\n        ');
+      slopPatternsHtml = `<div class="slop-patterns"><div class="section-sublabel">Detected Patterns</div><ul>\n        ${items}\n      </ul></div>`;
+    }
+
+    // ── Pillar table rows (with evidence column) ──
     const pillarRows = pillarOrder.map(name => {
       const score = pillarScore(name);
       const pct = (score / 4) * 100;
       const label = name.charAt(0).toUpperCase() + name.slice(1);
-      return `<tr><td class="pillar-name">${escapeHtml(label)}</td><td class="pillar-bar-cell"><div class="bar-track"><div class="bar-fill" data-level="${score}" style="width:${pct}%"></div></div></td><td class="pillar-score">${score}/4</td></tr>`;
+      const ev = escapeHtml(pillarEvidence(name));
+      return `<tr><td class="pillar-name">${escapeHtml(label)}</td><td class="pillar-bar-cell"><div class="bar-track"><div class="bar-fill" data-level="${score}" style="width:${pct}%"></div></div></td><td class="pillar-score">${score}/4</td><td class="pillar-evidence">${ev}</td></tr>`;
     }).join('\n        ');
 
     // ── Screenshots ──
@@ -2755,6 +2773,7 @@ function reportGenerate(flags) {
     html = html.replace(/\{\{TAB_RADIOS\}\}/g, tabRadios);
     html = html.replace(/\{\{TAB_LABELS\}\}/g, tabLabels);
     html = html.replace(/\{\{KPI_BLOCKS\}\}/g, kpiBlocks);
+    html = html.replace(/\{\{SLOP_PATTERNS\}\}/g, slopPatternsHtml);
     html = html.replace(/\{\{PILLAR_ROWS\}\}/g, pillarRows);
     html = html.replace(/\{\{SCREENSHOT_GRID\}\}/g, screenshotGrid);
     html = html.replace(/\{\{PERSONA_SECTIONS\}\}/g, personaSections);

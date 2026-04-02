@@ -94,7 +94,7 @@ describe('report template structure', () => {
     const required = [
       '{{TITLE}}', '{{URL_META}}', '{{DATE}}', '{{CONFIDENCE}}',
       '{{TAB_RADIOS}}', '{{TAB_LABELS}}',
-      '{{KPI_BLOCKS}}', '{{PILLAR_ROWS}}',
+      '{{KPI_BLOCKS}}', '{{SLOP_PATTERNS}}', '{{PILLAR_ROWS}}',
       '{{SCREENSHOT_GRID}}', '{{PERSONA_SECTIONS}}',
       '{{FINDINGS_DETAIL}}', '{{FIX_SECTION}}',
     ];
@@ -379,5 +379,62 @@ describe('report generate command', () => {
       } catch (err) { return { stdout: err.stdout || '' }; }
     })();
     assert.ok(stdout.includes('report generate'), 'Help should mention report generate');
+    assert.ok(stdout.includes('scan save-results'), 'Help should mention scan save-results');
+  });
+
+  it('shows pillar evidence in the score table', () => {
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(makeScanFixture()));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(html.includes('Key Observation'), 'pillar table should have evidence header');
+    assert.ok(html.includes('Good hierarchy'), 'should render hierarchy evidence text');
+    assert.ok(html.includes('Generic fonts'), 'should render typography evidence text');
+  });
+
+  it('renders slop patterns when present', () => {
+    const fixture = makeScanFixture({
+      slop: {
+        band: 'SLOPPY',
+        patternCount: 2,
+        patterns: [
+          { name: 'Glassmorphism Everywhere', evidence: '20 elements with backdrop-filter' },
+          { name: 'Gradient Text', evidence: '4 instances of background-clip: text' },
+        ],
+      },
+    });
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(fixture));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(html.includes('Detected Patterns'), 'should have patterns heading');
+    assert.ok(html.includes('Glassmorphism Everywhere'), 'should list pattern name');
+    assert.ok(html.includes('backdrop-filter'), 'should show pattern evidence');
+  });
+
+  it('omits slop patterns section when CLEAN', () => {
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(makeScanFixture()));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(!html.includes('Detected Patterns'), 'should omit patterns section when CLEAN');
+  });
+
+  it('escapes HTML in evidence strings', () => {
+    const fixture = makeScanFixture({
+      scores: {
+        hierarchy: { score: 3, evidence: '<img onerror=alert(1)> in heading' },
+        typography: { score: 2, evidence: 'Generic fonts' },
+        color: { score: 2, evidence: 'Standard' },
+        responsiveness: { score: 3, evidence: 'OK' },
+        accessibility: { score: 2, evidence: 'Issues' },
+      },
+    });
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(fixture));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(!html.includes('<img onerror'), 'evidence tags should be escaped');
+    assert.ok(html.includes('&lt;img onerror'), 'should contain escaped evidence');
   });
 });
