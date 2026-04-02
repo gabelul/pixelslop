@@ -22,6 +22,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { execSync, execFileSync } = require('child_process');
 
 // ─────────────────────────────────────────────
@@ -1427,6 +1428,26 @@ function probeUrl(url, timeoutMs = 1200) {
 }
 
 /**
+ * Poll a local URL until it accepts HTTP requests or the timeout expires.
+ * @param {string} url - URL to probe
+ * @param {number} [timeoutMs=2000] - Maximum wait time in milliseconds
+ * @param {number} [intervalMs=100] - Delay between probes
+ * @returns {{ reachable: boolean, status_code: number|null }}
+ */
+function waitForUrlReachable(url, timeoutMs = 2000, intervalMs = 100) {
+  const deadline = Date.now() + timeoutMs;
+  let last = { reachable: false, status_code: null };
+
+  while (Date.now() < deadline) {
+    last = probeUrl(url, Math.min(intervalMs, 500));
+    if (last.reachable) return last;
+    sleepSync(intervalMs);
+  }
+
+  return last;
+}
+
+/**
  * Get a process command line on POSIX systems.
  * @param {number} pid - Process ID
  * @returns {string|null} Command line
@@ -1671,6 +1692,21 @@ function isProcessAlive(pid) {
 }
 
 /**
+ * Wait for a process to exit within a bounded timeout.
+ * @param {number} pid - Process identifier
+ * @param {number} [timeoutMs=1200] - Maximum time to wait
+ * @returns {boolean} True when the process exited before the timeout
+ */
+function waitForProcessExit(pid, timeoutMs = 1200) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isProcessAlive(pid)) return true;
+    sleepSync(100);
+  }
+  return !isProcessAlive(pid);
+}
+
+/**
  * Remove temp-server bookkeeping files.
  * @param {string} resolvedRoot - Absolute project root
  * @param {object|null} state - Parsed server state
@@ -1779,7 +1815,11 @@ function serveStart(args) {
   }
 
   const existingState = readServeState(resolvedRoot);
-  if (existingState && isProcessAlive(existingState.pid)) {
+  const existingServerReachable = existingState && isProcessAlive(existingState.pid)
+    ? waitForUrlReachable(`http://127.0.0.1:${existingState.port}`, 1200, 100).reachable
+    : false;
+
+  if (existingState && existingServerReachable) {
     output(RAW
       ? {
           url: `http://localhost:${existingState.port}`,
@@ -1855,8 +1895,9 @@ process.on('SIGTERM', () => { server.close(); process.exit(0); });
   // The child writes its port/pid info to a temp "ready" file.
   // We poll for it synchronously — avoids async callbacks that keep
   // the parent process alive.
-  const readyFile = path.join(os.tmpdir(), `pixelslop-serve-ready-${Date.now()}.json`);
-  const tmpScript = path.join(os.tmpdir(), `pixelslop-serve-${Date.now()}.cjs`);
+  const tempId = `${process.pid}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+  const readyFile = path.join(os.tmpdir(), `pixelslop-serve-ready-${tempId}.json`);
+  const tmpScript = path.join(os.tmpdir(), `pixelslop-serve-${tempId}.cjs`);
 
   // Append the ready-file write to the server script
   const fullScript = serverScript.replace(
@@ -1891,6 +1932,15 @@ process.on('SIGTERM', () => { server.close(); process.exit(0); });
     try { fs.unlinkSync(readyFile); } catch {}
     try { fs.unlinkSync(tmpScript); } catch {}
     fail('Server failed to start within 3 seconds');
+  }
+
+  const startedUrl = `http://127.0.0.1:${info.port}`;
+  if (!waitForUrlReachable(startedUrl, 2000, 100).reachable) {
+    try { process.kill(info.pid, 'SIGTERM'); } catch {}
+    waitForProcessExit(info.pid, 1000);
+    try { fs.unlinkSync(readyFile); } catch {}
+    try { fs.unlinkSync(tmpScript); } catch {}
+    fail(`Server bound port ${info.port} but never became reachable`);
   }
 
   // Save project-scoped state so concurrent sessions do not stomp each other.
@@ -1944,6 +1994,15 @@ function serveStop(args = {}) {
     process.kill(info.pid, 'SIGTERM');
   } catch {
     // Already dead? That's fine.
+  }
+
+  if (isProcessAlive(info.pid) && !waitForProcessExit(info.pid, 1500)) {
+    try {
+      process.kill(info.pid, 'SIGKILL');
+    } catch {
+      // Process may have exited between checks.
+    }
+    waitForProcessExit(info.pid, 1000);
   }
 
   cleanupServeState(resolvedRoot, info);
@@ -2050,10 +2109,14 @@ function initScan(args) {
   // Validate root
   const rootValid = fs.existsSync(resolvedRoot) && fs.statSync(resolvedRoot).isDirectory();
   let rootHasGit = false;
+  let rootHasGitBaseline = false;
   let rootHasPackageJson = false;
 
   if (rootValid) {
     try { execGitSafe('-C', resolvedRoot, 'rev-parse', '--git-dir'); rootHasGit = true; } catch {}
+    if (rootHasGit) {
+      try { execGitSafe('-C', resolvedRoot, 'rev-parse', '--verify', 'HEAD'); rootHasGitBaseline = true; } catch {}
+    }
     rootHasPackageJson = fs.existsSync(path.join(resolvedRoot, 'package.json'));
   }
 
@@ -2091,12 +2154,10 @@ function initScan(args) {
 
   // Determine mode
   let mode = 'visual-report-only';
-  if (rootValid && rootHasGit && urlType === 'local') {
+  if (rootValid && rootHasGit && rootHasGitBaseline && urlType === 'local') {
     mode = 'visual-editable';
-  } else if (rootValid && !rootHasGit && urlType === 'local' && args['allow-no-git']) {
+  } else if (rootValid && urlType === 'local' && args['allow-no-git']) {
     mode = 'visual-editable'; // user opted into no-git mode — file backups provide rollback
-  } else if (rootValid && !rootHasGit) {
-    mode = 'visual-report-only'; // no git and no opt-in — report only
   }
 
   // If code-check flag is set, override mode
@@ -2143,6 +2204,22 @@ function initScan(args) {
     }
   }
 
+  const editableBlockers = [];
+  if (!rootValid) editableBlockers.push('invalid-root');
+  if (urlType === 'remote') editableBlockers.push('remote-url');
+  if (urlType === 'local' && !rootHasGit && !args['allow-no-git']) editableBlockers.push('missing-git');
+  if (urlType === 'local' && rootHasGit && !rootHasGitBaseline && !args['allow-no-git']) {
+    editableBlockers.push('missing-git-baseline');
+  }
+  if (baselineGreen === false) editableBlockers.push('baseline-red');
+
+  let reportOnlyReason = null;
+  if (editableBlockers.includes('invalid-root')) reportOnlyReason = 'invalid-root';
+  else if (editableBlockers.includes('remote-url')) reportOnlyReason = 'remote-url';
+  else if (editableBlockers.includes('missing-git')) reportOnlyReason = 'missing-git';
+  else if (editableBlockers.includes('missing-git-baseline')) reportOnlyReason = 'missing-git-baseline';
+  else if (editableBlockers.includes('baseline-red')) reportOnlyReason = 'baseline-red';
+
   const result = {
     mode,
     url,
@@ -2152,6 +2229,7 @@ function initScan(args) {
     root_valid: rootValid,
     root_has_git: rootHasGit,
     no_git: !rootHasGit,
+    root_has_git_baseline: rootHasGitBaseline,
     root_has_package_json: rootHasPackageJson,
     gate_command: gate.command || 'none',
     gate_source: gate.source,
@@ -2161,6 +2239,26 @@ function initScan(args) {
     monorepo,
     monorepo_marker: monorepoMarker,
     detected_apps: detectedApps,
+    editable_ready: mode === 'visual-editable',
+    editable_blockers: editableBlockers,
+    report_only_reason: reportOnlyReason,
+    preflight_action_required: mode === 'visual-report-only'
+      && (reportOnlyReason === 'missing-git' || reportOnlyReason === 'missing-git-baseline'),
+    can_opt_in_no_git: rootValid && urlType === 'local' && (!rootHasGit || !rootHasGitBaseline),
+    suggested_action:
+      mode === 'visual-report-only'
+      && (reportOnlyReason === 'missing-git' || reportOnlyReason === 'missing-git-baseline')
+        ? 'ask-editable-setup-or-report-only'
+        : null,
+    suggested_commands: {
+      git_init: rootValid ? `git -C "${resolvedRoot}" init` : null,
+      git_baseline_commit: rootValid && rootHasGit && !rootHasGitBaseline
+        ? `git -C "${resolvedRoot}" add -A && git -C "${resolvedRoot}" commit -m "chore: baseline"`
+        : null,
+      enable_no_git_mode: rootValid && urlType === 'local' && (!rootHasGit || !rootHasGitBaseline)
+        ? `node bin/pixelslop-tools.cjs init scan --url "${url}" --root "${root}" --allow-no-git --raw`
+        : null,
+    },
     checkpoint_dir: '.pixelslop/checkpoints/',
     screenshot_dir: '.pixelslop/screenshots/',
     pixelslop_config: pixelslopConfig
@@ -2499,9 +2597,11 @@ function screenshotToDataUri(filePath, projectRoot) {
 }
 
 /**
- * Resolve the packaged report template across supported layouts.
- * Installed packages keep resources in skill/resources; repo checkouts
- * keep them in dist/skill/resources next to the source tree.
+ * Resolve the report template across two runtime layouts:
+ * - Install root (~/.pixelslop/): pixelslop.mjs copies dist/skill → skill,
+ *   and bin/ stays as bin/. __dirname = ~/.pixelslop/bin, so ../skill/ hits.
+ * - Source repo / npm package: __dirname = <pkg>/bin, so ../dist/skill/ hits
+ *   (dist/ is tracked in git and shipped in the npm package).
  * @returns {string|null} Absolute template path when found
  */
 function resolveReportTemplatePath() {

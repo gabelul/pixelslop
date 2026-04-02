@@ -14,14 +14,16 @@ Before touching anything, confirm the workspace is sane.
 # 1. Path exists and is a directory
 test -d "$ROOT_PATH"
 
-# 2. It's a git repo (or at minimum has tracked files)
+# 2. It's a git repo (preferred) — enables tracked-file validation and git-based rollback
 git -C "$ROOT_PATH" rev-parse --git-dir
 
 # 3. Has a package.json (we need this for build gate resolution)
 test -f "$ROOT_PATH/package.json"
 ```
 
-If any check fails, stop immediately. Return `{ status: "failed", reason: "root validation: <which check>" }`.
+If check 1 or 3 fails, stop immediately. Return `{ status: "failed", reason: "root validation: <which check>" }`.
+
+**No-git mode:** If check 2 fails (no git repo), the checkpoint system can still operate using file-based backups instead of git tracking. Pass `--no-git` to checkpoint commands and `--allow-no-git` to `init scan`. File copies provide rollback safety — you lose git history integration but the fix/verify/revert cycle still works. The SKILL.md flow prompts the user to choose between no-git mode, report-only, or setting up git first.
 
 Do not create the root path. Do not initialize a git repo. Do not generate a package.json. If the workspace isn't ready, that's the human's problem to solve.
 
@@ -88,13 +90,16 @@ A checkpoint captures the pre-fix state of every file the fixer is about to touc
 
 ```bash
 node bin/pixelslop-tools.cjs checkpoint create "$ISSUE_ID" --files "$FILE1,$FILE2" --cwd "$ROOT_PATH" --raw
+
+# For projects without git:
+node bin/pixelslop-tools.cjs checkpoint create "$ISSUE_ID" --files "$FILE1,$FILE2" --no-git --cwd "$ROOT_PATH" --raw
 ```
 
 Here's what the CLI does under the hood:
 
 **Step 1: Validate target files**
 
-All files must be tracked by git and have no uncommitted changes. If the files already have uncommitted changes (someone was in the middle of editing), the command fails. Don't overwrite in-progress work.
+All file paths must be within the project root (no `../` traversal or absolute paths — this is enforced regardless of git mode). With git: files must be tracked and have no uncommitted changes. With `--no-git`: only file existence is checked. Metadata records `git: false` so the revert step knows which rollback mechanism to use.
 
 **Step 2: Write checkpoint metadata**
 
@@ -189,6 +194,7 @@ Full schema for the `.json` files in `.pixelslop/checkpoints/`. These fields mat
 | `files` | string[] | yes | Paths relative to root, of every file being checkpointed |
 | `created` | string | yes | ISO 8601 timestamp of checkpoint creation |
 | `status` | enum | yes | One of: `pending`, `pass`, `fail`, `reverted` |
+| `git` | boolean | yes | Whether git was used for validation. `false` when `--no-git` was passed. Revert uses file copies only when `git: false`. |
 
 ---
 
