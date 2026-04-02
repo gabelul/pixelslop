@@ -580,11 +580,24 @@ describe('checkpoint commands (no-git)', () => {
   });
 
   it('checkpoint with --no-git skips git validation entirely', () => {
-    // Even if parent dirs have git, --no-git should skip all git checks
     const result = runJson('checkpoint create skip-git-test --files style.css --no-git', dir);
     assert.equal(result.issue_id, 'skip-git-test');
     const meta = JSON.parse(readFileSync(join(dir, '.pixelslop', 'checkpoints', 'skip-git-test.json'), 'utf-8'));
     assert.equal(meta.git, false);
+  });
+
+  it('checkpoint create rejects ../ path traversal', () => {
+    const { exitCode, stderr } = run('checkpoint create escape-test --files ../escape.txt --no-git --raw', dir, true);
+    assert.equal(exitCode, 1, 'should reject ../ paths');
+    assert.ok(stderr.includes('escapes project root') || stderr.includes('Path escapes'),
+      'error should mention project root escape');
+  });
+
+  it('checkpoint create rejects absolute paths', () => {
+    const { exitCode, stderr } = run('checkpoint create abs-test --files /etc/passwd --no-git --raw', dir, true);
+    assert.equal(exitCode, 1, 'should reject absolute paths');
+    assert.ok(stderr.includes('Absolute paths not allowed'),
+      'error should mention absolute paths');
   });
 });
 
@@ -1285,6 +1298,29 @@ describe('init scan --code-check', () => {
   });
 });
 
+
+// ─────────────────────────────────────────────
+// Tests: init scan --allow-no-git
+// ─────────────────────────────────────────────
+
+describe('init scan --allow-no-git', () => {
+  it('returns visual-editable for non-git project with --allow-no-git', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-nogit-init-'));
+    writeFileSync(join(dir, 'index.html'), '<h1>Test</h1>');
+    const result = runJson(`init scan --url http://localhost:3000 --root "${dir}" --allow-no-git`, dir);
+    assert.equal(result.mode, 'visual-editable', 'should return visual-editable with --allow-no-git');
+    assert.equal(result.no_git, true, 'should report no_git: true');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns visual-report-only for non-git project without --allow-no-git', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-nogit-init-'));
+    writeFileSync(join(dir, 'index.html'), '<h1>Test</h1>');
+    const result = runJson(`init scan --url http://localhost:3000 --root "${dir}"`, dir);
+    assert.equal(result.mode, 'visual-report-only', 'should return visual-report-only without opt-in');
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
 
 // ─────────────────────────────────────────────
 // Tests: --cwd flag

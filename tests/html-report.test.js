@@ -372,6 +372,16 @@ describe('report generate command', () => {
     assert.ok(html.includes('Not captured'), 'outside screenshot should fall back to placeholder');
   });
 
+  it('resolves relative --scan-results path against --root', () => {
+    // Write scan results inside the project dir
+    mkdirSync(join(dir, '.pixelslop'), { recursive: true });
+    writeFileSync(join(dir, '.pixelslop', 'scan-results.json'), JSON.stringify(makeScanFixture()));
+    // Run from a DIFFERENT directory, using relative scan path + absolute root
+    const result = runJson(`report generate --scan-results .pixelslop/scan-results.json --root "${dir}" --raw`, tmpdir());
+    assert.ok(result.ok, `Should resolve relative path against --root: ${result.error}`);
+    assert.ok(existsSync(result.path), 'HTML file should exist');
+  });
+
   it('report generate command appears in help output', () => {
     const { stdout } = (() => {
       try {

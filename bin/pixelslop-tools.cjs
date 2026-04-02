@@ -595,6 +595,16 @@ function checkpointCreate(issueId, files, noGit) {
 
   const useGit = !noGit && hasGit();
 
+  // Verify files are within the project root (prevents ../escape traversal)
+  for (const f of files) {
+    if (path.isAbsolute(f)) fail(`Absolute paths not allowed: ${f}. Use paths relative to project root.`);
+    const resolved = path.resolve(CWD, f);
+    const relative = path.relative(CWD, resolved);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      fail(`Path escapes project root: ${f}. Files must be within the project directory.`);
+    }
+  }
+
   // Verify files exist (always) and are git-tracked + clean (when git available)
   for (const f of files) {
     const fullPath = path.join(CWD, f);
@@ -2531,25 +2541,30 @@ function scanSaveResults(flags) {
  */
 function reportGenerate(flags) {
   try {
-    const scanPath = flags['scan-results'];
-    if (!scanPath) return { ok: false, error: '--scan-results path is required' };
+    const rawScanPath = flags['scan-results'];
+    if (!rawScanPath) return { ok: false, error: '--scan-results path is required' };
+
+    // Resolve scan-results path relative to --root when it's a relative path
+    const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
+    const scanPath = path.isAbsolute(rawScanPath) ? rawScanPath : path.resolve(root, rawScanPath);
     if (!fs.existsSync(scanPath)) return { ok: false, error: `Scan results not found: ${scanPath}` };
 
     const scan = JSON.parse(fs.readFileSync(scanPath, 'utf-8'));
 
-    // Optional data sources — plan snapshot and legacy fix results
-    const planSnapshot = flags['plan-snapshot'] && fs.existsSync(flags['plan-snapshot'])
-      ? JSON.parse(fs.readFileSync(flags['plan-snapshot'], 'utf-8'))
+    // Optional data sources — resolve relative to root too
+    const resolvePath = (p) => p ? (path.isAbsolute(p) ? p : path.resolve(root, p)) : null;
+    const planSnapshotPath = resolvePath(flags['plan-snapshot']);
+    const planSnapshot = planSnapshotPath && fs.existsSync(planSnapshotPath)
+      ? JSON.parse(fs.readFileSync(planSnapshotPath, 'utf-8'))
       : null;
-    const fixResults = flags['fix-results'] && fs.existsSync(flags['fix-results'])
-      ? JSON.parse(fs.readFileSync(flags['fix-results'], 'utf-8'))
+    const fixResultsPath = resolvePath(flags['fix-results']);
+    const fixResults = fixResultsPath && fs.existsSync(fixResultsPath)
+      ? JSON.parse(fs.readFileSync(fixResultsPath, 'utf-8'))
       : null;
 
     const templatePath = path.join(__dirname, '..', 'dist', 'skill', 'resources', 'report-template.html');
     if (!fs.existsSync(templatePath)) return { ok: false, error: 'Report template not found' };
     let html = fs.readFileSync(templatePath, 'utf-8');
-
-    const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
 
     // ── Core data extraction ──
     const title = scan.title || scan.url || 'Untitled';
