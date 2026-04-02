@@ -221,6 +221,19 @@ function execGitSafe(...args) {
   return execFileSync('git', args, { cwd: CWD, encoding: 'utf-8' }).trim();
 }
 
+/**
+ * Check if the current working directory is inside a git repo.
+ * @returns {boolean} True when git is available and CWD is a repo
+ */
+function hasGit() {
+  try {
+    execGitSafe('rev-parse', '--git-dir');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ─────────────────────────────────────────────
 // Markdown / Frontmatter Helpers
 // ─────────────────────────────────────────────
@@ -573,40 +586,44 @@ function planJson(args = {}) {
  * @param {string} issueId - Issue identifier
  * @param {string[]} files - Files that will be modified
  */
-function checkpointCreate(issueId, files) {
+function checkpointCreate(issueId, files, noGit) {
   if (!issueId) fail('Usage: checkpoint create <issue-id> --files file1,file2');
   if (!files || files.length === 0) fail('--files required: comma-separated paths to checkpoint');
 
   const cpDir = path.join(CWD, '.pixelslop', 'checkpoints');
   fs.mkdirSync(cpDir, { recursive: true });
 
-  // Verify all files are tracked and clean
+  const useGit = !noGit && hasGit();
+
+  // Verify files exist (always) and are git-tracked + clean (when git available)
   for (const f of files) {
     const fullPath = path.join(CWD, f);
     if (!fs.existsSync(fullPath)) fail(`File not found: ${f}`);
-    try {
-      execGitSafe('ls-files', '--error-unmatch', '--', f);
-    } catch {
-      fail(`File not tracked by git: ${f}. Pixelslop requires tracked files for safe rollback.`);
+    if (useGit) {
+      try {
+        execGitSafe('ls-files', '--error-unmatch', '--', f);
+      } catch {
+        fail(`File not tracked by git: ${f}. Pixelslop requires tracked files for safe rollback. Use --no-git to skip this check.`);
+      }
     }
   }
 
-  // Check for uncommitted changes in target files
-  const dirty = execGitSafe('diff', '--name-only', '--', ...files);
-  if (dirty) fail(`Uncommitted changes in target files: ${dirty}. Commit or stash first.`);
+  if (useGit) {
+    const dirty = execGitSafe('diff', '--name-only', '--', ...files);
+    if (dirty) fail(`Uncommitted changes in target files: ${dirty}. Commit or stash first.`);
+  }
 
-  // Save current content as the "before" state
-  // We capture the file contents so we can restore even after edits
+  // Save current content as the "before" state via file copies
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const cpId = `${issueId}-${timestamp}`;
 
-  // Save metadata
   const metadata = {
     id: cpId,
     issue_id: issueId,
     files: files,
     created: new Date().toISOString(),
-    status: 'pending'
+    status: 'pending',
+    git: useGit,
   };
 
   fs.writeFileSync(path.join(cpDir, `${issueId}.json`), JSON.stringify(metadata, null, 2));
@@ -643,18 +660,25 @@ function checkpointRevert(issueId) {
     const saved = path.join(beforeDir, f.replace(/\//g, '__'));
     if (fs.existsSync(saved)) {
       fs.copyFileSync(saved, path.join(CWD, f));
-    } else {
-      // Fallback: use git checkout
+    } else if (metadata.git !== false) {
+      // Fallback: use git checkout (only when git was used for the checkpoint)
       try {
         execGitSafe('checkout', '--', f);
       } catch (e) {
         fail(`Failed to revert ${f}: ${e.message}`);
       }
+    } else {
+      fail(`Failed to revert ${f}: backup copy missing and no git available`);
     }
   }
 
-  // Verify revert succeeded — files should be clean in git
-  const stillDirty = execGitSafe('diff', '--name-only', '--', ...metadata.files);
+  // Verify revert — only check git status when git was used
+  let stillDirty = false;
+  if (metadata.git !== false) {
+    try {
+      stillDirty = !!execGitSafe('diff', '--name-only', '--', ...metadata.files);
+    } catch { stillDirty = false; }
+  }
 
   // Update metadata status
   metadata.status = 'reverted';
@@ -2059,8 +2083,10 @@ function initScan(args) {
   let mode = 'visual-report-only';
   if (rootValid && rootHasGit && urlType === 'local') {
     mode = 'visual-editable';
+  } else if (rootValid && !rootHasGit && urlType === 'local' && args['allow-no-git']) {
+    mode = 'visual-editable'; // user opted into no-git mode — file backups provide rollback
   } else if (rootValid && !rootHasGit) {
-    mode = 'visual-report-only'; // can't checkpoint without git
+    mode = 'visual-report-only'; // no git and no opt-in — report only
   }
 
   // If code-check flag is set, override mode
@@ -2115,6 +2141,7 @@ function initScan(args) {
     root_resolved: resolvedRoot,
     root_valid: rootValid,
     root_has_git: rootHasGit,
+    no_git: !rootHasGit,
     root_has_package_json: rootHasPackageJson,
     gate_command: gate.command || 'none',
     gate_source: gate.source,
@@ -2859,7 +2886,7 @@ async function main() {
 
     case 'checkpoint':
       switch (command) {
-        case 'create': return checkpointCreate(positional[2] || flags.id, (flags.files || '').split(',').filter(Boolean));
+        case 'create': return checkpointCreate(positional[2] || flags.id, (flags.files || '').split(',').filter(Boolean), flags['no-git'] === true || flags['no-git'] === 'true');
         case 'revert': return checkpointRevert(positional[2] || flags.id);
         case 'verify': return checkpointVerify(positional[2] || flags.id);
         case 'list': return checkpointList();

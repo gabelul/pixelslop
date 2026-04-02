@@ -541,6 +541,54 @@ describe('checkpoint commands', () => {
 });
 
 // ─────────────────────────────────────────────
+// Tests: Checkpoint commands (no-git)
+// ─────────────────────────────────────────────
+
+describe('checkpoint commands (no-git)', () => {
+  let dir;
+
+  beforeEach(() => {
+    // Create a temp directory WITHOUT git init
+    dir = mkdtempSync(join(tmpdir(), 'pixelslop-nogit-'));
+    writeFileSync(join(dir, 'style.css'), 'body { color: red; }');
+  });
+
+  it('checkpoint create succeeds with --no-git flag', () => {
+    const result = runJson('checkpoint create test-issue --files style.css --no-git', dir);
+    assert.equal(result.issue_id, 'test-issue');
+    assert.equal(result.status, 'pending');
+    // Backup file should exist
+    assert.ok(existsSync(join(dir, '.pixelslop', 'checkpoints', 'test-issue', 'style.css')));
+  });
+
+  it('checkpoint metadata has git: false when --no-git', () => {
+    runJson('checkpoint create test-issue --files style.css --no-git', dir);
+    const meta = JSON.parse(readFileSync(join(dir, '.pixelslop', 'checkpoints', 'test-issue.json'), 'utf-8'));
+    assert.equal(meta.git, false);
+  });
+
+  it('checkpoint revert restores files without git', () => {
+    runJson('checkpoint create test-issue --files style.css --no-git', dir);
+    // Modify the file
+    writeFileSync(join(dir, 'style.css'), 'body { color: blue; }');
+    // Revert
+    const result = runJson('checkpoint revert test-issue', dir);
+    assert.equal(result.status, 'reverted');
+    // File should be restored
+    const content = readFileSync(join(dir, 'style.css'), 'utf-8');
+    assert.equal(content, 'body { color: red; }');
+  });
+
+  it('checkpoint with --no-git skips git validation entirely', () => {
+    // Even if parent dirs have git, --no-git should skip all git checks
+    const result = runJson('checkpoint create skip-git-test --files style.css --no-git', dir);
+    assert.equal(result.issue_id, 'skip-git-test');
+    const meta = JSON.parse(readFileSync(join(dir, '.pixelslop', 'checkpoints', 'skip-git-test.json'), 'utf-8'));
+    assert.equal(meta.git, false);
+  });
+});
+
+// ─────────────────────────────────────────────
 // Tests: Gate commands
 // ─────────────────────────────────────────────
 
