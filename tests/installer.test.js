@@ -11,15 +11,18 @@
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync,
-         readdirSync, lstatSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, copyFileSync,
+         readdirSync, lstatSync, chmodSync, cpSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir, homedir } from 'node:os';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 import { rewriteAgentPaths, detectBrowserRuntime, calculateFileDiff,
-         linkOrCopy, getClients, ensureBrowserRuntime } from '../bin/pixelslop.mjs';
+         linkOrCopy, getClients, ensureBrowserRuntime,
+         ensureInstalledBrowserPackage, readInstalledBrowserPackageVersion,
+         resolveInstalledBrowserPackage, installBrowserPackage,
+         inspectInstalledBrowserHelper } from '../bin/pixelslop.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..');
@@ -34,6 +37,32 @@ function makeTempDir() {
   const dir = join(tmpdir(), `pixelslop-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * Write a minimal playwright-core package into an install root.
+ * @param {string} installRoot - Fake pixelslop install root
+ * @param {object} [options] - Package shape overrides
+ * @param {string} [options.version='1.58.2'] - Package version
+ * @param {string} [options.main='index.js'] - Main entry file
+ * @param {string} [options.indexSource] - Source for the main entry
+ */
+function seedPlaywrightCorePackage(installRoot, options = {}) {
+  const version = options.version || '1.58.2';
+  const main = options.main || 'index.js';
+  const indexSource = options.indexSource || 'module.exports = { chromium: {} };';
+  const packageDir = join(installRoot, 'node_modules', 'playwright-core');
+
+  mkdirSync(packageDir, { recursive: true });
+  writeFileSync(join(packageDir, 'package.json'), JSON.stringify({
+    name: 'playwright-core',
+    version,
+    main,
+  }, null, 2));
+
+  if (main === 'index.js') {
+    writeFileSync(join(packageDir, 'index.js'), indexSource);
+  }
 }
 
 /**
@@ -76,7 +105,11 @@ function packPackage() {
     encoding: 'utf8',
   });
   const [{ filename }] = JSON.parse(stdout);
-  return join(PROJECT_ROOT, filename);
+  const packedPath = join(PROJECT_ROOT, filename);
+  const uniqueTarball = join(tmpdir(), `pixelslop-pack-${Date.now()}-${Math.random().toString(36).slice(2)}.tgz`);
+  copyFileSync(packedPath, uniqueTarball);
+  rmSync(packedPath, { force: true });
+  return uniqueTarball;
 }
 
 /**
@@ -275,6 +308,114 @@ describe('ensureBrowserRuntime', () => {
       header: () => {},
       log: () => {},
     }), /Chromium install completed, but no executable was detected/);
+  });
+});
+
+describe('installed browser package helpers', () => {
+  it('readInstalledBrowserPackageVersion returns null when missing', () => {
+    const installRoot = makeTempDir();
+    try {
+      assert.equal(readInstalledBrowserPackageVersion(installRoot), null);
+      assert.equal(resolveInstalledBrowserPackage(installRoot), null);
+    } finally {
+      rmSync(installRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('inspectInstalledBrowserHelper reports package and runtime usability from install root', () => {
+    const installRoot = makeTempDir();
+    const fakeChrome = join(installRoot, 'fake-chrome');
+    const previousBrowserEnv = process.env.PIXELSLOP_BROWSER_EXECUTABLE;
+
+    try {
+      mkdirSync(join(installRoot, 'bin'), { recursive: true });
+      copyFileSync(join(PROJECT_ROOT, 'bin', 'pixelslop-browser.cjs'), join(installRoot, 'bin', 'pixelslop-browser.cjs'));
+      seedPlaywrightCorePackage(installRoot);
+      writeFileSync(fakeChrome, '#!/bin/sh\nexit 0\n');
+      chmodSync(fakeChrome, 0o755);
+      process.env.PIXELSLOP_BROWSER_EXECUTABLE = fakeChrome;
+
+      const result = inspectInstalledBrowserHelper(installRoot);
+      assert.equal(result.helperLoadError, null);
+      assert.equal(result.packageVersion, '1.58.2');
+      assert.equal(result.packageLoadError, null);
+      assert.equal(result.runtime?.available, true);
+      assert.equal(result.runtime?.executablePath, fakeChrome);
+    } finally {
+      if (previousBrowserEnv === undefined) {
+        delete process.env.PIXELSLOP_BROWSER_EXECUTABLE;
+      } else {
+        process.env.PIXELSLOP_BROWSER_EXECUTABLE = previousBrowserEnv;
+      }
+      rmSync(installRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('installBrowserPackage copies the bundled dependency into install root', () => {
+    const installRoot = makeTempDir();
+    const bundledDir = makeTempDir();
+
+    try {
+      mkdirSync(join(bundledDir, 'lib'), { recursive: true });
+      writeFileSync(join(bundledDir, 'index.js'), 'module.exports = { ok: true };');
+      writeFileSync(join(bundledDir, 'package.json'), JSON.stringify({
+        name: 'playwright-core',
+        version: '1.58.2',
+        main: 'index.js',
+      }, null, 2));
+
+      installBrowserPackage(installRoot, bundledDir);
+
+      assert.equal(readInstalledBrowserPackageVersion(installRoot), '1.58.2');
+      const resolved = resolveInstalledBrowserPackage(installRoot);
+      assert.ok(resolved?.endsWith(join('node_modules', 'playwright-core', 'package.json')));
+    } finally {
+      rmSync(installRoot, { recursive: true, force: true });
+      rmSync(bundledDir, { recursive: true, force: true });
+    }
+  });
+
+  it('ensureInstalledBrowserPackage returns immediately when pinned version is already present', () => {
+    let installCalls = 0;
+    const pkg = ensureInstalledBrowserPackage({
+      installRoot: '/fake/install',
+      readInstalledBrowserPackageVersion: () => '1.58.2',
+      installBrowserPackage: () => { installCalls += 1; },
+      header: () => {},
+      log: () => {},
+    });
+
+    assert.equal(pkg.version, '1.58.2');
+    assert.equal(installCalls, 0);
+  });
+
+  it('ensureInstalledBrowserPackage provisions the package when missing', () => {
+    let installedVersion = null;
+    let installCalls = 0;
+
+    const pkg = ensureInstalledBrowserPackage({
+      installRoot: '/fake/install',
+      readInstalledBrowserPackageVersion: () => installedVersion,
+      installBrowserPackage: () => {
+        installCalls += 1;
+        installedVersion = '1.58.2';
+      },
+      header: () => {},
+      log: () => {},
+    });
+
+    assert.equal(pkg.version, '1.58.2');
+    assert.equal(installCalls, 1);
+  });
+
+  it('ensureInstalledBrowserPackage surfaces provisioning failures cleanly', () => {
+    assert.throws(() => ensureInstalledBrowserPackage({
+      installRoot: '/fake/install',
+      readInstalledBrowserPackageVersion: () => null,
+      installBrowserPackage: () => { throw new Error('copy failed'); },
+      header: () => {},
+      log: () => {},
+    }), /copy failed/);
   });
 });
 
@@ -621,6 +762,27 @@ describe('linkOrCopy', () => {
     assert.ok(!existsSync(join(dest, 'old.txt')), 'Old file removed');
   });
 
+  it('replaces broken symlinks before reinstalling', () => {
+    const oldSrc = join(tempDir, 'old-source');
+    const newSrc = join(tempDir, 'new-source');
+    const dest = join(tempDir, 'dest');
+    mkdirSync(oldSrc, { recursive: true });
+    mkdirSync(newSrc, { recursive: true });
+    writeFileSync(join(oldSrc, 'old.txt'), 'old content');
+    writeFileSync(join(newSrc, 'new.txt'), 'new content');
+
+    const initialMethod = linkOrCopy(oldSrc, dest);
+    assert.equal(initialMethod, 'symlink', 'Initial install should create a symlink on this platform');
+
+    rmSync(oldSrc, { recursive: true, force: true });
+    assert.ok(!existsSync(dest), 'Broken symlink should not resolve through existsSync');
+
+    const method = linkOrCopy(newSrc, dest);
+
+    assert.equal(method, 'symlink', 'Reinstall should replace the broken symlink cleanly');
+    assert.ok(existsSync(join(dest, 'new.txt')), 'New source should be reachable through the repaired link');
+  });
+
   it('returns correct method string', () => {
     const src = join(tempDir, 'source');
     mkdirSync(src, { recursive: true });
@@ -722,16 +884,217 @@ describe('CLI flags', () => {
   });
 });
 
+describe('doctor command', () => {
+  it('fails when the installed browser package is missing', async () => {
+    const tempHome = makeTempDir();
+    const installRoot = join(tempHome, '.pixelslop');
+    const fakeChrome = join(tempHome, 'fake-chrome');
+
+    try {
+      mkdirSync(join(installRoot, 'bin'), { recursive: true });
+      copyFileSync(join(PROJECT_ROOT, 'bin', 'pixelslop-tools.cjs'), join(installRoot, 'bin', 'pixelslop-tools.cjs'));
+      copyFileSync(join(PROJECT_ROOT, 'bin', 'pixelslop-browser.cjs'), join(installRoot, 'bin', 'pixelslop-browser.cjs'));
+      chmodSync(join(installRoot, 'bin', 'pixelslop-tools.cjs'), 0o755);
+      chmodSync(join(installRoot, 'bin', 'pixelslop-browser.cjs'), 0o755);
+      cpSync(join(PROJECT_ROOT, 'dist', 'skill'), join(installRoot, 'skill'), { recursive: true });
+      writeFileSync(fakeChrome, '#!/bin/sh\nexit 0\n');
+      chmodSync(fakeChrome, 0o755);
+      writeFileSync(join(installRoot, 'install-manifest.json'), JSON.stringify({
+        version: '0.3.0',
+        installedAt: new Date().toISOString(),
+        installRoot,
+        browserPackage: 'playwright-core@1.58.2',
+        browserRuntime: { executablePath: fakeChrome, source: 'env' },
+        clients: [],
+        agentFiles: [],
+        scope: 'global',
+        projectRoot: null,
+        installMethods: {},
+      }, null, 2));
+
+      const result = spawnSync('node', ['bin/pixelslop.mjs', 'doctor'], {
+        cwd: PROJECT_ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, HOME: tempHome, PIXELSLOP_BROWSER_EXECUTABLE: fakeChrome },
+      });
+      const output = `${result.stdout || ''}${result.stderr || ''}`;
+
+      assert.notEqual(result.status, 0, 'doctor should fail when playwright-core is missing from install root');
+      assert.ok(output.includes('playwright-core'), 'doctor should report the missing browser package');
+      assert.ok(
+        output.includes('Missing from install root') || output.includes('Cannot find module'),
+        'doctor should explain why the package check failed'
+      );
+    } finally {
+      rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it('fails when the installed browser helper cannot load playwright-core', async () => {
+    const tempHome = makeTempDir();
+    const installRoot = join(tempHome, '.pixelslop');
+    const fakeChrome = join(tempHome, 'fake-chrome');
+
+    try {
+      mkdirSync(join(installRoot, 'bin'), { recursive: true });
+      copyFileSync(join(PROJECT_ROOT, 'bin', 'pixelslop-tools.cjs'), join(installRoot, 'bin', 'pixelslop-tools.cjs'));
+      copyFileSync(join(PROJECT_ROOT, 'bin', 'pixelslop-browser.cjs'), join(installRoot, 'bin', 'pixelslop-browser.cjs'));
+      chmodSync(join(installRoot, 'bin', 'pixelslop-tools.cjs'), 0o755);
+      chmodSync(join(installRoot, 'bin', 'pixelslop-browser.cjs'), 0o755);
+      cpSync(join(PROJECT_ROOT, 'dist', 'skill'), join(installRoot, 'skill'), { recursive: true });
+      seedPlaywrightCorePackage(installRoot, { main: 'missing.js' });
+      writeFileSync(fakeChrome, '#!/bin/sh\nexit 0\n');
+      chmodSync(fakeChrome, 0o755);
+      writeFileSync(join(installRoot, 'install-manifest.json'), JSON.stringify({
+        version: '0.3.0',
+        installedAt: new Date().toISOString(),
+        installRoot,
+        browserPackage: 'playwright-core@1.58.2',
+        browserRuntime: { executablePath: fakeChrome, source: 'env' },
+        clients: [],
+        agentFiles: [],
+        scope: 'global',
+        projectRoot: null,
+        installMethods: {},
+      }, null, 2));
+
+      let output = '';
+      try {
+        execFileSync('node', ['bin/pixelslop.mjs', 'doctor'], {
+          cwd: PROJECT_ROOT,
+          encoding: 'utf8',
+          env: { ...process.env, HOME: tempHome, PIXELSLOP_BROWSER_EXECUTABLE: fakeChrome },
+        });
+        assert.fail('doctor should fail when the installed helper cannot load playwright-core');
+      } catch (error) {
+        output = `${error.stdout || ''}${error.stderr || ''}`;
+      }
+
+      assert.ok(output.includes('Installed browser helper can load playwright-core'),
+        'doctor should report the broken helper load path');
+      assert.ok(output.includes('Cannot find module'),
+        'doctor should surface the actual module load failure');
+    } finally {
+      rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it('fails when the installed browser helper runtime is unusable', async () => {
+    const tempHome = makeTempDir();
+    const installRoot = join(tempHome, '.pixelslop');
+
+    try {
+      mkdirSync(join(installRoot, 'bin'), { recursive: true });
+      copyFileSync(join(PROJECT_ROOT, 'bin', 'pixelslop-tools.cjs'), join(installRoot, 'bin', 'pixelslop-tools.cjs'));
+      writeFileSync(join(installRoot, 'bin', 'pixelslop-browser.cjs'), `#!/usr/bin/env node
+'use strict';
+module.exports = {
+  detectBrowserRuntime() {
+    return {
+      available: false,
+      executablePath: null,
+      source: null,
+      message: 'broken test runtime'
+    };
+  }
+};
+`);
+      chmodSync(join(installRoot, 'bin', 'pixelslop-tools.cjs'), 0o755);
+      chmodSync(join(installRoot, 'bin', 'pixelslop-browser.cjs'), 0o755);
+      cpSync(join(PROJECT_ROOT, 'dist', 'skill'), join(installRoot, 'skill'), { recursive: true });
+      seedPlaywrightCorePackage(installRoot);
+      writeFileSync(join(installRoot, 'install-manifest.json'), JSON.stringify({
+        version: '0.3.0',
+        installedAt: new Date().toISOString(),
+        installRoot,
+        browserPackage: 'playwright-core@1.58.2',
+        browserRuntime: null,
+        clients: [],
+        agentFiles: [],
+        scope: 'global',
+        projectRoot: null,
+        installMethods: {},
+      }, null, 2));
+
+      let output = '';
+      try {
+        execFileSync('node', ['bin/pixelslop.mjs', 'doctor'], {
+          cwd: PROJECT_ROOT,
+          encoding: 'utf8',
+          env: { ...process.env, HOME: tempHome },
+        });
+        assert.fail('doctor should fail when the installed helper runtime is unusable');
+      } catch (error) {
+        output = `${error.stdout || ''}${error.stderr || ''}`;
+      }
+
+      assert.ok(output.includes('Installed browser helper runtime'),
+        'doctor should report the installed runtime check');
+      assert.ok(output.includes('broken test runtime'),
+        'doctor should surface the helper runtime failure message');
+    } finally {
+      rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it('fails when the installed report template is missing', async () => {
+    const tempHome = makeTempDir();
+    const installRoot = join(tempHome, '.pixelslop');
+    const fakeChrome = join(tempHome, 'fake-chrome');
+
+    try {
+      mkdirSync(join(installRoot, 'bin'), { recursive: true });
+      copyFileSync(join(PROJECT_ROOT, 'bin', 'pixelslop-tools.cjs'), join(installRoot, 'bin', 'pixelslop-tools.cjs'));
+      copyFileSync(join(PROJECT_ROOT, 'bin', 'pixelslop-browser.cjs'), join(installRoot, 'bin', 'pixelslop-browser.cjs'));
+      chmodSync(join(installRoot, 'bin', 'pixelslop-tools.cjs'), 0o755);
+      chmodSync(join(installRoot, 'bin', 'pixelslop-browser.cjs'), 0o755);
+      cpSync(join(PROJECT_ROOT, 'dist', 'skill'), join(installRoot, 'skill'), { recursive: true });
+      rmSync(join(installRoot, 'skill', 'resources', 'report-template.html'), { force: true });
+      seedPlaywrightCorePackage(installRoot);
+      writeFileSync(fakeChrome, '#!/bin/sh\nexit 0\n');
+      chmodSync(fakeChrome, 0o755);
+      writeFileSync(join(installRoot, 'install-manifest.json'), JSON.stringify({
+        version: '0.3.0',
+        installedAt: new Date().toISOString(),
+        installRoot,
+        browserPackage: 'playwright-core@1.58.2',
+        browserRuntime: { executablePath: fakeChrome, source: 'env' },
+        clients: [],
+        agentFiles: [],
+        scope: 'global',
+        projectRoot: null,
+        installMethods: {},
+      }, null, 2));
+
+      const result = spawnSync('node', ['bin/pixelslop.mjs', 'doctor'], {
+        cwd: PROJECT_ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, HOME: tempHome, PIXELSLOP_BROWSER_EXECUTABLE: fakeChrome },
+      });
+      const output = `${result.stdout || ''}${result.stderr || ''}`;
+
+      assert.notEqual(result.status, 0, 'doctor should fail when report-template.html is missing from install root');
+      assert.ok(output.includes('skill/resources/report-template.html'), 'doctor should report the missing template');
+      assert.ok(output.includes('Missing from install root'), 'doctor should explain why the template check failed');
+    } finally {
+      rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+});
+
 // ─────────────────────────────────────────────
 // Packaged artifact smoke tests
 // ─────────────────────────────────────────────
 
 describe('packaged artifact smoke', () => {
-  let tempHome, tempProject, tarballPath;
+  let tempHome, tempProject, tarballPath, fakeChrome;
 
   beforeEach(() => {
     tempHome = makeTempDir();
     tempProject = makeTempDir();
+    fakeChrome = join(tempHome, 'fake-chrome');
+    writeFileSync(fakeChrome, '#!/bin/sh\nexit 0\n');
+    chmodSync(fakeChrome, 0o755);
     tarballPath = packPackage();
   });
 
@@ -744,14 +1107,30 @@ describe('packaged artifact smoke', () => {
   });
 
   it('installs Codex in project scope via npx tarball', () => {
-    const env = { HOME: tempHome };
+    const env = { HOME: tempHome, PIXELSLOP_BROWSER_EXECUTABLE: fakeChrome };
     seedRuntimeHomes(tempHome, ['codex']);
 
     runTarballCommand(tarballPath, ['install', '--project', '--codex-only'], tempProject, env);
+    const installRoot = join(tempHome, '.pixelslop');
     assert.ok(existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
     assert.ok(existsSync(join(tempProject, '.codex', 'agents', 'internal', 'pixelslop-eval-color.md')));
     assert.ok(existsSync(join(tempProject, '.codex', 'skills', 'pixelslop', 'SKILL.md')));
     assert.ok(!existsSync(join(tempProject, '.claude')), 'Claude files should not be created');
+    assert.ok(
+      existsSync(join(installRoot, 'node_modules', 'playwright-core', 'package.json')),
+      'install should vendor playwright-core into the install root'
+    );
+
+    const browserHelper = join(installRoot, 'bin', 'pixelslop-browser.cjs');
+    const resolvedPlaywright = execFileSync(process.execPath, [
+      '-e',
+      'const { createRequire } = require("node:module"); const req = createRequire(process.argv[1]); console.log(req.resolve("playwright-core"));',
+      browserHelper,
+    ], { encoding: 'utf8' }).trim();
+    assert.ok(
+      resolvedPlaywright.includes(join('node_modules', 'playwright-core')),
+      'installed browser helper should resolve playwright-core from the install root'
+    );
 
     const internalEval = readFileSync(
       join(tempProject, '.codex', 'agents', 'internal', 'pixelslop-eval-color.md'),
@@ -762,13 +1141,13 @@ describe('packaged artifact smoke', () => {
       'internal evaluator resources should be rewritten to absolute install paths'
     );
 
-    const doctorOutput = runTarballCommand(tarballPath, ['doctor'], tempProject, env);
-    assert.ok(doctorOutput.includes('All checks passed.'), 'doctor should report success');
-
-    const statusOutput = runTarballCommand(tarballPath, ['status'], tempProject, env);
-    assert.ok(statusOutput.includes('Scope: project'), 'status should report project scope');
-    assert.ok(statusOutput.includes('Codex CLI'), 'status should mention installed client');
-    assert.ok(statusOutput.includes('Browser package:'), 'status should report browser runtime details');
+    const manifest = JSON.parse(readFileSync(join(installRoot, 'install-manifest.json'), 'utf8'));
+    assert.equal(manifest.scope, 'project', 'install manifest should record project scope');
+    assert.deepEqual(manifest.clients, ['Codex CLI'], 'install manifest should track installed clients');
+    assert.ok(
+      manifest.browserPackage.startsWith('playwright-core@'),
+      'install manifest should record the vendored browser package version'
+    );
 
     runTarballCommand(tarballPath, ['uninstall'], tempProject, env);
     assert.ok(!existsSync(join(tempProject, '.codex', 'agents', 'pixelslop.md')));
@@ -777,7 +1156,7 @@ describe('packaged artifact smoke', () => {
   });
 
   it('uninstall preserves unrelated files inside agents/internal', () => {
-    const env = { HOME: tempHome };
+    const env = { HOME: tempHome, PIXELSLOP_BROWSER_EXECUTABLE: fakeChrome };
     seedRuntimeHomes(tempHome, ['codex']);
 
     runTarballCommand(tarballPath, ['install', '--project', '--codex-only'], tempProject, env);
@@ -795,7 +1174,7 @@ describe('packaged artifact smoke', () => {
   });
 
   it('installs, reports status, updates, and uninstalls across Claude and Codex', () => {
-    const env = { HOME: tempHome };
+    const env = { HOME: tempHome, PIXELSLOP_BROWSER_EXECUTABLE: fakeChrome };
     seedRuntimeHomes(tempHome, ['claude', 'codex']);
 
     runTarballCommand(tarballPath, ['install', '--project', '--all'], tempProject, env);

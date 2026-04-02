@@ -2499,6 +2499,25 @@ function screenshotToDataUri(filePath, projectRoot) {
 }
 
 /**
+ * Resolve the packaged report template across supported layouts.
+ * Installed packages keep resources in skill/resources; repo checkouts
+ * keep them in dist/skill/resources next to the source tree.
+ * @returns {string|null} Absolute template path when found
+ */
+function resolveReportTemplatePath() {
+  const candidates = [
+    path.resolve(__dirname, '..', 'skill', 'resources', 'report-template.html'),
+    path.resolve(__dirname, '..', 'dist', 'skill', 'resources', 'report-template.html'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  return null;
+}
+
+/**
  * Save assembled scan results to a deterministic path.
  * The orchestrator calls this after assembling pillar scores, findings,
  * persona stories, and screenshots into a single JSON object. This
@@ -2562,8 +2581,8 @@ function reportGenerate(flags) {
       ? JSON.parse(fs.readFileSync(fixResultsPath, 'utf-8'))
       : null;
 
-    const templatePath = path.join(__dirname, '..', 'dist', 'skill', 'resources', 'report-template.html');
-    if (!fs.existsSync(templatePath)) return { ok: false, error: 'Report template not found' };
+    const templatePath = resolveReportTemplatePath();
+    if (!templatePath) return { ok: false, error: 'Report template not found' };
     let html = fs.readFileSync(templatePath, 'utf-8');
 
     // ── Core data extraction ──

@@ -35,3 +35,4 @@ test_sites/
 # Environment
 .env
 .env.*
+.codex/

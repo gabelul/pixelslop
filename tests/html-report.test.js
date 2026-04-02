@@ -11,7 +11,7 @@
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync, mkdirSync, copyFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -26,11 +26,12 @@ const TOOLS = join(__dirname, '..', 'bin', 'pixelslop-tools.cjs');
  * @param {string} args - CLI arguments
  * @param {string} cwd - Working directory
  * @param {boolean} expectError - Allow non-zero exit
+ * @param {string} toolPath - CLI entrypoint to execute
  * @returns {object} Parsed JSON result
  */
-function runJson(args, cwd, expectError = false) {
+function runJson(args, cwd, expectError = false, toolPath = TOOLS) {
   try {
-    const stdout = execSync(`node "${TOOLS}" ${args}`, {
+    const stdout = execSync(`node "${toolPath}" ${args}`, {
       cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
     });
     return JSON.parse(stdout.trim());
@@ -380,6 +381,38 @@ describe('report generate command', () => {
     const result = runJson(`report generate --scan-results .pixelslop/scan-results.json --root "${dir}" --raw`, tmpdir());
     assert.ok(result.ok, `Should resolve relative path against --root: ${result.error}`);
     assert.ok(existsSync(result.path), 'HTML file should exist');
+  });
+
+  it('finds the report template in the installed skill/resources layout', () => {
+    const installRoot = mkdtempSync(join(tmpdir(), 'pixelslop-installed-'));
+
+    try {
+      const toolPath = join(installRoot, 'bin', 'pixelslop-tools.cjs');
+      mkdirSync(join(installRoot, 'bin'), { recursive: true });
+      mkdirSync(join(installRoot, 'skill', 'resources'), { recursive: true });
+      copyFileSync(TOOLS, toolPath);
+      copyFileSync(TEMPLATE_PATH, join(installRoot, 'skill', 'resources', 'report-template.html'));
+      assert.equal(
+        existsSync(join(installRoot, 'dist', 'skill', 'resources', 'report-template.html')),
+        false,
+        'installed layout should not rely on the repo dist path',
+      );
+
+      mkdirSync(join(dir, '.pixelslop'), { recursive: true });
+      writeFileSync(join(dir, '.pixelslop', 'scan-results.json'), JSON.stringify(makeScanFixture()));
+
+      const result = runJson(
+        `report generate --scan-results .pixelslop/scan-results.json --root "${dir}" --raw`,
+        tmpdir(),
+        false,
+        toolPath,
+      );
+
+      assert.ok(result.ok, `installed layout should resolve the template: ${result.error}`);
+      assert.ok(existsSync(result.path), 'installed layout should still write a report');
+    } finally {
+      rmSync(installRoot, { recursive: true, force: true });
+    }
   });
 
   it('report generate command appears in help output', () => {
