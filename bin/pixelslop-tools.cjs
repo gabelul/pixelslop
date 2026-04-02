@@ -2462,6 +2462,41 @@ function screenshotToDataUri(filePath, projectRoot) {
 }
 
 /**
+ * Save assembled scan results to a deterministic path.
+ * The orchestrator calls this after assembling pillar scores, findings,
+ * persona stories, and screenshots into a single JSON object. This
+ * replaces the fragile "agent writes a temp file" approach.
+ * @param {object} flags - { json?: string, 'json-file'?: string, root?: string }
+ * @returns {{ ok: boolean, path?: string, error?: string }}
+ */
+function scanSaveResults(flags) {
+  try {
+    let data;
+    if (flags['json-file'] && fs.existsSync(flags['json-file'])) {
+      data = JSON.parse(fs.readFileSync(flags['json-file'], 'utf-8'));
+    } else if (flags.json) {
+      data = JSON.parse(flags.json);
+    } else {
+      return { ok: false, error: '--json or --json-file is required' };
+    }
+
+    // Validate required fields
+    if (!data.scores) return { ok: false, error: 'Missing required field: scores' };
+    if (!data.findings) return { ok: false, error: 'Missing required field: findings' };
+
+    const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
+    const outDir = path.join(root, '.pixelslop');
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    const outPath = path.join(outDir, 'scan-results.json');
+    fs.writeFileSync(outPath, JSON.stringify(data, null, 2), 'utf-8');
+
+    return { ok: true, path: outPath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
  * Generate a self-contained HTML report from scan results.
  * Fail-soft: returns { ok: false, error } on any failure.
  * @param {object} flags - { 'scan-results': path, 'fix-results'?: path, root?: string }
@@ -2772,6 +2807,8 @@ async function main() {
     console.log('  browser snapshot --url <url>');
     console.log('  browser screenshot --url <url> [--viewport <name|WxH>] [--out <file>]');
     console.log('  browser analyze-page --url <url>               # Classify page type and suggest personas');
+    console.log('  scan save-results --json \'<json>\' [--root <path>]  # Save assembled scan results');
+    console.log('  scan save-results --json-file <path> [--root <path>]');
     console.log('  report generate --scan-results <path> [--plan-snapshot <path>] [--root <path>]');
     console.log('  config set <key> <value> [--root <path>]     # Set a project setting');
     console.log('  config get [<key>] [--root <path>]            # Get one or all settings');
@@ -2884,6 +2921,14 @@ async function main() {
       return output(result, true);
     }
 
+    case 'scan': {
+      switch (command) {
+        case 'save-results': return output(scanSaveResults(flags), true);
+        default: fail(`Unknown scan command: ${command}. Valid: save-results`);
+      }
+      break;
+    }
+
     case 'report': {
       switch (command) {
         case 'generate': return output(reportGenerate(flags), true);
@@ -2893,7 +2938,7 @@ async function main() {
     }
 
     default:
-      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, log, discover, serve, init, verify, browser, report`);
+      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, log, discover, serve, init, verify, browser, scan, report`);
   }
 }
 

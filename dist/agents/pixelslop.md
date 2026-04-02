@@ -247,7 +247,13 @@ Calculate confidence from the evidence bundle's `confidence` flags:
 - +5% if sourceGrepped
 - +5% if multiViewport compared
 
-Write the structured scan results you just assembled to a temporary JSON file (for example `/tmp/pixelslop-scan-<timestamp>.json`) and keep that path as `$SCAN_RESULTS_PATH`. The HTML export step later reads this file — it is not the raw evidence bundle.
+Save the structured scan results using the deterministic tool:
+
+```bash
+node bin/pixelslop-tools.cjs scan save-results --json '$ASSEMBLED_SCAN_JSON' --root "$ROOT" --raw
+```
+
+This writes to `.pixelslop/scan-results.json` and returns the path. Use this path as `$SCAN_RESULTS_PATH` for the HTML report step. If the JSON is too large for a CLI argument, write it to a temp file first and use `--json-file /tmp/pixelslop-scan-data.json` instead of `--json`.
 
 **Log after aggregation:**
 ```bash
@@ -317,7 +323,7 @@ After presenting the scan results, generate the HTML report as a best-effort art
 
 ```bash
 node bin/pixelslop-tools.cjs report generate \
-  --scan-results "$SCAN_RESULTS_PATH" \
+  --scan-results .pixelslop/scan-results.json \
   --root "$ROOT" \
   --raw
 ```
