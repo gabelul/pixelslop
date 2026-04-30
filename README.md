@@ -82,6 +82,7 @@ Automated via [release-please](https://github.com/googleapis/release-please). Co
 
 - **[stitch-kit](https://github.com/gabelul/stitch-kit)** — 35 skills that teach AI agents to generate beautiful UIs with Google Stitch. Pixelslop catches what slips through.
 - **[slopbuster](https://github.com/gabelul/slopbuster)** — strips AI patterns from text and code. Same philosophy, different domain — pixelslop catches visual slop, slopbuster catches written slop.
+- **[pixeltamer](https://github.com/gabelul/pixeltamer-gpt-image-skill)** — image generation skill for AI coding agents. Generates the images pixelslop later checks for slop. gpt-image-2 prompting doctrine, two backends, three modes.
 
 ## License
 
