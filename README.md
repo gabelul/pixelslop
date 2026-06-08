@@ -91,4 +91,6 @@ Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ---
 
-Built by [Gabi](https://booplex.com) @ [Booplex](https://booplex.com) — because AI agents are getting scary good at generating UIs, and someone needs to make sure "generated" doesn't mean "generic." Apache 2.0.
+Built by [Gabi](https://booplex.com) @ [Booplex](https://booplex.com) — because AI agents are getting scary good at generating UIs, and someone needs to make sure "generated" doesn't mean "generic."
+
+The full story of why Pixelslop exists, what AI slop actually is, and how it fits with the rest of the toolkit lives at **[booplex.com/projects/pixelslop](https://booplex.com/projects/pixelslop)**. Apache 2.0.
