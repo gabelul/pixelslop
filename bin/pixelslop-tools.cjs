@@ -1113,10 +1113,14 @@ function configExists(args = {}) {
 // ─────────────────────────────────────────────
 
 /** Valid setting keys and their value types/defaults */
+// Defaults are exhaustive on purpose. Pixelslop is usually driven by an AI agent
+// that won't remember to pass --thorough or --deep, so the default has to be the
+// thorough one. `--fast` (handled in SKILL.md) is the opt-out that turns deep and
+// thorough back off for a quick pass.
 const SETTING_DEFS = {
   headed:   { type: 'boolean', default: false,  description: 'Open visible browser window' },
-  deep:     { type: 'boolean', default: false,  description: 'Extended collection with doubled budgets' },
-  thorough: { type: 'boolean', default: false,  description: 'Show lower-confidence findings' },
+  deep:     { type: 'boolean', default: true,   description: 'Extended collection with doubled budgets (off with --fast)' },
+  thorough: { type: 'boolean', default: true,   description: 'Show lower-confidence findings, tagged (off with --fast)' },
   personas: { type: 'string',  default: 'all',  description: 'Persona IDs (comma-separated, "all", or "none")' },
 };
 

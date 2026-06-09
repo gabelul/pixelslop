@@ -349,7 +349,9 @@ A lightweight pre-scan step that lets the user tweak settings for this specific 
 | 1 | CLI flags | This run only — e.g., `--personas none --thorough` |
 | 2 | Per-run answers | This run only — user picks in Phase 2b |
 | 3 | Saved settings | All runs — from `.pixelslop.md` |
-| 4 | Defaults | Fallback — `personas: all`, `thorough: false`, etc. |
+| 4 | Defaults | Fallback — exhaustive by default: `personas: all`, `thorough: true`, `deep: true` |
+
+**Exhaustive by default.** Pixelslop is usually driven by an AI agent that won't remember to pass `--thorough` or `--deep`, so those default to **on**. `thorough: true` shows lower-confidence findings tagged with their confidence rather than hiding them; `deep: true` doubles collection budgets for more evidence (at the cost of a slower scan). The opt-out is **`--fast`**: when the user passes `--fast`, set `thorough: false` and `deep: false` for that run (a quick, high-confidence-only pass). `--fast` is a CLI flag, so it wins over saved settings for this run, same as any other flag.
 
 ### Skip conditions
 

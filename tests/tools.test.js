@@ -1497,8 +1497,8 @@ describe('config settings', () => {
     const result = runJson(`config get --root "${dir}"`, dir);
     assert.ok(result.settings, 'should return settings object');
     assert.equal(result.settings.headed, false, 'headed default is false');
-    assert.equal(result.settings.deep, false, 'deep default is false');
-    assert.equal(result.settings.thorough, false, 'thorough default is false');
+    assert.equal(result.settings.deep, true, 'deep default is true (exhaustive by default)');
+    assert.equal(result.settings.thorough, true, 'thorough default is true (exhaustive by default)');
     assert.equal(result.settings.personas, 'all', 'personas default is all');
     assert.deepEqual(result.defined, [], 'no keys explicitly defined');
   });
@@ -1528,7 +1528,7 @@ describe('config settings', () => {
     runJson(`config set headed false --root "${dir}"`, dir);
     const result = runJson(`config get thorough --root "${dir}"`, dir);
     assert.equal(result.key, 'thorough');
-    assert.equal(result.value, false);
+    assert.equal(result.value, true);
     assert.equal(result.source, 'default');
   });
 
@@ -1537,8 +1537,8 @@ describe('config settings', () => {
     const result = runJson(`config get --root "${dir}"`, dir);
     assert.ok(result.settings, 'should have settings object');
     assert.equal(result.settings.headed, true);
-    assert.equal(result.settings.deep, false, 'unset deep should default to false');
-    assert.equal(result.settings.thorough, false, 'unset thorough should default to false');
+    assert.equal(result.settings.deep, true, 'unset deep should default to true');
+    assert.equal(result.settings.thorough, true, 'unset thorough should default to true');
     assert.equal(result.settings.personas, 'all', 'unset personas should default to all');
     assert.deepEqual(result.defined, ['headed'], 'only headed was explicitly set');
   });

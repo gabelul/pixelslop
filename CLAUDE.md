@@ -103,9 +103,11 @@ Users configure persistent scan preferences via `/pixelslop settings` (interacti
 | Key | Type | Default | What it does |
 |-----|------|---------|-------------|
 | `headed` | boolean | `false` | Open visible browser window during scans |
-| `deep` | boolean | `false` | Extended collection — doubled budgets, more elements tested |
-| `thorough` | boolean | `false` | Show lower-confidence findings (50% vs 65% threshold) |
+| `deep` | boolean | `true` | Extended collection — doubled budgets, more elements tested |
+| `thorough` | boolean | `true` | Show lower-confidence findings, tagged with confidence |
 | `personas` | string | `all` | Persona IDs to evaluate (comma-separated, `all`, or `none`) |
+
+**Exhaustive by default.** `deep` and `thorough` default to `true` because Pixelslop is usually driven by an AI agent that won't remember to pass the flags — the default has to be the thorough one. `--fast` is the opt-out (sets `deep: false`, `thorough: false` for a quick, high-confidence-only pass). The cost of `deep: true` is a slower scan; `--fast` is there when speed matters.
 
 **Merge priority:** CLI args > saved settings > defaults. A user who runs `/pixelslop --thorough` gets thorough mode regardless of what's in `.pixelslop.md`.
 
