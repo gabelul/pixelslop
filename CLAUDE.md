@@ -131,6 +131,7 @@ Agents use `pixelslop-tools` (bin/pixelslop-tools.cjs) for all state operations.
 - **Large output → tmpfile.** If JSON exceeds 50KB, tool writes to `/tmp/pixelslop-*.json` with `@file:` prefix.
 - **`report generate`** creates a self-contained HTML report from scan results JSON. Escapes all injected content, tolerates missing screenshots, fails soft (returns `{ ok: false }` on error — never crashes). Output: `.pixelslop/reports/report-YYYY-MM-DD-HHMMSS.html`.
 - **`browser analyze-page`** classifies page type (landing-page, e-commerce, content, form-heavy, app-like, general) and suggests relevant personas. Fast (< 2s), no screenshots.
+- **`config read-tokens` / `config write-tokens`** read and write the project's normative design tokens — a `## Design Tokens` section in `.pixelslop.md` holding flat `key: value` lines (`color-primary: #b8422e`, `font-body: Inter`, `type-scale: 1.25`, `space-unit: 4px`). The setup agent captures them from the codebase; the fixer reads them so a fix moves *toward* the project's real palette/type/spacing instead of a generic default. `write-tokens` merges (unspecified keys preserved) and only touches the Design Tokens section — `config write` stays the initializer, tokens layer on top like settings do.
 
 ## Voice & Persona
 

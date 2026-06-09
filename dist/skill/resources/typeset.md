@@ -4,6 +4,12 @@ How to fix typography findings from the scanner. Covers font scale, weight hiera
 
 ---
 
+## Use the project's type tokens first
+
+If the fixer loaded design tokens (`config read-tokens`), they carry the project's real type system — `font-body`, `font-display`, `type-scale`. Use those as your target: apply the project's fonts and its scale ratio rather than picking new ones. The recipes below are the fallback for when the project declares no type tokens.
+
+---
+
 ## What This Guide Fixes
 
 Scanner findings that map here:

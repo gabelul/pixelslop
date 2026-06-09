@@ -1027,6 +1027,80 @@ function configRead(args = {}) {
 }
 
 /**
+ * Parse the flat `key: value` lines of a Design Tokens section body into a map.
+ * @param {string|null} section - The section body, or null if absent
+ * @returns {Record<string,string>} token key -> value
+ */
+function parseTokenLines(section) {
+  const tokens = {};
+  if (!section) return tokens;
+  for (const line of section.split('\n')) {
+    const kv = line.match(/^([A-Za-z][\w-]*)\s*:\s*(.+?)\s*$/);
+    if (kv) tokens[kv[1]] = kv[2];
+  }
+  return tokens;
+}
+
+/**
+ * Read the normative design tokens authored in .pixelslop.md.
+ *
+ * Tokens live as flat `key: value` lines under a `## Design Tokens` section
+ * (e.g. `color-primary: #b8422e`, `font-body: Inter, sans-serif`). The fixer
+ * reads these so a fix moves toward the project's intended palette, type, and
+ * spacing instead of inventing a generic-but-safe value — which is its own slop.
+ */
+function configReadTokens(args = {}) {
+  const configPath = path.join(resolveProjectRoot(args.root), '.pixelslop.md');
+  if (!fs.existsSync(configPath)) {
+    return output(RAW ? { tokens: {}, hasTokens: false } : 'No design tokens found.');
+  }
+  const tokens = parseTokenLines(readMarkdownSection(fs.readFileSync(configPath, 'utf-8'), 'Design Tokens'));
+  const hasTokens = Object.keys(tokens).length > 0;
+  output(RAW ? { tokens, hasTokens } : (hasTokens
+    ? Object.entries(tokens).map(([k, v]) => `${k}: ${v}`).join('\n')
+    : 'No design tokens found.'));
+}
+
+/**
+ * Write or merge normative design tokens into .pixelslop.md.
+ *
+ * Accepts a JSON object via `--json`, or newline `key: value` lines via `--data`.
+ * Merges with any existing tokens (unspecified keys are preserved) and only
+ * touches the `## Design Tokens` section — every other section is left intact.
+ */
+function configWriteTokens(args = {}) {
+  const configPath = path.join(resolveProjectRoot(args.root), '.pixelslop.md');
+
+  const incoming = {};
+  if (args.json) {
+    let parsed;
+    try { parsed = JSON.parse(args.json); } catch (e) { fail(`Invalid --json for tokens: ${e.message}`); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      fail('--json must be a JSON object of token key/value pairs.');
+    }
+    for (const [k, v] of Object.entries(parsed)) {
+      if (/^[A-Za-z][\w-]*$/.test(k)) incoming[k] = String(v).replace(/[\r\n]+/g, ' ').trim();
+    }
+  } else if (args.data) {
+    Object.assign(incoming, parseTokenLines(String(args.data)));
+  } else {
+    fail('Provide tokens via --json \'{"color-primary":"#b8422e"}\' or --data "key: value".');
+  }
+  if (Object.keys(incoming).length === 0) fail('No valid tokens provided.');
+
+  // Read-merge-write so a partial update never drops the tokens it didn't mention.
+  const body = fs.existsSync(configPath)
+    ? fs.readFileSync(configPath, 'utf-8')
+    : '# Pixelslop — Project Design Context\n';
+  const merged = { ...parseTokenLines(readMarkdownSection(body, 'Design Tokens')), ...incoming };
+  const sectionBody = Object.entries(merged).map(([k, v]) => `${k}: ${v}`).join('\n');
+
+  fs.writeFileSync(configPath, normalizeMd(writeMarkdownSection(body, 'Design Tokens', sectionBody)));
+  output(RAW ? { status: 'written', count: Object.keys(merged).length, path: configPath }
+    : `Design tokens written (${Object.keys(merged).length}): ${configPath}`);
+}
+
+/**
  * Check if .pixelslop.md exists.
  */
 function configExists(args = {}) {
@@ -3172,7 +3246,9 @@ async function main() {
         case 'set-all': return configSetAll(flags);
         case 'save-context': return configSaveContext(flags);
         case 'load-context': return configLoadContext(flags);
-        default: fail(`Unknown config command: ${command}. Valid: write, read, exists, set, get, set-all, save-context, load-context`);
+        case 'read-tokens': return configReadTokens(flags);
+        case 'write-tokens': return configWriteTokens(flags);
+        default: fail(`Unknown config command: ${command}. Valid: write, read, exists, set, get, set-all, save-context, load-context, read-tokens, write-tokens`);
       }
       break;
 

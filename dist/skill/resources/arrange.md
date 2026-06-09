@@ -4,6 +4,12 @@ How to fix spacing and layout findings from the scanner. Covers spacing rhythm, 
 
 ---
 
+## Use the project's spacing scale first
+
+If the fixer loaded design tokens (`config read-tokens`), they carry the project's spacing — `space-unit` and any scale steps. Snap fixes to those steps instead of arbitrary px, so the rhythm you add matches the rhythm the project already uses. Fall back to the generic scale below only when no spacing tokens exist.
+
+---
+
 ## What This Guide Fixes
 
 Scanner findings that map here:

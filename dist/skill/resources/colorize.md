@@ -4,6 +4,12 @@ How to fix color findings from the scanner. Covers palette cohesion, accent disc
 
 ---
 
+## Use the project's colors first
+
+If the fixer loaded design tokens (`config read-tokens`), they carry the project's real palette — `color-primary`, `color-bg`, `color-text`, accents. Fix *toward* those. A contrast failure on the brand color gets solved by shifting that color's lightness while keeping its hue, not by swapping in a different color. Reach for the generic recipes below only when the project declares no color tokens.
+
+---
+
 ## What This Guide Fixes
 
 Scanner findings that map here:
