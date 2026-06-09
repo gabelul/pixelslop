@@ -3081,32 +3081,53 @@ function reportGenerate(flags) {
   </div>`;
     }
 
-    // ── Findings table ──
-    let findingsHtml;
-    if (hasFixData && findings.length > 0) {
-      // Full table with category + status columns
-      const rows = findings.map(f => {
-        const text = typeof f === 'string' ? f : (f.description || '');
-        const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
+    // ── Findings table (split into measured evidence vs design judgment) ──
+    // kind defaults to 'measured' so existing scans render exactly as before;
+    // the design-director pass is the only producer of 'judgment' findings.
+    const kindOf = (f) => (typeof f === 'object' && f.kind === 'judgment') ? 'judgment' : 'measured';
+    const measuredFindings = findings.filter(f => kindOf(f) === 'measured');
+    const judgmentFindings = findings.filter(f => kindOf(f) === 'judgment');
+
+    const renderRows = (list) => list.map(f => {
+      const text = typeof f === 'string' ? f : (f.description || '');
+      const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
+      // Judgment findings carry a confidence the report surfaces inline.
+      const conf = (typeof f === 'object' && f.confidence != null)
+        ? ` <span style="color:var(--ink-ghost);font-size:10px">(${escapeHtml(String(f.confidence))})</span>` : '';
+      if (hasFixData) {
         const category = typeof f === 'object' ? (f.category || '') : '';
-        // Try to match finding to plan issue for status
         let fixStatus = 'OPEN';
         if (typeof f === 'object' && f.id && issueMap.has(f.id)) {
           fixStatus = (issueMap.get(f.id).status || 'pending').toUpperCase();
         }
-        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-category">${escapeHtml(category)}</td><td class="col-finding">${escapeHtml(text)}</td><td class="col-status"><span class="fix-status fix-${escapeHtml(fixStatus)}">${escapeHtml(fixStatus)}</span></td></tr>`;
-      }).join('\n      ');
-      findingsHtml = `<table class="data-table findings-table"><thead><tr><th>Priority</th><th>Category</th><th>Finding</th><th>Status</th></tr></thead><tbody>\n      ${rows}\n    </tbody></table>`;
-    } else if (findings.length > 0) {
-      // Simple table without category/status
-      const rows = findings.map(f => {
-        const text = typeof f === 'string' ? f : (f.description || '');
-        const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
-        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-finding">${escapeHtml(text)}</td></tr>`;
-      }).join('\n      ');
-      findingsHtml = `<table class="data-table findings-table"><thead><tr><th>Priority</th><th>Finding</th></tr></thead><tbody>\n      ${rows}\n    </tbody></table>`;
-    } else {
+        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-category">${escapeHtml(category)}</td><td class="col-finding">${escapeHtml(text)}${conf}</td><td class="col-status"><span class="fix-status fix-${escapeHtml(fixStatus)}">${escapeHtml(fixStatus)}</span></td></tr>`;
+      }
+      return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-finding">${escapeHtml(text)}${conf}</td></tr>`;
+    }).join('\n      ');
+
+    const tableFor = (list) => {
+      const head = hasFixData
+        ? '<thead><tr><th>Priority</th><th>Category</th><th>Finding</th><th>Status</th></tr></thead>'
+        : '<thead><tr><th>Priority</th><th>Finding</th></tr></thead>';
+      return `<table class="data-table findings-table">${head}<tbody>\n      ${renderRows(list)}\n    </tbody></table>`;
+    };
+    const layerHeading = (title, note) =>
+      `<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-tertiary);margin:18px 0 8px">${escapeHtml(title)} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-ghost)">— ${escapeHtml(note)}</span></h3>`;
+
+    let findingsHtml;
+    if (findings.length === 0) {
       findingsHtml = '<p style="color:var(--ink-ghost);font-size:11px;text-transform:uppercase;letter-spacing:0.08em">No findings</p>';
+    } else if (judgmentFindings.length === 0) {
+      // Only measured findings — render the single table, no layer headings (unchanged look).
+      findingsHtml = tableFor(measuredFindings.length ? measuredFindings : findings);
+    } else {
+      // Both layers present — label and separate them so judgment never reads as measured fact.
+      const sections = [];
+      if (measuredFindings.length > 0) {
+        sections.push(layerHeading('Measured', 'evidence-backed') + tableFor(measuredFindings));
+      }
+      sections.push(layerHeading('Design judgment', "a design director's read, not measured") + tableFor(judgmentFindings));
+      findingsHtml = sections.join('\n    ');
     }
 
     // ── Fix section (entire tab-section div, or empty) ──

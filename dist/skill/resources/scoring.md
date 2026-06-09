@@ -310,6 +310,11 @@ The Evidence column in the scores table is not optional. A score without evidenc
 
 Findings should be ordered by impact -- the thing that hurts the site the most goes first. Each finding should reference which pillar it affects and include the specific browser observation that surfaced it.
 
+**Finding kinds — measured vs judgment.** Every finding carries a `kind`:
+
+- `kind: "measured"` (the default) — backed by a specific browser measurement. The six pillar evaluators and the persona checks only ever produce these. If `kind` is absent, it is measured.
+- `kind: "judgment"` — a subjective read from the design-director pass (composition, distinctiveness, emotional fit, missed opportunities). These do **not** affect the /20 score; the score stays measured-only. They carry a `confidence` field (`low`/`medium`/`high`) and render in a separate "Design judgment" layer of the report, clearly labeled as opinion, not measured fact. This is how Pixelslop stays exhaustive without letting judgment masquerade as measurement.
+
 Screenshots are references to captured images, not inline data. If a screenshot was not captured for a given viewport, note it as `[not captured]` and that gap should be reflected in the confidence score.
 
 ---
