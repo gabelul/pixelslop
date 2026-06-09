@@ -88,6 +88,8 @@ Evidence: distinctive font pairing (not just Inter/Roboto/Open Sans defaults), c
 - **Scale** — `flatHierarchy` / `typeScaleRatio`. A largest-to-smallest ratio under 1.5 means headings and body barely differ — the page reads undifferentiated (fail, and it drags Hierarchy too).
 - **Justified body** — `justifiedBody`. Justified web text with no hyphenation opens rivers of whitespace (warn).
 - **All-caps body** — `allCapsBody`. A long uppercase run as body copy (not a label) tanks legibility (warn).
+- **Oversized h1** — `oversizedH1` / `h1FontSize`. A hero heading wider than ~7% of the viewport per character reads as shouty rather than confident (warn). Bold heroes are fine; this only fires on genuinely disproportionate sizing.
+- **Body at viewport edge** — `bodyAtViewportEdge`. Body text flush to the screen edge (within 16px) has no breathing room and is uncomfortable to read (warn). Full-bleed backgrounds are fine; this measures the text element itself.
 
 A single measured failure rarely sinks the whole pillar on its own, but two or more compounding (e.g. tiny body text *and* tight leading *and* an 95-char measure) is a clear Score 1 — the text isn't comfortable to read, which is the whole point of the pillar.
 

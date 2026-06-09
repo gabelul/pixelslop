@@ -85,6 +85,9 @@ Three viewports, each with different evidence depth.
     "allCapsBody": false,
     "typeScaleRatio": 3,
     "flatHierarchy": false,
+    "h1FontSize": 48,
+    "oversizedH1": false,
+    "bodyAtViewportEdge": false,
     "samples": [
       {
         "tag": "p",
@@ -169,10 +172,14 @@ Three viewports, each with different evidence depth.
   "overflow": {
     "hasOverflow": false,
     "count": 0,
-    "elements": []
+    "elements": [],
+    "clippedCount": 0,
+    "clipped": []
   }
 }
 ```
+
+`clipped` lists elements where real text is cut off horizontally by `overflow:hidden`/`clip` (`scrollWidth > clientWidth`). Deliberate truncation — `text-overflow:ellipsis` and `-webkit-line-clamp` — is excluded, as are scroll containers. Each entry: `{ tag, classes, scrollWidth, clientWidth, text }`.
 
 ### Tablet (768x1024) — Layout stress test
 
@@ -294,6 +301,8 @@ Pre-collected data that persona evaluation needs. Run during the desktop pass so
     "totalImages": 6,
     "oversized": 1,
     "issues": [{ "src": "/hero.png", "natural": "3200x1800", "displayed": "800x450", "ratio": 4.0, "hasSrcset": false }],
+    "broken": 0,
+    "brokenImages": [],
     "passed": false
   },
   "cognitiveDensity": {

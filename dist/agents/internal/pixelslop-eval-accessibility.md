@@ -40,6 +40,7 @@ You receive three values:
    - `personaChecks.headingHierarchy` — heading order and skip detection
    - `personaChecks.landmarks` — landmark region presence
    - `personaChecks.skipNav` — skip-to-content link check
+   - `personaChecks.imageOptimization` — `broken` count and `brokenImages` (images that finished loading with zero natural pixels, i.e. failed to load)
    - `focusPass` (if present) — keyboard Tab pass results: `missingIndicators` (elements without visible focus ring), `nonSemanticClickables` (divs/spans acting as buttons without proper semantics)
    - `interactivePromises.results` (if present) — only entries where the pattern is 'tabs' or 'accordion', `passed` is false, AND `action` is 'click' (not 'skipped'). These are real broken ARIA state failures (aria-expanded/aria-selected didn't change after click). Entries where `action` starts with 'skipped' mean the trigger couldn't be resolved — that's unverifiable, not broken. Ignore anchor-link and mobile-menu failures here — those belong to responsiveness.
 4. **Apply the rubric** from scoring.md (Pillar 5: Accessibility). Evaluate each criterion:
@@ -47,6 +48,7 @@ You receive three values:
    - **Heading hierarchy** — sequential levels (h1 → h2 → h3), no skips (h1 → h4), exactly one h1. Skipped levels or multiple h1s = problem.
    - **Landmark regions** — `<main>`, `<nav>`, `<header>`, `<footer>` should all be present. Missing `<main>` is worse than missing `<footer>`.
    - **Alt text** — content images need meaningful alt text. Decorative images need `alt=""`. "image", "photo", or filenames as alt text don't count.
+   - **Broken images** — if `personaChecks.imageOptimization.broken` is above 0, those images failed to load (zero natural pixels). Broken content images are a hard quality failure and leave screen-reader users with nothing; any broken content image caps the score at 2.
    - **Form labels** — every `<input>` needs an associated `<label>` (via `for` attribute or wrapping). Placeholder-only is not a label.
    - **Focus indicators** — evidence of `:focus-visible` styles. If `focusPass` data exists, use `missingIndicators` directly — these are elements that received keyboard focus but showed no visible outline, box-shadow, or border change. Removed focus outlines (`outline: none` without replacement) is a failure. If `focusPass.withoutIndicator` is more than 30% of `focusPass.tabbed`, cap score at 2.
    - **Non-semantic clickables** — if `focusPass.nonSemanticClickables` exists and contains entries, these are divs/spans with `cursor:pointer` or `onclick` that should be `<button>` or `<a>`. Each one is an accessibility failure — screen readers and keyboard users can't reach them properly. More than 3 non-semantic clickables = score cap at 2.
@@ -89,7 +91,7 @@ Return exactly this structure. Nothing else.
 ```
 
 Each finding in `findings` must include:
-- `criterion` — which a11y aspect (contrast, heading-hierarchy, landmarks, alt-text, form-labels, focus-indicators, non-semantic-clickables, skip-nav, aria-roles, widget-semantics, lang-attribute)
+- `criterion` — which a11y aspect (contrast, heading-hierarchy, landmarks, alt-text, broken-images, form-labels, focus-indicators, non-semantic-clickables, skip-nav, aria-roles, widget-semantics, lang-attribute)
 - `status` — "pass", "warn", or "fail"
 - `detail` — specific measurements and element references
 - `evidence` — which evidence bundle field(s) back up the claim

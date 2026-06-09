@@ -10,7 +10,8 @@ Scanner findings that map here:
 
 - **Accessibility pillar score 1-2** — missing ARIA, no focus indicators, broken heading hierarchy, missing landmarks
 - **Accessibility pillar (non-contrast findings)** — missing alt text, skip links, semantic HTML
-- Findings mentioning: ARIA, focus, keyboard, screen reader, landmarks, alt text, heading hierarchy, touch targets, semantic HTML, tab order
+- **Broken images** (`broken-images` finding) — content images that failed to load (zero natural pixels)
+- Findings mentioning: ARIA, focus, keyboard, screen reader, landmarks, alt text, heading hierarchy, touch targets, semantic HTML, tab order, broken images
 
 Note: **Contrast failures** go to `colorize.md`. This guide handles everything else under accessibility.
 

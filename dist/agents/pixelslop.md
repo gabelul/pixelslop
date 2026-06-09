@@ -257,6 +257,14 @@ node bin/pixelslop-tools.cjs scan save-results --json '$ASSEMBLED_SCAN_JSON' --r
 
 This writes to `.pixelslop/scan-results.json` and returns the path. Use this path as `$SCAN_RESULTS_PATH` for the HTML report step. If the JSON is too large for a CLI argument, write it to a temp file first and use `--json-file /tmp/pixelslop-scan-data.json` instead of `--json`.
 
+Saving also appends this run's score to `.pixelslop/scan-history.json`. After saving, read the trend and surface it in your scan summary so the user sees movement across runs:
+
+```bash
+node bin/pixelslop-tools.cjs scan trend --target "$URL" --root "$ROOT" --raw
+```
+
+If there's more than one run, include the progression in your summary — e.g. "Score trend for this page: 11 → 13 → 14 (+3)". On the first run, there's no trend yet; just report the current score and move on.
+
 **Log after aggregation:**
 ```bash
 node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --message "Report assembled: $TOTAL/20, $N_ISSUES issues, slop=$SLOP_BAND"
