@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.3.2](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.1...pixelslop-v0.3.2) (2026-06-09)
+
+
+### Features
+
+* add broken-image, oversized-h1, edge-text, and clipped-content detectors ([1d09945](https://github.com/gabelul/pixelslop/commit/1d09945dc8a6d4309409903a500f0f8282397e0f))
+* add humanName to persona schema for narrative reports ([5271af0](https://github.com/gabelul/pixelslop/commit/5271af057ee3083daa32fefb20b3dec8acbc388f))
+* add scan save-results command for deterministic data handoff ([4c24136](https://github.com/gabelul/pixelslop/commit/4c24136ee2f986c6c17640383965668e46d97f42))
+* classify content pages and harden loopback resolution ([34afc4e](https://github.com/gabelul/pixelslop/commit/34afc4e2640a54c1e490d82a38e0eadc836e79a4))
+* extended detectors and per-target score trends ([2247768](https://github.com/gabelul/pixelslop/commit/2247768bca9927de26c4f65d31f484d8b3153708))
+* fix toward the project's design tokens ([f66114e](https://github.com/gabelul/pixelslop/commit/f66114eb667cb3945ed30a65f814c543eb811955))
+* generate HTML report with plan data after fix loop ([ac260a3](https://github.com/gabelul/pixelslop/commit/ac260a3f4f971f3c287b0e05af76f7f80fec0466))
+* measure typography readability and score it ([e0a581d](https://github.com/gabelul/pixelslop/commit/e0a581d7fcc7003282cf066ac199a362a89ad3a2))
+* multi-section HTML report with CSS-only tab navigation ([3c19d29](https://github.com/gabelul/pixelslop/commit/3c19d2975077b88b05eb02fba8fc7cef03339b4f))
+* narrative persona report format with human names ([ce3be25](https://github.com/gabelul/pixelslop/commit/ce3be25da8be41ca590af4d00e5b11210590ed58))
+* page-type heuristic for smart persona selection ([f803be2](https://github.com/gabelul/pixelslop/commit/f803be25bf7ed5259bf4828ed425196a4508b5b0))
+* persist per-issue details and show them in the HTML report ([15ca62c](https://github.com/gabelul/pixelslop/commit/15ca62c37e7e7e10587a7b81735ba81f3e516bc5))
+* report generate command in pixelslop-tools ([6b5982e](https://github.com/gabelul/pixelslop/commit/6b5982e7312512abe7ecc89619908b79de7d7a91))
+* run-time config step with --quick bypass and precedence spec ([7468029](https://github.com/gabelul/pixelslop/commit/7468029334088511de0beb471bb11003fbec735e))
+* self-contained HTML report template ([b4be84c](https://github.com/gabelul/pixelslop/commit/b4be84cc30100f51d8d4e985f77c7d799576fe2f))
+* show pillar evidence and slop patterns in HTML report ([c20110b](https://github.com/gabelul/pixelslop/commit/c20110b05d3f33ec66f5d5613c786e221d09b3dd))
+* support checkpoint operations without git for non-repo projects ([2bf093d](https://github.com/gabelul/pixelslop/commit/2bf093d06f31e20d4fae2497b56b3737d2cdb084))
+* track per-target score trends across runs ([4ec641d](https://github.com/gabelul/pixelslop/commit/4ec641d8c717bed3fc548a1c4c48d54539e691a0))
+* typography readability metrics and fix-toward-tokens ([93dadcb](https://github.com/gabelul/pixelslop/commit/93dadcb2c004261103577e7d21223f9130403cd7))
+
+
+### Bug Fixes
+
+* force light mode on HTML report, drop broken dark mode ([d4c92c0](https://github.com/gabelul/pixelslop/commit/d4c92c04a19e9d2fc3a3febe89dd27cdbf6d9fb0))
+* harden checkpoints against path traversal, fix scan-results resolution ([adb4239](https://github.com/gabelul/pixelslop/commit/adb4239471bda4dda86bf1ac49e1ce102ecfc3b4))
+* harden HTML report against XSS, path traversal, and unsafe URLs ([ba548de](https://github.com/gabelul/pixelslop/commit/ba548de5128d963cd3fd162f07578d5ac3fc0d56))
+* pin playwright-core to an exact version for deterministic installs ([915903b](https://github.com/gabelul/pixelslop/commit/915903be32aa619962678a5d133cc0ccfe086f91))
+* template resolution for installed layout, symlink refresh, test coverage ([ee9a228](https://github.com/gabelul/pixelslop/commit/ee9a228f7278e7aefc9b9336bc7e2f3a36d8c938))
+* update installer resource count for report-template.html ([3357b3c](https://github.com/gabelul/pixelslop/commit/3357b3cd77d56289827b54c288e9af953681a944))
+
+
+### Refactoring
+
+* redesign HTML report with Command Folio design system ([61cb281](https://github.com/gabelul/pixelslop/commit/61cb281df4e65db5e9d79d3dcd1394eee48a584a))
+
 ## [0.3.1](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.0...pixelslop-v0.3.1) (2026-03-30)
 
 
