@@ -1,6 +1,6 @@
 {
   "name": "pixelslop",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Browser-first design quality scanner. Opens real pages in Playwright, measures actual pixels, catches AI slop patterns.",
   "private": false,
   "type": "module",
