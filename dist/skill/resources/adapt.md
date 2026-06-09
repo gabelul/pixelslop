@@ -10,7 +10,8 @@ Scanner findings that map here:
 
 - **Responsiveness pillar score 1-2** — broken mobile, horizontal overflow, tiny touch targets, desktop-just-shrunk
 - **AI Slop pattern: Generic Hero Sections** — heroes that don't adapt, just squish
-- Findings mentioning: overflow, touch targets, breakpoints, mobile layout, tablet layout, viewport, responsive
+- **Clipped content** (`clipped-content` finding) — real text cut off horizontally by `overflow:hidden`, usually when a container shrinks at tablet/mobile
+- Findings mentioning: overflow, touch targets, breakpoints, mobile layout, tablet layout, viewport, responsive, clipped content
 
 ---
 

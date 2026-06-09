@@ -46,6 +46,7 @@ You receive three values:
    - **Layout adaptation** — does the layout genuinely change between viewports, or is it the same grid just squeezed? Column count changes, content reflow, navigation pattern shifts = real adaptation. Everything shrinking proportionally = not.
    - **Touch targets** — interactive elements at mobile should be ≥44x44px (≥48px for score 4). Anything under 30px is broken.
    - **No horizontal overflow** — if `overflow` data shows horizontal scroll at tablet or mobile, that's an immediate problem. Automatic score cap at 2 if overflow exists.
+   - **No clipped content** — `overflow.clippedCount` / `overflow.clipped` at any viewport lists real text cut off horizontally by `overflow:hidden`/`clip` (deliberate ellipsis and line-clamp are already excluded). Clipped content most often shows up at tablet/mobile where containers shrink. Any entry where readable copy is being cut is a fail and caps the score at 2.
    - **Navigation adaptation** — does nav change form on mobile (hamburger, bottom bar, collapse)? Or is it the same desktop nav crammed into 375px? If `interactivePromises.results` contains a mobile-menu entry where `passed` is false AND `action` is 'click' (not 'skipped'), that's a broken hamburger menu — the button was clickable but the nav didn't open. This is an automatic score cap at 2. Entries where `action` starts with 'skipped' mean the trigger couldn't be resolved or clicked — that's unverifiable, not broken. Don't penalize skipped probes.
    - **Anchor navigation (mobile context only)** — anchor-link failures are a responsiveness concern ONLY when they compound with a genuinely difficult mobile navigation situation. Both conditions must hold: (1) the probe ran at `viewport: 'mobile'`, OR the page has `scroll.ratio` above 6 AND `scroll.stickyElements` is empty or absent (no persistent navigation). If the page has sticky nav, users can still navigate — broken anchors are an inconvenience, not a responsiveness failure. Do NOT penalize anchor-link failures on pages with sticky/fixed navigation or on short pages. When conditions are met, flag as a warn, not a fail — broken anchors alone don't justify a score cap.
    - **Font sizes on mobile** — body text should be ≥16px on mobile. Below 14px is a readability failure.
@@ -87,7 +88,7 @@ Return exactly this structure. Nothing else.
 ```
 
 Each finding in `findings` must include:
-- `criterion` — which responsiveness aspect (layout-adaptation, touch-targets, overflow, nav-adaptation, nav-functionality, anchor-navigation, mobile-font-sizes, content-priority, spacing-adaptation)
+- `criterion` — which responsiveness aspect (layout-adaptation, touch-targets, overflow, clipped-content, nav-adaptation, nav-functionality, anchor-navigation, mobile-font-sizes, content-priority, spacing-adaptation)
 - `status` — "pass", "warn", or "fail"
 - `detail` — specific measurements comparing viewports
 - `evidence` — which evidence bundle field(s) you're citing

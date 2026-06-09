@@ -973,6 +973,7 @@ function snippetTypographyMetrics() {
 
   const samples = paras.map((el) => {
     const s = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
     return {
       tag: el.tagName.toLowerCase(),
       fontSize: px(s.fontSize),
@@ -981,6 +982,8 @@ function snippetTypographyMetrics() {
       textAlign: s.textAlign,
       textTransform: s.textTransform,
       charsPerLine: charsPerLine(el),
+      left: Math.round(r.left),
+      right: Math.round(r.right),
       length: (el.textContent || '').trim().length
     };
   });
@@ -1005,6 +1008,22 @@ function snippetTypographyMetrics() {
     flatHierarchy = typeScaleRatio !== null ? typeScaleRatio < 1.5 : null;
   }
 
+  // Oversized h1: a hero heading that eats the viewport. Measured as a fraction
+  // of viewport width so it scales across breakpoints. >7% reads as shouty.
+  const vw = document.documentElement.clientWidth || 0;
+  const h1 = document.querySelector('h1');
+  const h1FontSize = h1 ? px(getComputedStyle(h1).fontSize) : null;
+  const oversizedH1 = h1FontSize && vw ? h1FontSize / vw > 0.07 : false;
+
+  // Body text flush to the viewport edge: no horizontal breathing room. Measured
+  // off the dominant paragraph; within 16px of either edge counts as flush.
+  const dominantSample = dominant
+    ? samples.find((s) => s.length === dominant.length) || dominant
+    : null;
+  const bodyAtViewportEdge = dominantSample && vw
+    ? dominantSample.left < 16 || dominantSample.right > vw - 16
+    : false;
+
   return {
     bodyFontSize: dominant ? dominant.fontSize : null,
     bodyLeadingRatio: dominant ? dominant.leadingRatio : null,
@@ -1014,6 +1033,9 @@ function snippetTypographyMetrics() {
     allCapsBody: dominant ? dominant.textTransform === 'uppercase' && dominant.length >= 80 : false,
     typeScaleRatio,
     flatHierarchy,
+    h1FontSize,
+    oversizedH1,
+    bodyAtViewportEdge,
     samples: samples.slice(0, 6)
   };
 }
@@ -1170,6 +1192,7 @@ function snippetTouchTargets() {
 function snippetOverflow() {
   const docWidth = document.documentElement.clientWidth;
   const overflow = [];
+  const clipped = [];
   document.querySelectorAll('*').forEach(el => {
     const rect = el.getBoundingClientRect();
     if (rect.right > docWidth + 5 || rect.left < -5) {
@@ -1180,8 +1203,36 @@ function snippetOverflow() {
         docWidth
       });
     }
+    // Clipped text: real content cut off horizontally by overflow:hidden.
+    // Vertical line-clamp and text-overflow:ellipsis are deliberate, so skip them
+    // and skip scroll containers (overflow auto/scroll) — only hidden truly clips.
+    const s = getComputedStyle(el);
+    const ox = s.overflowX;
+    const clipsX = ox === 'hidden' || ox === 'clip';
+    const text = (el.textContent || '').trim();
+    if (
+      clipsX
+      && text.length > 20
+      && el.scrollWidth > el.clientWidth + 4
+      && s.textOverflow !== 'ellipsis'
+      && s.webkitLineClamp === 'none'
+    ) {
+      clipped.push({
+        tag: el.tagName.toLowerCase(),
+        classes: el.className?.toString().slice(0, 40) || '',
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+        text: text.slice(0, 40)
+      });
+    }
   });
-  return { hasOverflow: overflow.length > 0, count: overflow.length, elements: overflow.slice(0, 10) };
+  return {
+    hasOverflow: overflow.length > 0,
+    count: overflow.length,
+    elements: overflow.slice(0, 10),
+    clippedCount: clipped.length,
+    clipped: clipped.slice(0, 10)
+  };
 }
 
 function snippetA11ySummary() {
@@ -1347,10 +1398,19 @@ function snippetReadingLevel() {
 function snippetImageOptimization() {
   const images = document.querySelectorAll('img');
   const issues = [];
+  const broken = [];
   images.forEach(img => {
     const natural = { w: img.naturalWidth, h: img.naturalHeight };
     const displayed = { w: img.clientWidth, h: img.clientHeight };
     const hasSrcset = !!img.srcset;
+    // Broken: finished loading but has no pixels, and it was actually asked to
+    // load something. data:/empty src with no dimensions is decorative, not broken.
+    if (img.complete && natural.w === 0 && (img.getAttribute('src') || img.srcset)) {
+      broken.push({
+        src: (img.currentSrc || img.src || '').slice(-60),
+        alt: (img.alt || '').slice(0, 40)
+      });
+    }
     const ratio = (natural.w > 0 && displayed.w > 0) ? natural.w / displayed.w : 1;
     if (ratio > 2.5 && natural.w > 200) {
       issues.push({
@@ -1367,7 +1427,9 @@ function snippetImageOptimization() {
     totalImages: images.length,
     oversized: issues.length,
     issues: issues.slice(0, 5),
-    passed: issues.length === 0
+    broken: broken.length,
+    brokenImages: broken.slice(0, 5),
+    passed: issues.length === 0 && broken.length === 0
   };
 }
 

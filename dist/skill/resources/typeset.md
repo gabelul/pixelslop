@@ -18,7 +18,7 @@ Scanner findings that map here:
 - **AI Slop pattern: Generic Font Stack** — Inter/Roboto/Arial as primary with no personality
 - **AI Slop pattern: Monospace for Tech Vibes** — monospace outside code blocks for decoration
 - Findings mentioning: font scale, weight inconsistency, line-height, readability, font pairing
-- **Measured readability findings** — `measure` (line too long/short), `body-size` (under the 14px floor), `leading` (line-height too tight/loose), `tracking` (letter-spacing too tight/wide on body), `flat-hierarchy` (type scale barely differs), `justified-body`, `all-caps-body`
+- **Measured readability findings** — `measure` (line too long/short), `body-size` (under the 14px floor), `leading` (line-height too tight/loose), `tracking` (letter-spacing too tight/wide on body), `flat-hierarchy` (type scale barely differs), `justified-body`, `all-caps-body`, `oversized-h1` (shouty hero heading — use fluid `clamp()` sizing, Recipe 6), `body-at-edge` (text flush to the viewport edge — add horizontal padding or a max-width container)
 
 ---
 
