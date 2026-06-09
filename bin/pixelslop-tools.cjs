@@ -396,6 +396,91 @@ function parseIssues(body) {
   return issues;
 }
 
+/**
+ * Extract a named markdown section body.
+ * @param {string} body - Plan markdown body
+ * @param {string} heading - Section heading without hashes
+ * @returns {string|null} Section content, trimmed
+ */
+function readMarkdownSection(body, heading) {
+  const headingMarker = `## ${heading}\n\n`;
+  const start = body.indexOf(headingMarker);
+  if (start === -1) return null;
+
+  const sectionStart = start + headingMarker.length;
+  const remaining = body.slice(sectionStart);
+  const nextHeadingMatch = remaining.match(/\n## [^\n]+\n/);
+  const sectionEnd = nextHeadingMatch ? sectionStart + nextHeadingMatch.index : body.length;
+  return body.slice(sectionStart, sectionEnd).trim();
+}
+
+/**
+ * Replace an existing markdown section or append it if missing.
+ * @param {string} body - Plan markdown body
+ * @param {string} heading - Section heading without hashes
+ * @param {string} content - Section content without heading
+ * @returns {string} Updated body
+ */
+function writeMarkdownSection(body, heading, content) {
+  const normalizedContent = content.trim();
+  const section = `## ${heading}\n\n${normalizedContent}\n`;
+  const headingMarker = `## ${heading}\n\n`;
+  const start = body.indexOf(headingMarker);
+
+  if (start !== -1) {
+    const sectionStart = start + headingMarker.length;
+    const remaining = body.slice(sectionStart);
+    const nextHeadingMatch = remaining.match(/\n## [^\n]+\n/);
+    const sectionEnd = nextHeadingMatch ? sectionStart + nextHeadingMatch.index : body.length;
+    return `${body.slice(0, start)}${section}\n${body.slice(sectionEnd).replace(/^\n*/, '')}`;
+  }
+
+  const trimmed = body.replace(/\s*$/, '');
+  return `${trimmed}\n\n${section}`;
+}
+
+/**
+ * Parse the optional issue details section from the plan body.
+ * Stored as a JSON code block keyed by issue id.
+ * @param {string} body - Plan markdown body
+ * @returns {Record<string, {whatChanged?: string, evidence?: string, source?: string}>}
+ */
+function parseIssueDetails(body) {
+  const section = readMarkdownSection(body, 'Issue Details');
+  if (!section || section === '(none yet)') return {};
+
+  let jsonText = section.trim();
+  if (jsonText.startsWith('```json')) {
+    jsonText = jsonText.replace(/^```json\s*/, '');
+    jsonText = jsonText.replace(/\s*```$/, '');
+  } else if (jsonText.startsWith('```')) {
+    jsonText = jsonText.replace(/^```\s*/, '');
+    jsonText = jsonText.replace(/\s*```$/, '');
+  }
+  jsonText = jsonText.trim();
+  if (!jsonText) return {};
+
+  try {
+    const parsed = JSON.parse(jsonText);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Serialize issue details to the markdown section format.
+ * @param {Record<string, {whatChanged?: string, evidence?: string, source?: string}>} details
+ * @returns {string} Section body content
+ */
+function serializeIssueDetails(details) {
+  const entries = Object.entries(details || {}).filter(([, value]) => value && typeof value === 'object' && Object.keys(value).length > 0);
+  if (entries.length === 0) return '(none yet)';
+
+  const stable = Object.fromEntries(entries.sort(([a], [b]) => a.localeCompare(b)));
+  return `\`\`\`json\n${JSON.stringify(stable, null, 2)}\n\`\`\``;
+}
+
 // ─────────────────────────────────────────────
 // Plan Commands
 // ─────────────────────────────────────────────
@@ -454,7 +539,7 @@ function planBegin(args) {
     }
   }
 
-  const body = `\n## Issues\n\n${issuesMd || '(none yet)'}\n\n## Scores\n\n${scoresMd || '(no scores yet)'}\n`;
+  const body = `\n## Issues\n\n${issuesMd || '(none yet)'}\n\n## Issue Details\n\n(none yet)\n\n## Scores\n\n${scoresMd || '(no scores yet)'}\n`;
   writePlan(meta, body, args.root);
   // Auto-log plan creation
   const issueCount = issuesMd ? issuesMd.split('\n').filter(l => l.startsWith('- [')).length : 0;
@@ -473,14 +558,29 @@ function planUpdate(issueId, newStatus, args = {}) {
   if (!validStatuses.includes(newStatus)) fail(`Invalid status: ${newStatus}. Valid: ${validStatuses.join(', ')}`);
 
   const { meta, body } = readPlan(args.root);
+  const issueDetails = parseIssueDetails(body);
   // Regex replacement on the status marker — not full file rewrite
   const pattern = new RegExp(`(- \\[)[\\w-]+(\\]\\s+${escapeRegex(issueId)}\\s)`);
   if (!pattern.test(body)) fail(`Issue not found: ${issueId}`);
-  const newBody = body.replace(pattern, `$1${newStatus}$2`);
+  let newBody = body.replace(pattern, `$1${newStatus}$2`);
+
+  const detailPatch = {};
+  if (args['what-changed']) detailPatch.whatChanged = sanitizeLogField(args['what-changed']);
+  if (args.evidence) detailPatch.evidence = sanitizeLogField(args.evidence);
+  if (args.source) detailPatch.source = sanitizeLogField(args.source);
+
+  if (Object.keys(detailPatch).length > 0) {
+    issueDetails[issueId] = { ...(issueDetails[issueId] || {}), ...detailPatch };
+    newBody = writeMarkdownSection(newBody, 'Issue Details', serializeIssueDetails(issueDetails));
+  }
+
   writePlan(meta, newBody, args.root);
   // Auto-log status transitions so the session log captures orchestrator activity
   autoLog('orchestrator', 'info', `plan update: ${issueId} → ${newStatus}`, args.root);
-  output(RAW ? { status: 'updated', issue: issueId, new_status: newStatus } : `Updated ${issueId} → ${newStatus}`);
+  output(RAW
+    ? { status: 'updated', issue: issueId, new_status: newStatus, details: issueDetails[issueId] || null }
+    : `Updated ${issueId} → ${newStatus}`
+  );
 }
 
 /**
@@ -557,7 +657,8 @@ function planAdvance(args = {}) {
  */
 function planSnapshot(args = {}) {
   const { meta, body, path: planPath } = readPlan(args.root);
-  const issues = parseIssues(body);
+  const issueDetails = parseIssueDetails(body);
+  const issues = parseIssues(body).map(issue => ({ ...issue, ...(issueDetails[issue.id] || {}) }));
   const summary = {
     pending: issues.filter(i => i.status === 'pending').length,
     fixed: issues.filter(i => i.status === 'fixed').length,
@@ -566,7 +667,7 @@ function planSnapshot(args = {}) {
     skipped: issues.filter(i => i.status === 'skipped').length,
     total: issues.length
   };
-  output({ ...meta, issues, summary, path: planPath }, true);
+  output({ ...meta, issues, issue_details: issueDetails, summary, path: planPath }, true);
 }
 
 /**
@@ -2889,6 +2990,28 @@ function reportGenerate(flags) {
         return `<tr><td style="font-family:var(--mono);font-size:12px">${escapeHtml(iss.id || '')}</td><td>${escapeHtml(iss.description || '')}</td><td><span class="fix-status fix-${escapeHtml(st)}">${escapeHtml(st)}</span></td></tr>`;
       }).join('\n        ');
 
+      const detailedIssues = planIssues.filter(iss => iss.whatChanged || iss.evidence);
+      const fixDetails = detailedIssues.length > 0
+        ? `<div class="section-label">What Changed</div>
+    <div class="fix-detail-list">
+      ${detailedIssues.map(iss => {
+        const st = (iss.status || 'pending').toUpperCase();
+        const summaryText = escapeHtml(iss.whatChanged || iss.description || '');
+        const evidenceText = escapeHtml(iss.evidence || '');
+        const sourceText = escapeHtml((iss.source || '').toUpperCase());
+        return `<div class="fix-detail-card" data-status="${escapeHtml(st)}">
+        <div class="fix-detail-head">
+          <div class="fix-detail-issue">${escapeHtml(iss.id || '')}</div>
+          <span class="fix-status fix-${escapeHtml(st)}">${escapeHtml(st)}</span>
+        </div>
+        <div class="fix-detail-summary">${summaryText}</div>
+        ${evidenceText ? `<div class="fix-detail-evidence">${evidenceText}</div>` : ''}
+        ${sourceText ? `<div class="fix-detail-meta">Source: ${sourceText}</div>` : ''}
+      </div>`;
+      }).join('\n      ')}
+    </div>`
+        : '';
+
       const totalDelta = total - baselineScore;
       const totalDeltaClass = totalDelta > 0 ? 'delta-up' : totalDelta < 0 ? 'delta-down' : 'delta-same';
       const totalDeltaText = totalDelta > 0 ? `+${totalDelta}` : totalDelta < 0 ? `${totalDelta}` : '—';
@@ -2919,6 +3042,8 @@ function reportGenerate(flags) {
         ${fixRows}
       </tbody>
     </table>
+
+    ${fixDetails}
   </div>`;
     }
 

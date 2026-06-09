@@ -54,6 +54,14 @@
       text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-tertiary);
       margin-bottom: 8px;
     }
+    .report-wordmark a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .report-wordmark a:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
     .report-title {
       font-family: var(--heading); font-size: 22px; font-weight: 800;
       text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.2;
@@ -312,6 +320,53 @@
       font-size: 10px; font-weight: 500; text-transform: uppercase;
       letter-spacing: 0.12em; color: var(--ink-tertiary);
     }
+    .fix-detail-list {
+      display: grid;
+      gap: 1px;
+      background: var(--border-light);
+      margin-top: 16px;
+    }
+    .fix-detail-card {
+      background: var(--surface-white);
+      border-left: 3px solid var(--ink-ghost);
+      padding: 14px 16px;
+    }
+    .fix-detail-card[data-status="FIXED"] { border-left-color: var(--sage); }
+    .fix-detail-card[data-status="PARTIAL"] { border-left-color: var(--orange); }
+    .fix-detail-card[data-status="FAILED"] { border-left-color: var(--red); }
+    .fix-detail-card[data-status="SKIPPED"] { border-left-color: var(--ink-ghost); }
+    .fix-detail-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .fix-detail-issue {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .fix-detail-summary {
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+    .fix-detail-evidence {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--ink-secondary);
+    }
+    .fix-detail-meta {
+      margin-top: 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-tertiary);
+    }
 
     /* ── Footer ── */
     .report-footer {
@@ -319,6 +374,14 @@
       border-top: 2px solid var(--border-heavy);
       font-size: 10px; font-weight: 500; text-transform: uppercase;
       letter-spacing: 0.1em; color: var(--ink-ghost);
+    }
+    .report-footer a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .report-footer a:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
 
     /* ── Print — show all sections, hide tab UI ── */
@@ -339,7 +402,7 @@
 <body>
 
   <header class="report-header">
-    <div class="report-wordmark">Pixelslop</div>
+    <div class="report-wordmark"><a href="https://github.com/gabelul/pixelslop">Pixelslop</a></div>
     <h1 class="report-title">{{TITLE}}</h1>
     <div class="report-meta">
       {{URL_META}} · {{DATE}} · confidence {{CONFIDENCE}}%
@@ -390,7 +453,7 @@
   {{FIX_SECTION}}
 
   <footer class="report-footer">
-    Pixelslop · Browser-first design quality review
+    <a href="https://github.com/gabelul/pixelslop">Pixelslop on GitHub</a> · Browser-first design quality review
   </footer>
 
 </body>

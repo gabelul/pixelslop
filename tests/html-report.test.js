@@ -149,6 +149,15 @@ describe('report template structure', () => {
     template = readFileSync(TEMPLATE_PATH, 'utf-8');
     assert.ok(template.includes('@media print'), 'should have print media query');
   });
+
+  it('brands header and footer with the GitHub repo link', () => {
+    template = readFileSync(TEMPLATE_PATH, 'utf-8');
+    const repoUrl = 'https://github.com/gabelul/pixelslop';
+    assert.ok(template.includes(`<a href="${repoUrl}">Pixelslop</a>`),
+      'header wordmark should link to the GitHub repo');
+    assert.ok(template.includes(`<a href="${repoUrl}">Pixelslop on GitHub</a>`),
+      'footer branding should link to the GitHub repo');
+  });
 });
 
 // ─────────────────────────────────────────────
@@ -188,6 +197,8 @@ describe('report generate command', () => {
     assert.ok(html.includes('12'), 'Should contain the total score');
     assert.ok(html.includes('Needs Work'), 'Should contain the rating band');
     assert.ok(html.includes('MILD'), 'Should contain slop band');
+    assert.ok(html.includes('https://github.com/gabelul/pixelslop'),
+      'Should contain the GitHub repo branding link');
   });
 
   it('includes persona stories when present', () => {
@@ -302,6 +313,72 @@ describe('report generate command', () => {
     assert.ok(html.includes('PARTIAL'), 'should show PARTIAL status');
     assert.ok(html.includes('tab-fixes'), 'should have fixes tab');
     assert.ok(html.includes('Score Comparison'), 'should have score comparison table');
+    assert.ok(!html.includes('What Changed'), 'thin snapshots should not force the detailed change section');
+  });
+
+  it('renders a What Changed section when plan snapshot includes fix detail', () => {
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(makeScanFixture()));
+    const planPath = join(dir, 'plan.json');
+    writeFileSync(planPath, JSON.stringify({
+      baseline_score: 8,
+      issues: [
+        {
+          id: 'overflow-mobile',
+          status: 'fixed',
+          priority: 'P0',
+          category: 'responsiveness',
+          description: 'Table overflowed on mobile',
+          whatChanged: 'Header stacks on mobile, low-priority columns hide at 400px, cell padding reduced.',
+          evidence: 'Checker PASS — only offscreen skip-link remains; core table overflow resolved.',
+          source: 'checker',
+        },
+      ],
+      summary: { fixed: 1, partial: 0, failed: 0, pending: 0, skipped: 0, total: 1 },
+    }));
+    const result = runJson(`report generate --scan-results "${scanPath}" --plan-snapshot "${planPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(html.includes('What Changed'), 'should render the detailed fix section');
+    assert.ok(html.includes('Header stacks on mobile'), 'should include whatChanged text');
+    assert.ok(html.includes('Checker PASS'), 'should include checker evidence');
+    assert.ok(html.includes('Source: CHECKER'), 'should show the detail source');
+  });
+
+  it('shows detail notes for partial and skipped issues when present', () => {
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(makeScanFixture()));
+    const planPath = join(dir, 'plan.json');
+    writeFileSync(planPath, JSON.stringify({
+      baseline_score: 8,
+      issues: [
+        {
+          id: 'touch-targets',
+          status: 'partial',
+          priority: 'P1',
+          category: 'responsiveness',
+          description: 'Some touch targets remain small',
+          whatChanged: 'Primary nav targets now meet 44px minimum; footer links still trail.',
+          evidence: 'Checker PARTIAL — footer remains below target on narrow devices.',
+          source: 'checker',
+        },
+        {
+          id: 'cognitive-density',
+          status: 'skipped',
+          priority: 'P2',
+          category: 'layout',
+          description: 'Dense operator console layout',
+          whatChanged: 'Skipped by design for the operator console; dense dashboard layout is intentional.',
+          source: 'checker',
+        },
+      ],
+      summary: { fixed: 0, partial: 1, failed: 0, pending: 0, skipped: 1, total: 2 },
+    }));
+    const result = runJson(`report generate --scan-results "${scanPath}" --plan-snapshot "${planPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(html.includes('Primary nav targets now meet 44px minimum'), 'partial issue detail should render');
+    assert.ok(html.includes('Skipped by design for the operator console'), 'skipped issue detail should render');
+    assert.ok(html.includes('PARTIAL'), 'partial status should still be visible');
+    assert.ok(html.includes('SKIPPED'), 'skipped status should still be visible');
   });
 
   it('omits fixes tab when no plan snapshot', () => {

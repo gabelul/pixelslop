@@ -103,6 +103,8 @@ Based on the init result:
 
 Tell the user which mode was selected and why. If mode is `visual-report-only`, explain what's limiting and how to unlock editable mode.
 
+If `report_only_reason` is `missing-git` or `missing-git-baseline`, the parent session should normally have asked the user whether to use no-git mode, create the needed git baseline, or stay report-only **before** reaching the expensive scan path. If that did not happen and you still receive report-only mode for a local project, keep the run report-only and call out that the preflight gate should have happened earlier.
+
 ### Code-Check Mode Protocol
 
 If mode is `code-check`, the workflow is different. No browser, no visual scanner, no fix loop.
@@ -328,7 +330,17 @@ node bin/pixelslop-tools.cjs report generate \
   --raw
 ```
 
-If the command succeeds, include the output path in your response. If it returns `{ ok: false, error: "..." }`, mention that the HTML report failed and continue — this report is bonus output, not part of the critical path.
+Parse the JSON result from this command. If it returns `{ ok: true, path: "..." }`, include a standalone line in your response:
+
+`Report saved: <exact path returned by report generate>`
+
+If your environment supports clickable file links, render that same exact path as the link target.
+
+If it returns `{ ok: false, error: "..." }`, include a standalone line:
+
+`Report not generated: <error>`
+
+This report is bonus output, not part of the critical path, but the user should never have to guess where it went.
 
 Present the scan results and return them to the parent session. Include all scores, issues, persona insights, and the HTML report path when available — use humanName from the persona JSONs, not IDs. **In scan mode, you're done here — return and let the parent handle the fix strategy.**
 
@@ -387,11 +399,16 @@ node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --messa
 
 | Result | Action |
 |--------|--------|
-| **PASS** | `plan update $ID fixed` |
-| **FAIL** | Rollback already done by checker. `plan update $ID failed` |
-| **PARTIAL** | Keep the improvement and move on. `plan update $ID partial` |
+| **PASS** | `plan update $ID fixed --what-changed "$CHANGE_SUMMARY" --evidence "$CHECKER_EVIDENCE" --source checker` |
+| **FAIL** | Rollback already done by checker. `plan update $ID failed --what-changed "$FAILURE_SUMMARY" --evidence "$CHECKER_EVIDENCE" --source checker` |
+| **PARTIAL** | Keep the improvement and move on. `plan update $ID partial --what-changed "$CHANGE_SUMMARY" --evidence "$CHECKER_EVIDENCE" --source checker` |
+
+Capture the shortest truthful summary of what changed when you write the plan update. That string is what the final HTML report shows in its `What Changed` section, so keep it concrete.
 
 6. For **PARTIAL** results: keep the improvement, mark as `partial`, continue. Don't retry — the parent can spawn you again for specific issues if the user wants.
+
+If an issue is skipped for a real reason (for example, by-design density), persist that reason too:
+`plan update $ID skipped --what-changed "$SKIP_REASON" --source checker`
 
 **Between categories:**
 
@@ -409,35 +426,49 @@ node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --messa
 
 After all categories are processed (or the user stops early):
 
-1. Optionally re-scan (ask the user if they want a verification scan):
+1. Start from the deterministic scan-results path written during scan mode:
 ```bash
-node bin/pixelslop-tools.cjs browser collect --url "$URL" --root "$ROOT" --personas "$PERSONAS" --raw
+SCAN_RESULTS_PATH=".pixelslop/scan-results.json"
 ```
 
-2. Get the final plan state:
+2. Do **not** claim a new measured score unless you actually performed a fresh full scan, re-assembled structured scan results, and overwrote the deterministic handoff file above. A raw `browser collect` run alone is not enough to produce a re-scored report card.
+
+3. Get the final plan state:
 ```bash
 node bin/pixelslop-tools.cjs plan snapshot --raw
 ```
 
-3. Save the plan snapshot to a temp file and generate the final HTML report:
+4. Save the plan snapshot to a temp file and generate the final HTML report:
 ```bash
 node bin/pixelslop-tools.cjs plan snapshot --raw > /tmp/pixelslop-plan-snapshot.json
 node bin/pixelslop-tools.cjs report generate \
-  --scan-results "$SCAN_RESULTS_PATH" \
+  --scan-results .pixelslop/scan-results.json \
   --plan-snapshot /tmp/pixelslop-plan-snapshot.json \
   --root "$ROOT" \
   --raw
 ```
 
-If the report succeeds, include the path in your summary. If it fails, mention it and move on — the report is bonus output.
+Use `.pixelslop/scan-results.json` here on purpose. The fix loop may start long after the original scan, and `$SCAN_RESULTS_PATH` might not exist in the current run context. The persisted deterministic path is the reliable input for the post-fix HTML report.
 
-4. Present the summary:
+Parse the JSON result from `report generate --raw`. If it returns `{ ok: true, path: "..." }`, include a standalone line in your summary:
+
+`Report saved: <exact path returned by report generate>`
+
+If your environment supports clickable file links, you may also include a link that points to that same exact path.
+
+If it returns `{ ok: false, error: "..." }`, include:
+
+`Report not generated: <error>`
+
+Do not say "report saved" without the path, and never use placeholders like `report-<timestamp>.html`. The report is bonus output, but the success path or failure reason should be visible to the user.
+
+5. Present the summary:
 
 ```
 ## Pixelslop Session Complete
 
 **Before:** X/20 — [band] | Slop: [level]
-**After:** Y/20 — [band] | Slop: [level] (if re-scanned)
+[Only include an **After** line if you ran a fresh full scan and saved new structured scan-results.]
 
 ### Results
 
@@ -451,6 +482,11 @@ If the report succeeds, include the path in your summary. If it fails, mention i
 **Fixed:** N | **Failed:** N | **Partial:** N | **Skipped:** N
 
 Plan saved: .pixelslop-plan.md
+Report saved: /absolute/path/from-report-generate
+[Optional clickable link: use that same exact path as the link target]
+
+[If report generation failed, replace the line above with:
+Report not generated: <error from report generate>]
 ```
 
 The parent session handles server cleanup — don't stop the server yourself.

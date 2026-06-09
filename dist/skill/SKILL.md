@@ -249,6 +249,59 @@ Run init to validate the environment:
 node bin/pixelslop-tools.cjs init scan --url "$URL" --root "$ROOT" --raw
 ```
 
+Parse the JSON result immediately. Do **not** start the expensive scan until you handle any required preflight decision.
+
+### Git Readiness Gate
+
+If the init result says all of the following:
+
+- `mode: "visual-report-only"`
+- `url_type: "local"`
+- `root_valid: true`
+- `preflight_action_required: true`
+
+stop and ask the user **before any scan or browser analyze-page call**.
+
+If `report_only_reason` is `missing-git`, ask:
+
+```text
+AskUserQuestion([{
+  question: "This project is not ready for editable mode yet, so running now would only generate a report. How do you want to proceed?",
+  options: [
+    { label: "Use no-git mode (Recommended)", description: "Keep rollback via file backups and continue without git setup." },
+    { label: "Report only", description: "Skip fix mode and just generate the scan report." },
+    { label: "Stop and set up git first", description: "Exit now so I can initialize git and make a baseline commit." }
+  ]
+}])
+```
+
+Handle the answer like this:
+
+- **Use no-git mode**: re-run init with `--allow-no-git`, then continue.
+- **Report only**: continue in report-only mode.
+- **Stop and set up git first**: stop. Tell the user git-backed editable mode needs `git init` followed by a baseline commit before rerunning `/pixelslop`.
+
+If `report_only_reason` is `missing-git-baseline`, ask:
+
+```text
+AskUserQuestion([{
+  question: "This repo exists, but it has no baseline commit yet. Pixelslop checkpoints need tracked files. How do you want to proceed?",
+  options: [
+    { label: "Use no-git mode (Recommended)", description: "Keep rollback via file backups and continue without creating a git commit." },
+    { label: "Report only", description: "Skip fix mode and just generate the scan report." },
+    { label: "Stop and make a baseline commit first", description: "Exit now so I can commit the current project state before rerunning." }
+  ]
+}])
+```
+
+Handle that answer like this:
+
+- **Use no-git mode**: re-run init with `--allow-no-git`, then continue.
+- **Report only**: continue in report-only mode.
+- **Stop and make a baseline commit first**: stop. Tell the user to run `git add -A && git commit -m "chore: baseline"` before rerunning `/pixelslop`.
+
+This gate exists to avoid wasting tokens on a long scan when the user really wanted editable mode. Do not imply that `git init` alone unlocks checkpoints.
+
 ### Load Project Settings
 
 Before doing anything else, load the project settings and merge with CLI args:
@@ -303,6 +356,7 @@ A lightweight pre-scan step that lets the user tweak settings for this specific 
 Skip Phase 2b entirely (go straight to Phase 3) if ANY of these are true:
 - `--quick` flag was passed
 - All 4 configurable settings (`--personas`, `--thorough`, `--deep`, `--headed`) were provided via CLI flags — nothing left to ask
+- The missing-git gate above is still unresolved — do not run `browser analyze-page` until the user chooses no-git, git init, or report-only
 
 ### Flow
 
@@ -389,7 +443,7 @@ Add design context only if it was collected: `Design context: audience=<...>, br
 
 The orchestrator scans the page, groups findings, and returns results. This takes 2-4 minutes.
 
-The orchestrator also attempts a best-effort HTML export after scan results are assembled. On success, it returns a report path under `.pixelslop/reports/`. If export fails, the scan still succeeds — mention the warning and keep going.
+The orchestrator also attempts a best-effort HTML export after scan results are assembled. Treat the `report generate --raw` result as JSON, not prose. On success, it returns a report path under `.pixelslop/reports/`. Surface the exact returned path to the user with `Report saved: <actual path>`. Do not just say the report was saved. If export fails, the scan still succeeds, but say `Report not generated: <error>` so the user knows there is no artifact to open.
 
 When the orchestrator returns, present the scan results to the user. Include the HTML report path when present. If the mode is `visual-editable`, use `AskUserQuestion` to ask the fix strategy:
 
@@ -429,6 +483,12 @@ Agent(
 ```
 
 The orchestrator reads the plan file, processes each issue (checkpoint → fix → verify), and returns a summary.
+When you relay that summary to the user, include exactly one explicit report outcome line:
+
+- `Report saved: <actual path returned by report generate>`
+- `Report not generated: <error>`
+
+Never say the report exists without the concrete path, and do not invent a placeholder filename.
 
 ## Phase 4: Cleanup
 

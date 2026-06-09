@@ -11,7 +11,7 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { execSync, spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, mkdirSync, rmSync, symlinkSync, cpSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -74,6 +74,20 @@ function createTestRepo(pkg = { name: 'test', scripts: { build: 'echo ok' } }) {
     stdio: 'pipe'
   });
   return dir;
+}
+
+/**
+ * Copy a fixture site into an isolated temp directory so browser tests do not
+ * share .pixelslop state or temp-server bookkeeping across runs.
+ * @param {string} fixtureName - Directory name under tests/fixtures
+ * @returns {string} Path to the copied fixture root
+ */
+function cloneFixtureSite(fixtureName) {
+  const src = join(__dirname, 'fixtures', fixtureName);
+  const dest = mkdtempSync(join(tmpdir(), `pixelslop-fixture-${fixtureName}-`));
+  cpSync(src, dest, { recursive: true });
+  rmSync(join(dest, '.pixelslop', 'temp-server.json'), { force: true });
+  return dest;
 }
 
 /**
@@ -165,10 +179,11 @@ describe('browser commands', () => {
       t.skip('No local Chrome/Chromium runtime available');
     }
 
-    const fixtureDir = join(__dirname, 'fixtures', 'sloppy-app');
+    const fixtureDir = cloneFixtureSite('sloppy-app');
     const start = runJson('serve start --root .', fixtureDir);
 
     try {
+      await waitForHttpServer(start.port);
       const collected = runJson(`browser collect --url "${start.url}" --root . --personas none`, fixtureDir);
       assert.ok(collected.outputPath, 'collector should return an evidence path');
       assert.ok(existsSync(collected.outputPath), 'evidence bundle should exist');
@@ -182,6 +197,7 @@ describe('browser commands', () => {
       assert.ok(Array.isArray(bundle.sourcePatterns), 'source patterns should be present');
     } finally {
       runJson('serve stop --root .', fixtureDir);
+      rmSync(fixtureDir, { recursive: true, force: true });
     }
   });
 
@@ -191,10 +207,11 @@ describe('browser commands', () => {
       t.skip('No local Chrome/Chromium runtime available');
     }
 
-    const fixtureDir = join(__dirname, 'fixtures', 'sloppy-app');
+    const fixtureDir = cloneFixtureSite('sloppy-app');
     const start = runJson('serve start --root .', fixtureDir);
 
     try {
+      await waitForHttpServer(start.port);
       const contrast = runJson(`browser check --url "${start.url}" --metric contrast --selector ".cta-button"`, fixtureDir);
       assert.equal(contrast.ok, true);
       assert.equal(contrast.metric, 'contrast');
@@ -208,6 +225,7 @@ describe('browser commands', () => {
       assert.match(typography.result.fontFamily, /Inter/i);
     } finally {
       runJson('serve stop --root .', fixtureDir);
+      rmSync(fixtureDir, { recursive: true, force: true });
     }
   });
 
@@ -217,11 +235,12 @@ describe('browser commands', () => {
       t.skip('No local Chrome/Chromium runtime available');
     }
 
-    const fixtureDir = join(__dirname, 'fixtures', 'sloppy-app');
+    const fixtureDir = cloneFixtureSite('sloppy-app');
     const start = runJson('serve start --root .', fixtureDir);
     const screenshotOut = join(fixtureDir, '.pixelslop', 'browser-test-mobile.png');
 
     try {
+      await waitForHttpServer(start.port);
       const styles = runJson(`browser styles --url "${start.url}" --selector ".cta-button"`, fixtureDir);
       assert.equal(styles.ok, true);
       assert.equal(styles.selector, '.cta-button');
@@ -254,10 +273,11 @@ describe('browser commands', () => {
       t.skip('No local Chrome/Chromium runtime available');
     }
 
-    const fixtureDir = join(__dirname, 'fixtures', 'sloppy-app');
+    const fixtureDir = cloneFixtureSite('sloppy-app');
     const start = runJson('serve start --root .', fixtureDir);
 
     try {
+      await waitForHttpServer(start.port);
       const result = runJson(`browser analyze-page --url "${start.url}" --raw`, fixtureDir);
       assert.ok(result.ok, 'analyze-page should succeed');
       assert.ok(typeof result.type === 'string', 'should return a page type');
@@ -267,6 +287,7 @@ describe('browser commands', () => {
       assert.ok(Array.isArray(result.suggestedPersonas.names), 'suggestedPersonas.names should be array');
     } finally {
       runJson('serve stop --root .', fixtureDir);
+      rmSync(fixtureDir, { recursive: true, force: true });
     }
   });
 
@@ -277,10 +298,11 @@ describe('browser commands', () => {
     }
 
     // form-page has >3 form fields, should classify as form-heavy
-    const fixtureDir = join(__dirname, 'fixtures', 'form-page');
+    const fixtureDir = cloneFixtureSite('form-page');
     const start = runJson('serve start --root .', fixtureDir);
 
     try {
+      await waitForHttpServer(start.port);
       const result = runJson(`browser analyze-page --url "${start.url}" --raw`, fixtureDir);
       assert.ok(result.ok, 'analyze-page should succeed');
       assert.equal(result.type, 'form-heavy', 'form-page fixture should classify as form-heavy');
@@ -290,6 +312,7 @@ describe('browser commands', () => {
         'form-heavy pages should suggest screen-reader-user');
     } finally {
       runJson('serve stop --root .', fixtureDir);
+      rmSync(fixtureDir, { recursive: true, force: true });
     }
   });
 
@@ -299,10 +322,11 @@ describe('browser commands', () => {
       t.skip('No local Chrome/Chromium runtime available');
     }
 
-    const fixtureDir = join(__dirname, 'fixtures', 'article-page');
+    const fixtureDir = cloneFixtureSite('article-page');
     const start = runJson('serve start --root .', fixtureDir);
 
     try {
+      await waitForHttpServer(start.port);
       const result = runJson(`browser analyze-page --url "${start.url}" --raw`, fixtureDir);
       assert.ok(result.ok, 'analyze-page should succeed');
       assert.equal(result.type, 'content', 'article-page fixture should classify as content');
@@ -310,6 +334,7 @@ describe('browser commands', () => {
         'content pages should suggest non-native-english');
     } finally {
       runJson('serve stop --root .', fixtureDir);
+      rmSync(fixtureDir, { recursive: true, force: true });
     }
   });
 });
@@ -397,6 +422,22 @@ describe('plan commands', () => {
     assert.equal(result.new_status, 'fixed');
     const content = readFileSync(join(dir, '.pixelslop-plan.md'), 'utf-8');
     assert.ok(content.includes('[fixed] x'));
+  });
+
+  it('plan update persists optional fix detail into plan snapshot', () => {
+    const issues = JSON.stringify([{ id: 'x', priority: 'P0', category: 'a', description: 'b' }]);
+    run(`plan begin --url http://localhost:3000 --root . --issues '${issues}'`, dir);
+    const result = runJson('plan update x fixed --what-changed "Header stacks on mobile" --evidence "Checker PASS — overflow resolved" --source checker', dir);
+    assert.equal(result.new_status, 'fixed');
+    assert.equal(result.details.whatChanged, 'Header stacks on mobile');
+    assert.equal(result.details.evidence, 'Checker PASS — overflow resolved');
+    assert.equal(result.details.source, 'checker');
+
+    const snapshot = runJson('plan snapshot', dir);
+    assert.equal(snapshot.issue_details.x.whatChanged, 'Header stacks on mobile');
+    assert.equal(snapshot.issue_details.x.evidence, 'Checker PASS — overflow resolved');
+    assert.equal(snapshot.issue_details.x.source, 'checker');
+    assert.equal(snapshot.issues[0].whatChanged, 'Header stacks on mobile');
   });
 
   it('plan update rejects invalid status', () => {
@@ -701,8 +742,12 @@ describe('init commands', () => {
     assert.equal(result.url_type, 'local');
     assert.ok(result.root_valid);
     assert.ok(result.root_has_git);
+    assert.equal(result.root_has_git_baseline, true);
     assert.ok(result.root_has_package_json);
     assert.ok(result.gate_command);
+    assert.equal(result.editable_ready, true);
+    assert.deepEqual(result.editable_blockers, []);
+    assert.equal(result.preflight_action_required, false);
   });
 
   it('init scan returns report-only for remote URLs', () => {
@@ -1028,6 +1073,69 @@ describe('serve start/stop', () => {
     rmSync(dirA, { recursive: true, force: true });
     rmSync(dirB, { recursive: true, force: true });
   });
+
+  it('ignores stale server state when the recorded port is not serving', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-serve-stale-'));
+    const stalePort = 4107;
+    const decoyPort = 4108;
+    writeFileSync(join(dir, 'index.html'), '<html><body>fresh</body></html>');
+    mkdirSync(join(dir, '.pixelslop'), { recursive: true });
+
+    const decoy = startFixtureServer(dir, decoyPort);
+    await waitForHttpServer(decoyPort);
+
+    const staleScript = join(dir, '.pixelslop', 'stale-server.cjs');
+    writeFileSync(staleScript, '// stale server placeholder');
+    writeFileSync(join(dir, '.pixelslop', 'temp-server.json'), JSON.stringify({
+      pid: decoy.pid,
+      port: stalePort,
+      root: dir,
+      script: staleScript,
+      started_at: new Date().toISOString(),
+    }));
+
+    try {
+      const startResult = runJson(`serve start --root "${dir}"`, dir);
+      assert.equal(startResult.reused, undefined, 'stale state should not be reused');
+      assert.notEqual(startResult.port, stalePort, 'should start a fresh server on a reachable port');
+      await waitForHttpServer(startResult.port);
+
+      const response = await fetch(startResult.url);
+      assert.equal(response.status, 200, 'fresh server should be reachable');
+      assert.ok(!existsSync(staleScript), 'stale temp script should be cleaned up');
+
+      runJson(`serve stop --root "${dir}"`, dir);
+    } finally {
+      decoy.kill('SIGTERM');
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('supports immediate stop-then-start followed by browser inspection', { timeout: 60000 }, async (t) => {
+    const runtime = runJson('browser detect', process.cwd());
+    if (!runtime.available) {
+      t.skip('No local Chrome/Chromium runtime available');
+    }
+
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-serve-restart-'));
+    writeFileSync(join(dir, 'index.html'), '<html><body><a class="cta-button" href="#">Restart test</a></body></html>');
+
+    const firstStart = runJson(`serve start --root "${dir}"`, dir);
+    await waitForHttpServer(firstStart.port);
+    const firstStop = runJson(`serve stop --root "${dir}"`, dir);
+    assert.ok(firstStop.stopped, 'first server should stop cleanly');
+
+    const secondStart = runJson(`serve start --root "${dir}"`, dir);
+    try {
+      await waitForHttpServer(secondStart.port);
+      const styles = runJson(`browser styles --url "${secondStart.url}" --selector ".cta-button"`, dir);
+      assert.equal(styles.ok, true, 'browser inspection after restart should succeed');
+      assert.equal(styles.selector, '.cta-button');
+    } finally {
+      runJson(`serve stop --root "${dir}"`, dir);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 // ─────────────────────────────────────────────
@@ -1310,6 +1418,8 @@ describe('init scan --allow-no-git', () => {
     const result = runJson(`init scan --url http://localhost:3000 --root "${dir}" --allow-no-git`, dir);
     assert.equal(result.mode, 'visual-editable', 'should return visual-editable with --allow-no-git');
     assert.equal(result.no_git, true, 'should report no_git: true');
+    assert.equal(result.can_opt_in_no_git, true, 'should advertise no-git opt-in path');
+    assert.equal(result.preflight_action_required, false, 'should not block after no-git opt-in');
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -1318,6 +1428,42 @@ describe('init scan --allow-no-git', () => {
     writeFileSync(join(dir, 'index.html'), '<h1>Test</h1>');
     const result = runJson(`init scan --url http://localhost:3000 --root "${dir}"`, dir);
     assert.equal(result.mode, 'visual-report-only', 'should return visual-report-only without opt-in');
+    assert.deepEqual(result.editable_blockers, ['missing-git']);
+    assert.equal(result.report_only_reason, 'missing-git');
+    assert.equal(result.preflight_action_required, true);
+    assert.equal(result.can_opt_in_no_git, true);
+    assert.equal(result.suggested_action, 'ask-editable-setup-or-report-only');
+    assert.match(result.suggested_commands.git_init, /git -C .* init/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns visual-report-only for git repo without a baseline commit', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-git-no-head-'));
+    writeFileSync(join(dir, 'index.html'), '<h1>Test</h1>');
+    execSync('git init', { cwd: dir, stdio: 'pipe' });
+    const result = runJson(`init scan --url http://localhost:3000 --root "${dir}"`, dir);
+    assert.equal(result.mode, 'visual-report-only');
+    assert.equal(result.root_has_git, true);
+    assert.equal(result.root_has_git_baseline, false);
+    assert.deepEqual(result.editable_blockers, ['missing-git-baseline']);
+    assert.equal(result.report_only_reason, 'missing-git-baseline');
+    assert.equal(result.preflight_action_required, true);
+    assert.equal(result.can_opt_in_no_git, true);
+    assert.equal(result.suggested_action, 'ask-editable-setup-or-report-only');
+    assert.match(result.suggested_commands.git_baseline_commit, /commit -m "chore: baseline"/);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns visual-editable for git repo without a baseline commit when --allow-no-git is set', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pixelslop-git-no-head-'));
+    writeFileSync(join(dir, 'index.html'), '<h1>Test</h1>');
+    execSync('git init', { cwd: dir, stdio: 'pipe' });
+    const result = runJson(`init scan --url http://localhost:3000 --root "${dir}" --allow-no-git`, dir);
+    assert.equal(result.mode, 'visual-editable');
+    assert.equal(result.root_has_git, true);
+    assert.equal(result.root_has_git_baseline, false);
+    assert.deepEqual(result.editable_blockers, []);
+    assert.equal(result.preflight_action_required, false);
     rmSync(dir, { recursive: true, force: true });
   });
 });
