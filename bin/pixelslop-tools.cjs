@@ -2800,6 +2800,23 @@ function resolveReportTemplatePath() {
  * @param {object} flags - { json?: string, 'json-file'?: string, root?: string }
  * @returns {{ ok: boolean, path?: string, error?: string }}
  */
+const SCAN_PILLARS = ['hierarchy', 'typography', 'color', 'responsiveness', 'accessibility'];
+
+/**
+ * Sum the five pillar scores into a /20 total, the same way the report does.
+ * @param {object} scores - The scan-results `scores` object
+ * @returns {number} 0-20
+ */
+function computeScanTotal(scores) {
+  let sum = 0;
+  for (const name of SCAN_PILLARS) {
+    const raw = scores && scores[name];
+    const v = raw && typeof raw === 'object' ? raw.score : raw;
+    sum += Math.min(4, Math.max(0, safeNumber(v)));
+  }
+  return Math.min(20, sum);
+}
+
 function scanSaveResults(flags) {
   try {
     let data;
@@ -2821,10 +2838,71 @@ function scanSaveResults(flags) {
     const outPath = path.join(outDir, 'scan-results.json');
     fs.writeFileSync(outPath, JSON.stringify(data, null, 2), 'utf-8');
 
+    // Append a compact entry to the per-target score history so trends accrue.
+    // Best-effort: a broken history file must never sink the actual save.
+    try {
+      const histPath = path.join(outDir, 'scan-history.json');
+      let history = [];
+      if (fs.existsSync(histPath)) {
+        // A corrupt history file self-heals: parse failure resets to a fresh array.
+        try {
+          const parsed = JSON.parse(fs.readFileSync(histPath, 'utf-8'));
+          if (Array.isArray(parsed)) history = parsed;
+        } catch { history = []; }
+      }
+      const pillars = {};
+      for (const name of SCAN_PILLARS) {
+        const raw = data.scores[name];
+        pillars[name] = raw && typeof raw === 'object' ? raw.score : raw;
+      }
+      history.push({
+        timestamp: data.timestamp || new Date().toISOString(),
+        target: data.url || data.target || 'unknown',
+        total: computeScanTotal(data.scores),
+        pillars,
+        slopBand: (data.slop && data.slop.band) || data.slopLevel || null
+      });
+      if (history.length > 200) history = history.slice(-200);
+      fs.writeFileSync(histPath, JSON.stringify(history, null, 2), 'utf-8');
+    } catch { /* history is best-effort */ }
+
     return { ok: true, path: outPath };
   } catch (err) {
     return { ok: false, error: err.message };
   }
+}
+
+/**
+ * Read the per-target score history and report the trend.
+ * Flags: --target <url> (filter), --last <n> (default 10), --root, --raw.
+ */
+function scanTrend(flags) {
+  const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
+  const histPath = path.join(root, '.pixelslop', 'scan-history.json');
+  if (!fs.existsSync(histPath)) {
+    return output(RAW
+      ? { ok: true, target: flags.target || null, count: 0, scores: [], delta: 0, entries: [] }
+      : 'No scan history yet.');
+  }
+  let history;
+  try {
+    history = JSON.parse(fs.readFileSync(histPath, 'utf-8'));
+  } catch (err) {
+    return fail(`Could not read scan history: ${err.message}`);
+  }
+  if (!Array.isArray(history)) history = [];
+  if (flags.target) history = history.filter((h) => h.target === flags.target);
+
+  const last = Math.max(1, parseInt(flags.last, 10) || 10);
+  const entries = history.slice(-last);
+  const scores = entries.map((e) => safeNumber(e.total));
+  const delta = scores.length >= 2 ? scores[scores.length - 1] - scores[0] : 0;
+
+  output(RAW
+    ? { ok: true, target: flags.target || null, count: entries.length, scores, delta, entries }
+    : (entries.length
+        ? `${flags.target || 'all targets'}: ${scores.join(' -> ')}  (${delta >= 0 ? '+' : ''}${delta})`
+        : 'No scan history yet.'));
 }
 
 /**
@@ -3188,6 +3266,7 @@ async function main() {
     console.log('  browser analyze-page --url <url>               # Classify page type and suggest personas');
     console.log('  scan save-results --json \'<json>\' [--root <path>]  # Save assembled scan results');
     console.log('  scan save-results --json-file <path> [--root <path>]');
+    console.log('  scan trend [--target <url>] [--last <n>] [--root <path>]  # Score trend across runs');
     console.log('  report generate --scan-results <path> [--plan-snapshot <path>] [--root <path>]');
     console.log('  config set <key> <value> [--root <path>]     # Set a project setting');
     console.log('  config get [<key>] [--root <path>]            # Get one or all settings');
@@ -3305,7 +3384,8 @@ async function main() {
     case 'scan': {
       switch (command) {
         case 'save-results': return output(scanSaveResults(flags), true);
-        default: fail(`Unknown scan command: ${command}. Valid: save-results`);
+        case 'trend': return scanTrend(flags);
+        default: fail(`Unknown scan command: ${command}. Valid: save-results, trend`);
       }
       break;
     }
