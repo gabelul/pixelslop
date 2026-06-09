@@ -35,6 +35,7 @@ You receive three values:
 2. **Read the evidence bundle** at `evidence_path`.
 3. **Extract the fields you need:**
    - `viewports.desktop.typography` — font families, sizes, weights, line-heights, letter-spacing for all text elements
+   - `viewports.desktop.typographyMetrics` — derived readability metrics measured off real layout: `bodyCharsPerLine`, `bodyFontSize`, `bodyLeadingRatio`, `bodyTrackingEm`, `justifiedBody`, `allCapsBody`, `typeScaleRatio`, `flatHierarchy`
    - `network.failed` — font load failures (custom fonts that didn't make it)
 4. **Apply the rubric** from scoring.md (Pillar 2: Typography). Evaluate each criterion:
    - **Font choice** — distinctive vs generic AI defaults. Inter, Roboto, Open Sans used with zero personality = score 2 territory. System defaults with no custom fonts = score 1. A thoughtful pairing that gives the page identity = score 3-4.
@@ -44,6 +45,7 @@ You receive three values:
    - **Letter spacing** — check for intentional adjustments vs all-defaults. Uppercase text without added letter-spacing is a miss.
    - **Font count** — 1-2 families with clear roles is ideal. 3 is the max before it gets noisy. 4+ is chaos.
    - **Font loading** — custom fonts in CSS that show up in `network.failed` means the user sees fallbacks. That counts against the score.
+   - **Measured readability** — `typographyMetrics` gives you hard numbers. Check each against the scoring.md thresholds and emit a finding when one fails: `bodyCharsPerLine` outside 45–85 (measure), `bodyFontSize` under 14px (below floor), `bodyLeadingRatio` under 1.3 or over 1.9 (leading), `bodyTrackingEm` under -0.02 or over 0.1 (tracking), `flatHierarchy` true (type scale too flat), `justifiedBody` true, `allCapsBody` true. Two or more compounding = Score 1 territory. If `typographyMetrics` is null or its fields are null, note it and lower confidence — don't invent the numbers.
 5. **Assign a score (1-4).** Be honest. Score 4 means the type system has genuine personality and tight discipline — that's rare.
 6. **Return JSON.**
 
@@ -74,7 +76,7 @@ Return exactly this structure. Nothing else.
 ```
 
 Each finding in `findings` must include:
-- `criterion` — which typography aspect (font-choice, type-scale, weight-discipline, line-height, letter-spacing, font-count, font-loading)
+- `criterion` — which typography aspect (font-choice, type-scale, weight-discipline, line-height, letter-spacing, font-count, font-loading, measure, body-size, leading, tracking, flat-hierarchy, justified-body, all-caps-body)
 - `status` — "pass", "warn", or "fail"
 - `detail` — specific observation with measurements
 - `evidence` — which evidence bundle field(s) back up the claim

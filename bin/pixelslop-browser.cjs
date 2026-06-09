@@ -519,6 +519,7 @@ async function collectDesktop(bundle, page, root, url, stamp) {
   }, null);
 
   bundle.viewports.desktop.typography = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetTypography), null);
+  bundle.viewports.desktop.typographyMetrics = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetTypographyMetrics), null);
   bundle.viewports.desktop.colors = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetColors), null);
   bundle.viewports.desktop.spacing = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetSpacing), null);
   bundle.viewports.desktop.decorations = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetDecorations), null);
@@ -916,6 +917,105 @@ function snippetTypography() {
     };
   });
   return results;
+}
+
+// Derived typography metrics the raw snippet can't express. These are the numbers
+// that decide whether text is actually comfortable to read: measure (chars per line),
+// body size, leading ratio, tracking, and how much the type scale actually spreads.
+// Everything here is measured off real layout — no estimates, no guessed glyph widths.
+function snippetTypographyMetrics() {
+  const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
+
+  // line-height as a ratio of font-size. 'normal' computes to ~1.2 in every engine.
+  const leadingRatio = (s) => {
+    const fs = parseFloat(s.fontSize);
+    if (!fs) return null;
+    if (s.lineHeight === 'normal') return 1.2;
+    const lh = parseFloat(s.lineHeight);
+    return Number.isFinite(lh) ? Math.round((lh / fs) * 100) / 100 : null;
+  };
+
+  // letter-spacing normalised to em so the threshold is size-independent.
+  const trackingEm = (s) => {
+    if (s.letterSpacing === 'normal') return 0;
+    const fs = parseFloat(s.fontSize);
+    const ls = parseFloat(s.letterSpacing);
+    if (!fs || !Number.isFinite(ls)) return null;
+    return Math.round((ls / fs) * 1000) / 1000;
+  };
+
+  // Real measure: lay a Range over the element and count line boxes by their top edge.
+  // text length / line count = characters per line. No font-metric guessing.
+  const charsPerLine = (el) => {
+    const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (text.length < 1) return null;
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const rects = Array.from(range.getClientRects()).filter((r) => r.width > 1 && r.height > 1);
+      if (!rects.length) return null;
+      const lines = new Set(rects.map((r) => Math.round(r.top))).size || 1;
+      return Math.round(text.length / lines);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Candidate body paragraphs: visible, with enough copy to judge reading comfort.
+  const paras = Array.from(document.querySelectorAll('p, article p, main p, li'))
+    .filter((el) => {
+      if ((el.textContent || '').trim().length < 60) return false;
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden';
+    })
+    .slice(0, 12);
+
+  const samples = paras.map((el) => {
+    const s = getComputedStyle(el);
+    return {
+      tag: el.tagName.toLowerCase(),
+      fontSize: px(s.fontSize),
+      leadingRatio: leadingRatio(s),
+      trackingEm: trackingEm(s),
+      textAlign: s.textAlign,
+      textTransform: s.textTransform,
+      charsPerLine: charsPerLine(el),
+      length: (el.textContent || '').trim().length
+    };
+  });
+
+  // The dominant block (most copy) stands in for "body text" decisions.
+  const dominant = samples.slice().sort((a, b) => b.length - a.length)[0] || null;
+
+  // Type scale spread: biggest heading vs body. A flat ratio reads as undifferentiated.
+  const scaleSizes = ['h1', 'h2', 'h3', 'h4', 'p']
+    .map((sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      return px(getComputedStyle(el).fontSize);
+    })
+    .filter((n) => n !== null);
+  let typeScaleRatio = null;
+  let flatHierarchy = null;
+  if (scaleSizes.length >= 3) {
+    const max = Math.max(...scaleSizes);
+    const min = Math.min(...scaleSizes);
+    typeScaleRatio = min > 0 ? Math.round((max / min) * 100) / 100 : null;
+    flatHierarchy = typeScaleRatio !== null ? typeScaleRatio < 1.5 : null;
+  }
+
+  return {
+    bodyFontSize: dominant ? dominant.fontSize : null,
+    bodyLeadingRatio: dominant ? dominant.leadingRatio : null,
+    bodyTrackingEm: dominant ? dominant.trackingEm : null,
+    bodyCharsPerLine: dominant ? dominant.charsPerLine : null,
+    justifiedBody: dominant ? dominant.textAlign === 'justify' : false,
+    allCapsBody: dominant ? dominant.textTransform === 'uppercase' && dominant.length >= 80 : false,
+    typeScaleRatio,
+    flatHierarchy,
+    samples: samples.slice(0, 6)
+  };
 }
 
 function snippetColors() {

@@ -79,6 +79,18 @@ Evidence: distinctive font pairing (not just Inter/Roboto/Open Sans defaults), c
 - Letter-spacing values if present
 - Number of distinct font families in use
 
+**Measured signals (from `viewports.desktop.typographyMetrics`):** these are computed off real layout, so treat them as hard evidence, not impressions. Each is a concrete readability failure — fold them into the score and emit a finding when one fires:
+
+- **Measure** — `bodyCharsPerLine`. Comfortable is 45–85. Below 45 is cramped, above 85 is a tiring line. Either extreme caps Typography at 2.
+- **Body size** — `bodyFontSize`. Below 14px is under the readability floor (fail). 14–15px is a warn. 16px+ is the expectation.
+- **Leading** — `bodyLeadingRatio`. Body wants 1.4–1.7. Below 1.3 is too tight to track lines (fail); above 1.9 drifts apart (warn).
+- **Tracking** — `bodyTrackingEm`. Body copy wants near-zero. Negative tracking on body (`< -0.02em`) or wide tracking (`> 0.1em`) hurts reading (fail). Wide tracking is fine on short uppercase labels, not body runs.
+- **Scale** — `flatHierarchy` / `typeScaleRatio`. A largest-to-smallest ratio under 1.5 means headings and body barely differ — the page reads undifferentiated (fail, and it drags Hierarchy too).
+- **Justified body** — `justifiedBody`. Justified web text with no hyphenation opens rivers of whitespace (warn).
+- **All-caps body** — `allCapsBody`. A long uppercase run as body copy (not a label) tanks legibility (warn).
+
+A single measured failure rarely sinks the whole pillar on its own, but two or more compounding (e.g. tiny body text *and* tight leading *and* an 95-char measure) is a clear Score 1 — the text isn't comfortable to read, which is the whole point of the pillar.
+
 **Interpretation notes for evaluators:** A site using Inter as its only font gets a 2 at best — it's the most common AI default and says nothing about brand. But Inter used alongside a distinctive display font as part of a deliberate pairing can score 3. Context matters. Also check `network.failed` for font load failures — a custom font that 404s means the user sees system fallbacks, which changes the score.
 
 ---
