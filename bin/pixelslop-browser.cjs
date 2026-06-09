@@ -165,6 +165,13 @@ function validateTargetUrl(rawUrl) {
     throw new Error(`Unsupported URL protocol: ${parsed.protocol}`);
   }
 
+  // The temp static server binds 127.0.0.1 explicitly. Normalize loopback
+  // aliases so Playwright does not resolve `localhost` to an unreachable IPv6
+  // address and fail with ERR_CONNECTION_REFUSED.
+  if (parsed.hostname === 'localhost' || parsed.hostname === '0.0.0.0' || parsed.hostname === '::1') {
+    parsed.hostname = '127.0.0.1';
+  }
+
   const trimmedInput = String(rawUrl).trim();
   if (parsed.pathname === '/' && !parsed.search && !parsed.hash && !trimmedInput.endsWith('/')) {
     return `${parsed.protocol}//${parsed.host}`;
@@ -802,6 +809,8 @@ const PAGE_TYPE_PERSONAS = {
 async function analyzePageType(page) {
   const signals = await page.evaluate(() => {
     const qs = (sel) => document.querySelectorAll(sel).length;
+    const articleRoot = document.querySelector('article, main');
+    const articleText = articleRoot?.innerText || '';
     return {
       hasForm: qs('form') > 0,
       hasCart: qs('[class*=cart], [data-cart], [class*=checkout]') > 0,
@@ -812,6 +821,9 @@ async function analyzePageType(page) {
       sectionCount: qs('section, [role=region]'),
       formFieldCount: qs('input, select, textarea'),
       imageCount: qs('img'),
+      paragraphCount: qs('article p, main p'),
+      headingCount: qs('article h1, article h2, article h3, main h1, main h2, main h3'),
+      articleTextDensity: articleText.split(/\s+/).filter(Boolean).length,
       textDensity: (document.body?.innerText || '').split(/\s+/).length,
     };
   }).catch(() => null);
@@ -822,7 +834,13 @@ async function analyzePageType(page) {
 
   let type = 'general';
   if (signals.hasCart || signals.hasPricing) type = 'e-commerce';
-  else if (signals.hasArticle && signals.textDensity > 500) type = 'content';
+  else if (
+    signals.hasArticle
+    && (
+      signals.articleTextDensity >= 220
+      || (signals.paragraphCount >= 4 && signals.headingCount >= 2)
+    )
+  ) type = 'content';
   else if (signals.formFieldCount > 3) type = 'form-heavy';
   else if (signals.hasHero && signals.sectionCount >= 3) type = 'landing-page';
   else if (signals.navItemCount > 10) type = 'app-like';

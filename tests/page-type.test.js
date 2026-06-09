@@ -126,4 +126,14 @@ describe('analyze-page command existence', () => {
     assert.ok(src.includes('analyzePageCommand'), 'should have analyzePageCommand function');
     assert.ok(src.includes('analyzePageType'), 'should have analyzePageType function');
   });
+
+  it('content heuristic uses article structure signals, not only body text density', () => {
+    const src = readFileSync(BROWSER_CJS, 'utf-8');
+    assert.ok(src.includes('paragraphCount'), 'should track paragraphCount');
+    assert.ok(src.includes('headingCount'), 'should track headingCount');
+    assert.ok(src.includes('articleTextDensity'), 'should track articleTextDensity');
+    assert.ok(src.includes('signals.articleTextDensity >= 220'), 'should classify content using articleTextDensity threshold');
+    assert.ok(src.includes('signals.paragraphCount >= 4'), 'should consider paragraph count for content pages');
+    assert.ok(src.includes('signals.headingCount >= 2'), 'should consider heading count for content pages');
+  });
 });
