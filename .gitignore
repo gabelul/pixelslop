@@ -28,6 +28,10 @@ build/
 # Test sites (calibration artifacts, not test infrastructure)
 test_sites/
 
+# Inspiration clones — third-party repos we read for ideas, never ship.
+# Reference-only. Keeps foreign code out of node_modules, test globs, and the npm tarball.
+research/
+
 # Other runtimes / tools
 .opencode/
 .superset/
