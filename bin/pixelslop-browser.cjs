@@ -165,6 +165,13 @@ function validateTargetUrl(rawUrl) {
     throw new Error(`Unsupported URL protocol: ${parsed.protocol}`);
   }
 
+  // The temp static server binds 127.0.0.1 explicitly. Normalize loopback
+  // aliases so Playwright does not resolve `localhost` to an unreachable IPv6
+  // address and fail with ERR_CONNECTION_REFUSED.
+  if (parsed.hostname === 'localhost' || parsed.hostname === '0.0.0.0' || parsed.hostname === '::1') {
+    parsed.hostname = '127.0.0.1';
+  }
+
   const trimmedInput = String(rawUrl).trim();
   if (parsed.pathname === '/' && !parsed.search && !parsed.hash && !trimmedInput.endsWith('/')) {
     return `${parsed.protocol}//${parsed.host}`;
@@ -512,6 +519,7 @@ async function collectDesktop(bundle, page, root, url, stamp) {
   }, null);
 
   bundle.viewports.desktop.typography = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetTypography), null);
+  bundle.viewports.desktop.typographyMetrics = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetTypographyMetrics), null);
   bundle.viewports.desktop.colors = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetColors), null);
   bundle.viewports.desktop.spacing = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetSpacing), null);
   bundle.viewports.desktop.decorations = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetDecorations), null);
@@ -760,10 +768,123 @@ function parseViewport(viewportArg) {
   return { width: Number(match[1]), height: Number(match[2]) };
 }
 
+/**
+ * Page-type → persona mapping. Each type recommends 4 personas
+ * most relevant for that kind of page. Uses humanNames for display.
+ * @type {Record<string, {ids: string[], names: string[]}>}
+ */
+const PAGE_TYPE_PERSONAS = {
+  'landing-page': {
+    ids: ['rushed-mobile-user', 'first-time-visitor', 'design-critic', 'non-native-english'],
+    names: ['Casey', 'Jordan', 'Quinn', 'Ren'],
+  },
+  'e-commerce': {
+    ids: ['rushed-mobile-user', 'keyboard-user', 'screen-reader-user', 'low-vision-user'],
+    names: ['Casey', 'Alex', 'Sam', 'Pat'],
+  },
+  'content': {
+    ids: ['non-native-english', 'low-vision-user', 'screen-reader-user', 'design-critic'],
+    names: ['Ren', 'Pat', 'Sam', 'Quinn'],
+  },
+  'form-heavy': {
+    ids: ['keyboard-user', 'screen-reader-user', 'low-vision-user', 'first-time-visitor'],
+    names: ['Alex', 'Sam', 'Pat', 'Jordan'],
+  },
+  'app-like': {
+    ids: ['keyboard-user', 'rushed-mobile-user', 'screen-reader-user', 'slow-connection-user'],
+    names: ['Alex', 'Casey', 'Sam', 'Morgan'],
+  },
+  'general': {
+    ids: ['screen-reader-user', 'rushed-mobile-user', 'first-time-visitor', 'design-critic'],
+    names: ['Sam', 'Casey', 'Jordan', 'Quinn'],
+  },
+};
+
+/**
+ * Lightweight page-type classification from DOM signals.
+ * Runs in-browser, no screenshots or full collection needed.
+ * Returns { type, signals, suggestedPersonas } or falls back to 'general'.
+ * @param {import('playwright').Page} page - Playwright page after navigation
+ * @returns {Promise<{type: string, signals: object, suggestedPersonas: {ids: string[], names: string[]}}>}
+ */
+async function analyzePageType(page) {
+  const signals = await page.evaluate(() => {
+    const qs = (sel) => document.querySelectorAll(sel).length;
+    const articleRoot = document.querySelector('article, main');
+    const articleText = articleRoot?.innerText || '';
+    return {
+      hasForm: qs('form') > 0,
+      hasCart: qs('[class*=cart], [data-cart], [class*=checkout]') > 0,
+      hasPricing: qs('[class*=pricing], [class*=price], [class*=plan]') > 0,
+      hasArticle: qs('article, [role=article]') > 0,
+      hasHero: qs('[class*=hero], [class*=banner], [class*=jumbotron]') > 0,
+      navItemCount: qs('nav a, nav button'),
+      sectionCount: qs('section, [role=region]'),
+      formFieldCount: qs('input, select, textarea'),
+      imageCount: qs('img'),
+      paragraphCount: qs('article p, main p'),
+      headingCount: qs('article h1, article h2, article h3, main h1, main h2, main h3'),
+      articleTextDensity: articleText.split(/\s+/).filter(Boolean).length,
+      textDensity: (document.body?.innerText || '').split(/\s+/).length,
+    };
+  }).catch(() => null);
+
+  if (!signals) {
+    return { type: 'general', signals: {}, suggestedPersonas: PAGE_TYPE_PERSONAS['general'] };
+  }
+
+  let type = 'general';
+  if (signals.hasCart || signals.hasPricing) type = 'e-commerce';
+  else if (
+    signals.hasArticle
+    && (
+      signals.articleTextDensity >= 220
+      || (signals.paragraphCount >= 4 && signals.headingCount >= 2)
+    )
+  ) type = 'content';
+  else if (signals.formFieldCount > 3) type = 'form-heavy';
+  else if (signals.hasHero && signals.sectionCount >= 3) type = 'landing-page';
+  else if (signals.navItemCount > 10) type = 'app-like';
+
+  return { type, signals, suggestedPersonas: PAGE_TYPE_PERSONAS[type] };
+}
+
+/**
+ * Standalone page-type analysis command. Navigates to URL, classifies
+ * the page, and returns suggested personas. Fast (< 2s, no screenshots).
+ * @param {object} args - { url, headed? }
+ * @returns {Promise<{ok: boolean, type: string, signals: object, suggestedPersonas: object}>}
+ */
+async function analyzePageCommand(args) {
+  if (!args.url) throw new Error('--url is required');
+  const navigationUrl = validateTargetUrl(String(args.url).trim());
+  const runtime = detectBrowserRuntime();
+  if (!runtime.available) {
+    return { ok: false, type: 'general', error: runtime.message, suggestedPersonas: PAGE_TYPE_PERSONAS['general'] };
+  }
+
+  const { chromium } = requirePlaywright();
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: !args.headed, executablePath: runtime.executablePath });
+    const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+    const page = await context.newPage();
+    await page.goto(navigationUrl, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS });
+    const result = await analyzePageType(page);
+    return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, type: 'general', error: err.message, suggestedPersonas: PAGE_TYPE_PERSONAS['general'] };
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+  }
+}
+
 async function runBrowserCommand(command, args) {
   switch (command) {
     case 'collect':
       return await collectEvidence(args);
+    case 'analyze-page':
+      return await analyzePageCommand(args);
     case 'check':
       return await browserCheck(args);
     case 'styles':
@@ -796,6 +917,105 @@ function snippetTypography() {
     };
   });
   return results;
+}
+
+// Derived typography metrics the raw snippet can't express. These are the numbers
+// that decide whether text is actually comfortable to read: measure (chars per line),
+// body size, leading ratio, tracking, and how much the type scale actually spreads.
+// Everything here is measured off real layout — no estimates, no guessed glyph widths.
+function snippetTypographyMetrics() {
+  const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
+
+  // line-height as a ratio of font-size. 'normal' computes to ~1.2 in every engine.
+  const leadingRatio = (s) => {
+    const fs = parseFloat(s.fontSize);
+    if (!fs) return null;
+    if (s.lineHeight === 'normal') return 1.2;
+    const lh = parseFloat(s.lineHeight);
+    return Number.isFinite(lh) ? Math.round((lh / fs) * 100) / 100 : null;
+  };
+
+  // letter-spacing normalised to em so the threshold is size-independent.
+  const trackingEm = (s) => {
+    if (s.letterSpacing === 'normal') return 0;
+    const fs = parseFloat(s.fontSize);
+    const ls = parseFloat(s.letterSpacing);
+    if (!fs || !Number.isFinite(ls)) return null;
+    return Math.round((ls / fs) * 1000) / 1000;
+  };
+
+  // Real measure: lay a Range over the element and count line boxes by their top edge.
+  // text length / line count = characters per line. No font-metric guessing.
+  const charsPerLine = (el) => {
+    const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (text.length < 1) return null;
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const rects = Array.from(range.getClientRects()).filter((r) => r.width > 1 && r.height > 1);
+      if (!rects.length) return null;
+      const lines = new Set(rects.map((r) => Math.round(r.top))).size || 1;
+      return Math.round(text.length / lines);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Candidate body paragraphs: visible, with enough copy to judge reading comfort.
+  const paras = Array.from(document.querySelectorAll('p, article p, main p, li'))
+    .filter((el) => {
+      if ((el.textContent || '').trim().length < 60) return false;
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden';
+    })
+    .slice(0, 12);
+
+  const samples = paras.map((el) => {
+    const s = getComputedStyle(el);
+    return {
+      tag: el.tagName.toLowerCase(),
+      fontSize: px(s.fontSize),
+      leadingRatio: leadingRatio(s),
+      trackingEm: trackingEm(s),
+      textAlign: s.textAlign,
+      textTransform: s.textTransform,
+      charsPerLine: charsPerLine(el),
+      length: (el.textContent || '').trim().length
+    };
+  });
+
+  // The dominant block (most copy) stands in for "body text" decisions.
+  const dominant = samples.slice().sort((a, b) => b.length - a.length)[0] || null;
+
+  // Type scale spread: biggest heading vs body. A flat ratio reads as undifferentiated.
+  const scaleSizes = ['h1', 'h2', 'h3', 'h4', 'p']
+    .map((sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      return px(getComputedStyle(el).fontSize);
+    })
+    .filter((n) => n !== null);
+  let typeScaleRatio = null;
+  let flatHierarchy = null;
+  if (scaleSizes.length >= 3) {
+    const max = Math.max(...scaleSizes);
+    const min = Math.min(...scaleSizes);
+    typeScaleRatio = min > 0 ? Math.round((max / min) * 100) / 100 : null;
+    flatHierarchy = typeScaleRatio !== null ? typeScaleRatio < 1.5 : null;
+  }
+
+  return {
+    bodyFontSize: dominant ? dominant.fontSize : null,
+    bodyLeadingRatio: dominant ? dominant.leadingRatio : null,
+    bodyTrackingEm: dominant ? dominant.trackingEm : null,
+    bodyCharsPerLine: dominant ? dominant.charsPerLine : null,
+    justifiedBody: dominant ? dominant.textAlign === 'justify' : false,
+    allCapsBody: dominant ? dominant.textTransform === 'uppercase' && dominant.length >= 80 : false,
+    typeScaleRatio,
+    flatHierarchy,
+    samples: samples.slice(0, 6)
+  };
 }
 
 function snippetColors() {

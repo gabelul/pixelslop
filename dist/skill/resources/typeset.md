@@ -4,6 +4,12 @@ How to fix typography findings from the scanner. Covers font scale, weight hiera
 
 ---
 
+## Use the project's type tokens first
+
+If the fixer loaded design tokens (`config read-tokens`), they carry the project's real type system — `font-body`, `font-display`, `type-scale`. Use those as your target: apply the project's fonts and its scale ratio rather than picking new ones. The recipes below are the fallback for when the project declares no type tokens.
+
+---
+
 ## What This Guide Fixes
 
 Scanner findings that map here:
@@ -12,6 +18,7 @@ Scanner findings that map here:
 - **AI Slop pattern: Generic Font Stack** — Inter/Roboto/Arial as primary with no personality
 - **AI Slop pattern: Monospace for Tech Vibes** — monospace outside code blocks for decoration
 - Findings mentioning: font scale, weight inconsistency, line-height, readability, font pairing
+- **Measured readability findings** — `measure` (line too long/short), `body-size` (under the 14px floor), `leading` (line-height too tight/loose), `tracking` (letter-spacing too tight/wide on body), `flat-hierarchy` (type scale barely differs), `justified-body`, `all-caps-body`
 
 ---
 
@@ -183,6 +190,58 @@ p { font-size: clamp(0.938rem, 0.5vw + 0.85rem, 1.125rem); }
 ```
 
 **Rule:** Body text minimum is 16px (1rem). Going below on mobile is an accessibility problem.
+
+### Recipe 7: Fix Letter-Spacing (Tracking)
+
+**When:** Scanner reports a `tracking` finding — negative letter-spacing on body text, or wide tracking on a body run. Negative tracking jams letters together; wide tracking on long copy slows reading to a crawl.
+
+**What to do:** Body copy wants tracking at or near zero. Reserve tracking adjustments for the two places they actually help:
+
+```css
+/* Body — leave it alone. Default (0) is correct. */
+p, li, td { letter-spacing: normal; }
+
+/* Large display headings — a touch tighter reads as crafted */
+h1, .display { letter-spacing: -0.02em; }
+
+/* Short uppercase labels — a little wider so the caps don't bunch */
+.eyebrow, .label, [class*="badge"] { letter-spacing: 0.05em; text-transform: uppercase; }
+```
+
+**Rule:** Wide tracking is for short uppercase labels, never for sentences. If a paragraph has positive tracking, remove it.
+
+### Recipe 8: Fix a Flat Type Scale
+
+**When:** Scanner reports `flat-hierarchy` — the largest heading is less than 1.5× the body size, so headings and body read as the same thing. The page has no typographic anchor.
+
+**What to do:** Open up the scale so the top of the hierarchy is unmistakable. Apply a real ratio (see Recipe 2) and make sure the h1 lands well above body:
+
+```css
+/* Body 16px; h1 should clear ~2.4x at minimum on a content page */
+h1 { font-size: clamp(2rem, 4vw + 1rem, 2.75rem); } /* ~40-44px */
+h2 { font-size: clamp(1.5rem, 2.5vw + 0.75rem, 2rem); }
+p  { font-size: 1rem; }
+```
+
+**Rule:** A heading that only differs from body by weight isn't a heading. Differentiate by size first, then weight.
+
+### Recipe 9: Fix Body Alignment and Casing
+
+**When:** Scanner reports `justified-body` or `all-caps-body`.
+
+**What to do:**
+
+```css
+/* Justified web text without hyphenation opens rivers of whitespace. Left-align. */
+p, li { text-align: left; }
+/* If justification is a hard design requirement, enable hyphenation to close the gaps */
+.justified { text-align: justify; hyphens: auto; }
+
+/* All-caps belongs on short labels, not paragraphs. Drop it back to sentence case. */
+p { text-transform: none; }
+```
+
+**Rule:** Uppercase is a label treatment. A full paragraph in caps is slower to read and reads as shouting.
 
 ---
 

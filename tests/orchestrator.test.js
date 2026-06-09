@@ -354,6 +354,106 @@ describe('agent cross-references', () => {
     );
   });
 
+  it('SKILL.md has --quick arg in frontmatter', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(skill.includes('name: quick'), 'SKILL should have quick arg');
+  });
+
+  it('SKILL.md has Phase 2b run-time config step', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(
+      skill.includes('Phase 2b') || skill.includes('Configure This Run'),
+      'SKILL should have a Phase 2b section'
+    );
+    // Precedence documented
+    assert.ok(skill.includes('CLI flags'), 'should document CLI flag precedence');
+    assert.ok(skill.includes('Per-run answers') || skill.includes('per-run'),
+      'should document per-run answers precedence');
+    assert.ok(skill.includes('Saved settings') || skill.includes('saved settings'),
+      'should document saved settings precedence');
+  });
+
+  it('SKILL.md Phase 2b skips when --quick or all flags provided', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(skill.includes('--quick'), 'should reference --quick as skip condition');
+    assert.ok(
+      skill.includes('locked') || skill.includes('all 4'),
+      'should skip when all settings are provided via CLI'
+    );
+  });
+
+  it('SKILL.md gates non-git local projects before the expensive scan', () => {
+    const skill = readDist('skill/SKILL.md');
+    assert.ok(skill.includes('Git Readiness Gate'), 'should document the git readiness preflight gate');
+    assert.ok(skill.includes('preflight_action_required'), 'should use init scan preflight fields');
+    assert.ok(skill.includes('Use no-git mode'), 'should offer no-git mode before scanning');
+    assert.ok(skill.includes('Stop and set up git first'), 'should allow users to stop for git setup');
+    assert.ok(skill.includes('baseline commit'), 'should explain baseline commit readiness');
+    assert.ok(skill.includes('before any scan') || skill.includes('before any scan or browser analyze-page'),
+      'should explicitly gate the scan before expensive work');
+  });
+
+  it('scan workflow documents best-effort HTML report generation', () => {
+    const skill = readDist('skill/SKILL.md');
+    const orchestrator = readDist('agents/pixelslop.md');
+    assert.ok(skill.includes('HTML export') || skill.includes('.pixelslop/reports'),
+      'SKILL should mention the non-blocking HTML report artifact');
+    assert.ok(orchestrator.includes('report generate'),
+      'orchestrator should document the report generate command after scan results');
+    assert.ok(skill.includes('Treat the `report generate --raw` result as JSON')
+      || orchestrator.includes('Parse the JSON result from this command'),
+    'scan workflow should treat report generation as structured JSON output');
+    assert.ok(skill.includes('Report not generated: <error>')
+      || skill.includes('do not just say the report was saved'),
+    'SKILL should require an explicit report failure or concrete saved path');
+  });
+
+  it('fix workflow uses the deterministic scan-results path for final report generation', () => {
+    const orchestrator = readDist('agents/pixelslop.md');
+    assert.ok(orchestrator.includes('SCAN_RESULTS_PATH=".pixelslop/scan-results.json"'),
+      'orchestrator should start fix-mode reporting from the deterministic scan-results path');
+    assert.ok(orchestrator.includes('--scan-results .pixelslop/scan-results.json'),
+      'final report generation should use the persisted scan-results artifact directly');
+    assert.ok(orchestrator.includes('$SCAN_RESULTS_PATH might not exist in the current run context')
+      || orchestrator.includes('might not exist in the current run context'),
+      'orchestrator should explain why the deterministic path is used');
+  });
+
+  it('fix workflow does not promise a rescored After line without a fresh full scan', () => {
+    const orchestrator = readDist('agents/pixelslop.md');
+    assert.ok(orchestrator.includes('Only include an **After** line'),
+      'orchestrator should gate the After summary on a fresh full scan');
+    assert.ok(orchestrator.includes('browser collect') === false || orchestrator.includes('raw `browser collect` run alone is not enough'),
+      'orchestrator should not treat raw browser collect output as a rescored report');
+  });
+
+  it('fix workflow summary requires an explicit report outcome', () => {
+    const skill = readDist('skill/SKILL.md');
+    const orchestrator = readDist('agents/pixelslop.md');
+    assert.ok(orchestrator.includes('Report saved: /absolute/path/from-report-generate'),
+      'orchestrator summary example should show a concrete saved report path');
+    assert.ok(orchestrator.includes('Report not generated: <error'),
+      'orchestrator should show the failure form when report generation fails');
+    assert.ok(orchestrator.includes('Parse the JSON result from `report generate --raw`')
+      || orchestrator.includes('Parse the JSON result from this command'),
+    'orchestrator should require parsing the report command JSON result');
+    assert.ok(orchestrator.includes('never use placeholders like `report-<timestamp>.html`')
+      || orchestrator.includes('Do not say "report saved" without the path'),
+    'orchestrator should forbid placeholder or pathless report claims');
+    assert.ok(skill.includes('exactly one explicit report outcome line'),
+      'SKILL should tell the parent to surface one explicit report outcome');
+  });
+
+  it('fix workflow persists What Changed detail into plan state', () => {
+    const orchestrator = readDist('agents/pixelslop.md');
+    assert.ok(orchestrator.includes('--what-changed "$CHANGE_SUMMARY"'),
+      'orchestrator should persist a concise change summary when marking issues fixed or partial');
+    assert.ok(orchestrator.includes('--evidence "$CHECKER_EVIDENCE"'),
+      'orchestrator should persist checker evidence for the richer fix report');
+    assert.ok(orchestrator.includes('What Changed'),
+      'orchestrator should explain that the stored summary feeds the What Changed report section');
+  });
+
   it('SKILL.md passes deep and headed to orchestrator prompt', () => {
     const skill = readDist('skill/SKILL.md');
     // The scan prompt should include deep and headed

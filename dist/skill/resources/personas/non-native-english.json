@@ -1,6 +1,7 @@
 {
   "id": "non-native-english",
   "name": "Non-Native English Speaker",
+  "humanName": "Ren",
   "category": "international",
   "description": "Reads English as a second language with intermediate proficiency. Tests whether copy uses plain language, avoids idioms, pairs icons with text labels, and keeps reading level accessible. Jargon and clever wordplay that native speakers appreciate become barriers for this user.",
 

@@ -76,6 +76,28 @@ Three viewports, each with different evidence depth.
       "color": "rgb(75, 85, 99)"
     }
   },
+  "typographyMetrics": {
+    "bodyFontSize": 16,
+    "bodyLeadingRatio": 1.5,
+    "bodyTrackingEm": 0,
+    "bodyCharsPerLine": 68,
+    "justifiedBody": false,
+    "allCapsBody": false,
+    "typeScaleRatio": 3,
+    "flatHierarchy": false,
+    "samples": [
+      {
+        "tag": "p",
+        "fontSize": 16,
+        "leadingRatio": 1.5,
+        "trackingEm": 0,
+        "textAlign": "left",
+        "textTransform": "none",
+        "charsPerLine": 68,
+        "length": 412
+      }
+    ]
+  },
   "colors": [
     {
       "tag": "section",
@@ -523,6 +545,7 @@ These fields are collected but not yet promoted to evaluator inputs:
 | visual-eval.md Section | JS Snippet | Evidence Field |
 |------------------------|-----------|----------------|
 | Typography extraction | `(() => { const elements...` | `viewports.desktop.typography` |
+| Typography metrics | `(() => { const charsPerLine...` | `viewports.desktop.typographyMetrics` |
 | Color extraction | `(() => { const sampled...` | `viewports.desktop.colors` |
 | Spacing extraction | `(() => { const containers...` | `viewports.desktop.spacing` |
 | Decoration detection | `(() => { const all...` | `viewports.desktop.decorations` |

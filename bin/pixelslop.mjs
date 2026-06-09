@@ -25,6 +25,7 @@ import { join, dirname, resolve, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
+import { createRequire } from 'module';
 import { createInterface } from 'readline/promises';
 import { execFileSync } from 'child_process';
 
@@ -108,6 +109,7 @@ class Spinner {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PACKAGE_ROOT = resolve(__dirname, '..');
+const packageRequire = createRequire(import.meta.url);
 
 /** User's home directory */
 const HOME = homedir();
@@ -119,8 +121,20 @@ const INSTALL_ROOT = join(HOME, '.pixelslop');
 const PKG = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8'));
 const VERSION = PKG.version;
 
-/** Browser runtime package — single source of truth */
-const PLAYWRIGHT_CORE_VERSION = (PKG.dependencies?.['playwright-core'] || '1.58.2').replace(/^[^\d]*/, '');
+/**
+ * Browser runtime package — use the bundled dependency version when available,
+ * otherwise fall back to the declared semver floor from package.json.
+ */
+function detectBundledPlaywrightCoreVersion() {
+  try {
+    const pkgPath = packageRequire.resolve('playwright-core/package.json');
+    return JSON.parse(readFileSync(pkgPath, 'utf8')).version;
+  } catch {
+    return (PKG.dependencies?.['playwright-core'] || '1.58.2').replace(/^[^\d]*/, '');
+  }
+}
+
+const PLAYWRIGHT_CORE_VERSION = detectBundledPlaywrightCoreVersion();
 
 /** Agent files to install (basenames) */
 const AGENT_FILES = [
@@ -355,6 +369,164 @@ function copyDir(src, dest) {
 }
 
 /**
+ * Return the install-root path where the vendored browser package lives.
+ * @param {string} [installRoot=INSTALL_ROOT] - Pixelslop install root
+ * @returns {string} Absolute playwright-core package directory
+ */
+function browserPackagePath(installRoot = INSTALL_ROOT) {
+  return join(installRoot, 'node_modules', 'playwright-core');
+}
+
+export function resolveBundledPlaywrightCoreDir() {
+  try {
+    return dirname(packageRequire.resolve('playwright-core/package.json'));
+  } catch {
+    return null;
+  }
+}
+
+export function readInstalledBrowserPackageVersion(installRoot = INSTALL_ROOT) {
+  const pkgPath = join(browserPackagePath(installRoot), 'package.json');
+  if (!existsSync(pkgPath)) return null;
+  try {
+    return JSON.parse(readFileSync(pkgPath, 'utf8')).version || null;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveInstalledBrowserPackage(installRoot = INSTALL_ROOT) {
+  try {
+    const browserHelper = join(installRoot, 'bin', 'pixelslop-browser.cjs');
+    const installRequire = createRequire(browserHelper);
+    return installRequire.resolve('playwright-core/package.json');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Inspect the installed browser helper from the install-root context.
+ *
+ * This verifies three things that plain file checks miss:
+ * 1. the helper module loads
+ * 2. the helper can actually load `playwright-core`
+ * 3. the helper's own runtime detector sees a usable browser executable
+ *
+ * @param {string} [installRoot=INSTALL_ROOT] - Pixelslop install root
+ * @returns {{
+ *   helperPath: string,
+ *   helperLoadError: string|null,
+ *   packagePath: string|null,
+ *   packageVersion: string|null,
+ *   packageLoadError: string|null,
+ *   runtime: { available: boolean, executablePath: string|null, source: string|null, message?: string }|null,
+ *   runtimeError: string|null,
+ * }}
+ */
+export function inspectInstalledBrowserHelper(installRoot = INSTALL_ROOT) {
+  const helperPath = join(installRoot, 'bin', 'pixelslop-browser.cjs');
+  const result = {
+    helperPath,
+    helperLoadError: null,
+    packagePath: null,
+    packageVersion: null,
+    packageLoadError: null,
+    runtime: null,
+    runtimeError: null,
+  };
+
+  if (!existsSync(helperPath)) {
+    result.helperLoadError = 'Missing from install root';
+    return result;
+  }
+
+  try {
+    const browserHelper = packageRequire(helperPath);
+    const installRequire = createRequire(helperPath);
+
+    try {
+      const resolvedPackagePath = installRequire.resolve('playwright-core/package.json');
+      result.packagePath = resolvedPackagePath;
+      result.packageVersion = JSON.parse(readFileSync(resolvedPackagePath, 'utf8')).version || null;
+
+      const playwright = installRequire('playwright-core');
+      if (!playwright || typeof playwright.chromium !== 'object') {
+        throw new Error('playwright-core loaded, but chromium is missing');
+      }
+    } catch (error) {
+      result.packageLoadError = error instanceof Error ? error.message : String(error);
+    }
+
+    try {
+      if (typeof browserHelper.detectBrowserRuntime !== 'function') {
+        throw new Error('Installed browser helper does not export detectBrowserRuntime()');
+      }
+      result.runtime = browserHelper.detectBrowserRuntime();
+    } catch (error) {
+      result.runtimeError = error instanceof Error ? error.message : String(error);
+    }
+  } catch (error) {
+    result.helperLoadError = error instanceof Error ? error.message : String(error);
+  }
+
+  return result;
+}
+
+/**
+ * Copy the packaged browser dependency into the install root so the installed
+ * helper scripts can resolve `require('playwright-core')` outside the repo.
+ */
+export function installBrowserPackage(
+  installRoot = INSTALL_ROOT,
+  bundledDir = resolveBundledPlaywrightCoreDir()
+) {
+  const src = bundledDir;
+  if (!src || !existsSync(src)) {
+    throw new Error(`Missing packaged browser dependency at ${src}`);
+  }
+
+  const destRoot = join(installRoot, 'node_modules');
+  const dest = browserPackagePath(installRoot);
+  mkdirSync(destRoot, { recursive: true });
+  if (existsSync(dest)) {
+    rmSync(dest, { recursive: true, force: true });
+  }
+  copyDir(src, dest);
+}
+
+export function ensureInstalledBrowserPackage(deps = {}) {
+  const installRoot = deps.installRoot || INSTALL_ROOT;
+  const readVersion = deps.readInstalledBrowserPackageVersion || readInstalledBrowserPackageVersion;
+  const install = deps.installBrowserPackage || installBrowserPackage;
+  const headerFn = deps.header || header;
+  const logFn = deps.log || log;
+
+  const installedVersion = readVersion(installRoot);
+  if (installedVersion === PLAYWRIGHT_CORE_VERSION) {
+    return { version: installedVersion, path: browserPackagePath(installRoot) };
+  }
+
+  headerFn('Browser package');
+  const spin = new Spinner(`Installing playwright-core@${PLAYWRIGHT_CORE_VERSION}...`).start();
+  try {
+    install(installRoot);
+    spin.stop(green('✓'));
+  } catch (err) {
+    spin.stop(red('✗'));
+    throw err;
+  }
+
+  const finalVersion = readVersion(installRoot);
+  if (finalVersion !== PLAYWRIGHT_CORE_VERSION) {
+    throw new Error(`playwright-core install failed: expected ${PLAYWRIGHT_CORE_VERSION}, found ${finalVersion || 'none'}`);
+  }
+
+  logFn('✓', `Browser package ${dim('→')} ${browserPackagePath(installRoot)} ${dim('(playwright-core@' + finalVersion + ')')}`);
+  return { version: finalVersion, path: browserPackagePath(installRoot) };
+}
+
+/**
  * Install a directory via symlink, falling back to copy if symlinks
  * aren't available (Windows without Developer Mode, restricted filesystems).
  *
@@ -369,8 +541,18 @@ function copyDir(src, dest) {
  * @returns {'symlink'|'copy'} Which method was actually used
  */
 export function linkOrCopy(src, dest, forceCopy = false) {
-  // Remove existing target first
-  if (existsSync(dest)) {
+  // Remove existing target first, including broken symlinks.
+  let targetExists = existsSync(dest);
+  if (!targetExists) {
+    try {
+      lstatSync(dest);
+      targetExists = true;
+    } catch {
+      targetExists = false;
+    }
+  }
+
+  if (targetExists) {
     rmSync(dest, { recursive: true, force: true });
   }
 
@@ -731,15 +913,16 @@ async function collectInstallSelections({ scope, runtimeFlag }) {
  * @param {'global'|'project'} details.scope - Install scope
  * @param {object} details.installMethods - Install method per client
  *   e.g. { "Claude Code": { skill: "symlink" }, "Codex CLI": { skill: "copy" } }
+ * @param {{ version: string }|null} [details.browserPackage] - Installed browser package metadata
  */
-function writeManifest({ clientNames, scope, installMethods, browserRuntime }) {
+function writeManifest({ clientNames, scope, installMethods, browserRuntime, browserPackage }) {
   const manifest = {
     version: VERSION,
     installedAt: new Date().toISOString(),
     installRoot: INSTALL_ROOT,
     scope: scope,
     projectRoot: scope === 'project' ? process.cwd() : null,
-    browserPackage: `playwright-core@${PLAYWRIGHT_CORE_VERSION}`,
+    browserPackage: `playwright-core@${browserPackage?.version || PLAYWRIGHT_CORE_VERSION}`,
     browserRuntime: browserRuntime || null,
     clients: clientNames,
     agentFiles: AGENT_FILES,
@@ -763,6 +946,19 @@ function readManifest() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolve the expected installed playwright-core version for doctor/status.
+ * Prefer the manifest because installs created from a packed tarball can pin a
+ * different concrete version than the repo checkout sees locally.
+ *
+ * @param {object|null} manifest - Parsed install manifest
+ * @returns {string} Expected version string
+ */
+function expectedBrowserPackageVersion(manifest) {
+  const manifestVersion = manifest?.browserPackage?.match(/playwright-core@(.+)$/)?.[1];
+  return manifestVersion || PLAYWRIGHT_CORE_VERSION;
 }
 
 // ─────────────────────────────────────────────
@@ -913,6 +1109,9 @@ function install(options = {}) {
       if (existsSync(join(INSTALL_ROOT, 'skill'))) {
         copyDir(join(INSTALL_ROOT, 'skill'), join(backupDir, 'skill'));
       }
+      if (existsSync(join(INSTALL_ROOT, 'node_modules'))) {
+        copyDir(join(INSTALL_ROOT, 'node_modules'), join(backupDir, 'node_modules'));
+      }
       log('✓', `Backed up v${existingManifest.version} → ${backupDir}`);
       backupDirCreated = backupDir;
     }
@@ -934,10 +1133,14 @@ function install(options = {}) {
   chmodSync(join(INSTALL_ROOT, 'bin', 'pixelslop-browser.cjs'), 0o755);
   log('✓', 'bin/pixelslop-browser.cjs');
 
-  // Step 2: Ensure a browser runtime exists before wiring clients
+  // Step 2: Provision the browser package under the install root so the
+  // installed helpers can resolve playwright-core outside the repo checkout.
+  const browserPackage = ensureInstalledBrowserPackage();
+
+  // Step 3: Ensure a browser runtime exists before wiring clients
   const browserRuntime = ensureBrowserRuntime();
 
-  // Step 3: Copy skill directory to install root (source of truth)
+  // Step 4: Copy skill directory to install root (source of truth)
   copyDir(
     join(PACKAGE_ROOT, 'dist', 'skill'),
     join(INSTALL_ROOT, 'skill')
@@ -945,7 +1148,7 @@ function install(options = {}) {
   const resourceCount = readdirSync(join(INSTALL_ROOT, 'skill', 'resources')).length;
   log('✓', `skill/SKILL.md + ${resourceCount} resources`);
 
-  // Step 4: Install into each detected client
+  // Step 5: Install into each detected client
   const installedClients = [];
   const installMethods = {};
 
@@ -988,10 +1191,10 @@ function install(options = {}) {
     installedClients.push(client.name);
   }
 
-  // Step 5: Write manifest with method tracking
-  writeManifest({ clientNames: installedClients, scope, installMethods, browserRuntime });
+  // Step 6: Write manifest with method tracking
+  writeManifest({ clientNames: installedClients, scope, installMethods, browserRuntime, browserPackage });
 
-  // Step 6: Run doctor
+  // Step 7: Run doctor
   console.log('');
   doctor();
 
@@ -1233,6 +1436,7 @@ function doctor() {
 
   // Core files
   const manifest = readManifest();
+  const expectedBrowserVersion = expectedBrowserPackageVersion(manifest);
   check('Install manifest', !!manifest, 'Run `npx pixelslop install` first');
 
   // Warn if running from a different directory than the project install
@@ -1256,10 +1460,33 @@ function doctor() {
     existsSync(join(INSTALL_ROOT, 'bin', 'pixelslop-browser.cjs')),
     'Missing from install root'
   );
+  const installedBrowser = inspectInstalledBrowserHelper();
+  check(
+    `node_modules/playwright-core@${expectedBrowserVersion}`,
+    installedBrowser.packageVersion === expectedBrowserVersion,
+    installedBrowser.packageVersion
+      ? `Expected ${expectedBrowserVersion}, found ${installedBrowser.packageVersion}`
+      : installedBrowser.packageLoadError || 'Missing from install root'
+  );
+  check(
+    'Installed browser helper can load playwright-core',
+    !installedBrowser.helperLoadError && !installedBrowser.packageLoadError && !!installedBrowser.packagePath,
+    installedBrowser.helperLoadError || installedBrowser.packageLoadError || 'Installed runtime cannot load playwright-core'
+  );
+  check(
+    'Installed browser helper runtime',
+    !!installedBrowser.runtime?.available,
+    installedBrowser.runtimeError || installedBrowser.runtime?.message || 'Installed runtime cannot find a usable browser executable'
+  );
 
   check(
     'skill/SKILL.md',
     existsSync(join(INSTALL_ROOT, 'skill', 'SKILL.md')),
+    'Missing from install root'
+  );
+  check(
+    'skill/resources/report-template.html',
+    existsSync(join(INSTALL_ROOT, 'skill', 'resources', 'report-template.html')),
     'Missing from install root'
   );
 
@@ -1361,14 +1588,8 @@ function doctor() {
 
   }
 
-  const browserRuntime = detectBrowserRuntime();
-  check(
-    'Browser runtime',
-    browserRuntime.available,
-    'No Chrome/Chromium runtime found'
-  );
-  if (browserRuntime.available) {
-    log('ℹ', `${dim('Browser:')} ${browserRuntime.executablePath} ${dim('(' + browserRuntime.source + ')')}`);
+  if (installedBrowser.runtime?.available) {
+    log('ℹ', `${dim('Browser:')} ${installedBrowser.runtime.executablePath} ${dim('(' + installedBrowser.runtime.source + ')')}`);
   }
 
   // Version and scope info
@@ -1466,7 +1687,7 @@ async function main() {
       uninstall();
       break;
     case 'doctor':
-      doctor();
+      process.exitCode = doctor();
       break;
     case 'status':
       status();

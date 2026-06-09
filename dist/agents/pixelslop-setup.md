@@ -158,6 +158,26 @@ node bin/pixelslop-tools.cjs config save-context \
 
 This creates `.pixelslop-context.json` in the project root. Subsequent runs load it directly without re-scanning the codebase. Still return the JSON result to the orchestrator — caching is a side-effect, not a replacement for the response.
 
+### Step 7b: Capture Normative Tokens
+
+If you found a token source — `token_location`, a Tailwind theme block, a `:root` custom-property set, or a CSS-in-JS theme — pull out the project's *actual* values, not just the fact that tokens exist. The fixer reads these so a fix moves toward the project's real design instead of a generic default.
+
+Extract a tight set: primary/accent/background/text colors, the body and display fonts, the type-scale ratio, and the base spacing unit. Persist them with the flat `token-key: value` convention:
+
+```bash
+node bin/pixelslop-tools.cjs config write-tokens --root "$ROOT" --raw --json '{
+  "color-primary": "#b8422e",
+  "color-bg": "#faf7f2",
+  "color-text": "#1a1815",
+  "font-body": "Inter, sans-serif",
+  "font-display": "Fraunces, serif",
+  "type-scale": "1.25",
+  "space-unit": "4px"
+}'
+```
+
+Only write tokens you actually found — missing tokens beat invented ones (the fixer falls back to best-practice recipes when a token is absent). Use descriptive slugs (`color-primary`, not `blue-800`). This merges into `.pixelslop.md`; it never overwrites design context or settings. Skip this step entirely if the project has no discoverable tokens.
+
 ## Question Guidelines
 
 Ask 2-4 questions. Focus on things you genuinely cannot infer from the code:

@@ -1,6 +1,7 @@
 {
   "id": "keyboard-user",
   "name": "Keyboard-Only User",
+  "humanName": "Alex",
   "category": "accessibility",
   "description": "Navigates entirely by keyboard — Tab, Shift+Tab, Enter, Escape, arrow keys. Tests focus visibility, tab order, skip navigation, and keyboard traps. If you can't see where focus is or can't reach an interactive element, this persona flags it.",
 

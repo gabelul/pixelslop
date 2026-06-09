@@ -101,6 +101,13 @@ describe('plan-format.md resource file', () => {
     assert.ok(content.includes('Before'), 'should include Before column');
     assert.ok(content.includes('After'), 'should include After column');
   });
+
+  it('documents optional per-issue detail for richer fix reports', () => {
+    assert.ok(content.includes('## Issue Details'), 'should document the issue details section');
+    assert.ok(content.includes('whatChanged'), 'should document whatChanged detail');
+    assert.ok(content.includes('evidence'), 'should document evidence detail');
+    assert.ok(content.includes('source'), 'should document source detail');
+  });
 });
 
 // ─────────────────────────────────────────────

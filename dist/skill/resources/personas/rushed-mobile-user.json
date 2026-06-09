@@ -1,6 +1,7 @@
 {
   "id": "rushed-mobile-user",
   "name": "Rushed Mobile User",
+  "humanName": "Casey",
   "category": "context",
   "description": "On a phone, distracted, wants to complete one task and leave. Tests whether the primary action is findable fast, touch targets are usable with a thumb, and the page doesn't waste time with walls of text or buried CTAs.",
 

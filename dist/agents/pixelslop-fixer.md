@@ -77,6 +77,22 @@ Follow the checkpoint-protocol.md root validation sequence:
 test -d "$ROOT_PATH" && git -C "$ROOT_PATH" rev-parse --git-dir && test -f "$ROOT_PATH/package.json"
 ```
 
+### Step 2b: Load Design Tokens
+
+Read the project's normative design tokens before you fix anything. A fix with no target moves *away* from a detected pattern toward a generic-but-safe value — which is its own kind of slop. Tokens give you something to move *toward*.
+
+```bash
+node bin/pixelslop-tools.cjs config read-tokens --root "$ROOT_PATH" --raw
+```
+
+If `hasTokens` is true, hold the token map in memory. It carries the project's real palette, fonts, type scale, and spacing — e.g. `color-primary: #b8422e`, `font-body: Inter, sans-serif`, `type-scale: 1.25`, `space-unit: 4px`. When you apply the fix in Step 4, prefer these over inventing new values:
+
+- **Contrast/color** — pull toward the existing brand color. Shift its lightness to pass contrast; keep the hue. Don't introduce a color the project doesn't use.
+- **Spacing** — snap to the project's spacing unit/scale instead of arbitrary px.
+- **Typography** — use the project's body and display fonts and its scale ratio.
+
+If `hasTokens` is false, fall back to the generic best-practice recipes in the fix guide.
+
 ### Step 3: Locate the Source
 
 Inspect the page with the direct browser helpers:
@@ -115,7 +131,7 @@ node bin/pixelslop-tools.cjs checkpoint create "$ISSUE_ID" --files "$FILE1,$FILE
 
 If the checkpoint fails (untracked files, uncommitted changes), stop. Return `{ status: "skipped", reason: "<error from pixelslop-tools>" }`.
 
-2. Apply the fix. Use the relevant fix guide's recipes. Make the smallest change that addresses the finding. Use the Edit tool for targeted modifications, not Write for full file replacements.
+2. Apply the fix. Use the relevant fix guide's recipes, and the design tokens from Step 2b as your target values. Make the smallest change that addresses the finding. Use the Edit tool for targeted modifications, not Write for full file replacements.
 
 ### Step 5: Build Gate
 
@@ -169,6 +185,8 @@ These are hard rules. Do not break them.
 6. **No user questions.** Work with what you have. If you can't locate the source, return `{ status: "failed", reason: "..." }`. Don't ask the user to help you find the CSS.
 
 7. **Declare all touched files.** Every file you modified must be listed in `touched_files`. If you miss one, rollback will be incomplete.
+
+8. **Fix toward the project's tokens.** When `config read-tokens` returns tokens, your replacement values come from them — the project's real palette, fonts, scale, and spacing. Don't invent a new brand color or a new spacing value when the project already declares one. Tokens decide the *value*; they never widen the *scope* (rule 2 still holds).
 
 ## What You Are Not
 

@@ -1,6 +1,7 @@
 {
   "id": "design-critic",
   "name": "Design Critic",
+  "humanName": "Quinn",
   "category": "professional",
   "description": "Evaluates with a trained design eye. Notices spacing inconsistencies, typography discipline failures, color palette drift, and visual hierarchy problems that most users feel but can't articulate. This is the 'does this look designed or generated' lens.",
 

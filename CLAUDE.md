@@ -48,6 +48,7 @@ dist/                              # Package content (tracked in git)
         ├── distill.md             # Fix guide: AI slop removal
         ├── harden.md              # Fix guide: accessibility
         ├── clarify.md             # Fix guide: copy & labels
+        ├── report-template.html   # Self-contained HTML report template
         └── personas/              # Persona evaluation profiles
             ├── schema.md          # Persona JSON format documentation
             ├── screen-reader-user.json
@@ -77,7 +78,7 @@ dev_docs/                          # Internal planning (gitignored)
 ## Testing
 
 ```bash
-npm test                 # Full suite (780+ tests)
+npm test                 # Full suite (830+ tests)
 npm run validate         # Resource file structure + cross-file consistency only
 npm run test:detection   # Detection logic only
 npm run test:format      # Report format only
@@ -87,6 +88,8 @@ npm run test:plan        # Plan format contract only
 npm run test:orchestrator # Orchestrator + setup spec only
 npm run test:installer   # Installer path rewriting, MCP config, manifest
 npm run test:persona     # Persona schema validation
+npm run test:page-type   # Page-type heuristic + persona mapping
+npm run test:html-report # HTML report template + generation
 ```
 
 Run `npm test` before committing changes to `dist/` or `bin/`. The validation suite catches broken JS snippets, frontmatter issues, severity band mismatches, missing pattern fields, agent tool misconfigurations, plan format contract violations, pixelslop-tools command failures, and installer drift. See `CONTRIBUTING.md` for the full contributor workflow.
@@ -126,6 +129,9 @@ Agents use `pixelslop-tools` (bin/pixelslop-tools.cjs) for all state operations.
 - **Always use `--raw` for agent consumption.** Human mode is for debugging.
 - **`--cwd` overrides working directory.** Subagents may run from different directories.
 - **Large output → tmpfile.** If JSON exceeds 50KB, tool writes to `/tmp/pixelslop-*.json` with `@file:` prefix.
+- **`report generate`** creates a self-contained HTML report from scan results JSON. Escapes all injected content, tolerates missing screenshots, fails soft (returns `{ ok: false }` on error — never crashes). Output: `.pixelslop/reports/report-YYYY-MM-DD-HHMMSS.html`.
+- **`browser analyze-page`** classifies page type (landing-page, e-commerce, content, form-heavy, app-like, general) and suggests relevant personas. Fast (< 2s), no screenshots.
+- **`config read-tokens` / `config write-tokens`** read and write the project's normative design tokens — a `## Design Tokens` section in `.pixelslop.md` holding flat `key: value` lines (`color-primary: #b8422e`, `font-body: Inter`, `type-scale: 1.25`, `space-unit: 4px`). The setup agent captures them from the codebase; the fixer reads them so a fix moves *toward* the project's real palette/type/spacing instead of a generic default. `write-tokens` merges (unspecified keys preserved) and only touches the Design Tokens section — `config write` stays the initializer, tokens layer on top like settings do.
 
 ## Voice & Persona
 

@@ -30,6 +30,9 @@ args:
   - name: settings
     description: Open interactive settings configurator (ignores other args)
     required: false
+  - name: quick
+    description: Skip run-time config, use saved settings/defaults directly
+    required: false
 ---
 
 ## Settings Mode
@@ -246,6 +249,59 @@ Run init to validate the environment:
 node bin/pixelslop-tools.cjs init scan --url "$URL" --root "$ROOT" --raw
 ```
 
+Parse the JSON result immediately. Do **not** start the expensive scan until you handle any required preflight decision.
+
+### Git Readiness Gate
+
+If the init result says all of the following:
+
+- `mode: "visual-report-only"`
+- `url_type: "local"`
+- `root_valid: true`
+- `preflight_action_required: true`
+
+stop and ask the user **before any scan or browser analyze-page call**.
+
+If `report_only_reason` is `missing-git`, ask:
+
+```text
+AskUserQuestion([{
+  question: "This project is not ready for editable mode yet, so running now would only generate a report. How do you want to proceed?",
+  options: [
+    { label: "Use no-git mode (Recommended)", description: "Keep rollback via file backups and continue without git setup." },
+    { label: "Report only", description: "Skip fix mode and just generate the scan report." },
+    { label: "Stop and set up git first", description: "Exit now so I can initialize git and make a baseline commit." }
+  ]
+}])
+```
+
+Handle the answer like this:
+
+- **Use no-git mode**: re-run init with `--allow-no-git`, then continue.
+- **Report only**: continue in report-only mode.
+- **Stop and set up git first**: stop. Tell the user git-backed editable mode needs `git init` followed by a baseline commit before rerunning `/pixelslop`.
+
+If `report_only_reason` is `missing-git-baseline`, ask:
+
+```text
+AskUserQuestion([{
+  question: "This repo exists, but it has no baseline commit yet. Pixelslop checkpoints need tracked files. How do you want to proceed?",
+  options: [
+    { label: "Use no-git mode (Recommended)", description: "Keep rollback via file backups and continue without creating a git commit." },
+    { label: "Report only", description: "Skip fix mode and just generate the scan report." },
+    { label: "Stop and make a baseline commit first", description: "Exit now so I can commit the current project state before rerunning." }
+  ]
+}])
+```
+
+Handle that answer like this:
+
+- **Use no-git mode**: re-run init with `--allow-no-git`, then continue.
+- **Report only**: continue in report-only mode.
+- **Stop and make a baseline commit first**: stop. Tell the user to run `git add -A && git commit -m "chore: baseline"` before rerunning `/pixelslop`.
+
+This gate exists to avoid wasting tokens on a long scan when the user really wanted editable mode. Do not imply that `git init` alone unlocks checkpoints.
+
 ### Load Project Settings
 
 Before doing anything else, load the project settings and merge with CLI args:
@@ -282,9 +338,99 @@ If the init result shows `pixelslop_config` is null (no `.pixelslop.md`), option
 
 These are optional — if the user wants to skip, proceed without them.
 
+## Phase 2b: Configure This Run
+
+A lightweight pre-scan step that lets the user tweak settings for this specific run. Not a full settings rewrite — just quick adjustments.
+
+### Settings precedence (highest to lowest)
+
+| Priority | Source | Scope |
+|----------|--------|-------|
+| 1 | CLI flags | This run only — e.g., `--personas none --thorough` |
+| 2 | Per-run answers | This run only — user picks in Phase 2b |
+| 3 | Saved settings | All runs — from `.pixelslop.md` |
+| 4 | Defaults | Fallback — `personas: all`, `thorough: false`, etc. |
+
+### Skip conditions
+
+Skip Phase 2b entirely (go straight to Phase 3) if ANY of these are true:
+- `--quick` flag was passed
+- All 4 configurable settings (`--personas`, `--thorough`, `--deep`, `--headed`) were provided via CLI flags — nothing left to ask
+- The missing-git gate above is still unresolved — do not run `browser analyze-page` until the user chooses no-git, git init, or report-only
+
+### Flow
+
+**Step 1: Determine locked vs unlocked settings.**
+
+A setting is "locked" if the user provided it via CLI flag. Locked settings are not re-asked.
+
+Example: `/pixelslop --thorough --personas none` → thorough and personas are locked; deep and headed are unlocked.
+
+**Step 2: Smart persona analysis (if personas unlocked).**
+
+If the `--personas` flag was NOT provided via CLI, run a quick page-type analysis to suggest relevant personas:
+
+```bash
+node bin/pixelslop-tools.cjs browser analyze-page --url "$URL" --raw
+```
+
+This returns `{ type, signals, suggestedPersonas: { ids, names } }`. Fast (< 2s, no screenshots). If it fails, fall back to `type: "general"`.
+
+**Step 3: Show effective settings and ask.**
+
+```
+AskUserQuestion([{
+  question: "Ready to scan [URL] (detected: [page type]). Current settings: [list effective settings, mark locked ones]. Configure this run?",
+  options: [
+    { label: "Go", description: "Run with these settings" },
+    { label: "Adjust", description: "Change the [N] unlocked settings for this run" }
+  ]
+}])
+```
+
+If "Go" → proceed to Phase 3 with current merged settings.
+
+**Step 4: Ask only unlocked settings.**
+
+If "Adjust" → present `AskUserQuestion` for each unlocked setting. For the persona question, include the smart pick option based on page-type analysis:
+
+```
+AskUserQuestion([{
+  question: "This looks like a [page type]. Which personas?",
+  options: [
+    { label: "Smart pick ([N])", description: "[humanNames] — best for [page type] pages" },
+    { label: "All 8 personas", description: "Full evaluation from every perspective" },
+    { label: "None", description: "Skip persona evaluation" },
+    { label: "Let me pick", description: "Choose specific personas" }
+  ]
+}])
+```
+
+Reuse the same question format from Settings Mode for other settings (browser mode, collection depth, confidence threshold). Skip any setting that's already locked by CLI.
+
+**Step 5: Offer to save.**
+
+```
+AskUserQuestion([{
+  question: "Save these as your project defaults?",
+  options: [
+    { label: "No, just this run", description: "Settings apply only to this scan" },
+    { label: "Yes, save to .pixelslop.md", description: "Use these for all future scans too" }
+  ]
+}])
+```
+
+If "Yes" → call `config set-all` with the adjusted values. If "No" → use the settings ephemerally for this scan only (don't write to `.pixelslop.md`).
+
+### Relationship to --settings mode
+
+`--settings` is a standalone persistent configurator — it writes to `.pixelslop.md` and exits, no scan. Phase 2b is an ephemeral per-run config that defaults to not saving. They don't interfere with each other.
+
+---
+
 ## Phase 3: Scan
 
-Spawn the orchestrator to scan the page. Use the merged effective settings from Phase 2:
+Spawn the orchestrator to scan the page. Use the effective settings from Phase 2/2b:
 
 ```
 Agent(
@@ -297,7 +443,9 @@ Add design context only if it was collected: `Design context: audience=<...>, br
 
 The orchestrator scans the page, groups findings, and returns results. This takes 2-4 minutes.
 
-When the orchestrator returns, present the scan results to the user. If the mode is `visual-editable`, use `AskUserQuestion` to ask the fix strategy:
+The orchestrator also attempts a best-effort HTML export after scan results are assembled. Treat the `report generate --raw` result as JSON, not prose. On success, it returns a report path under `.pixelslop/reports/`. Surface the exact returned path to the user with `Report saved: <actual path>`. Do not just say the report was saved. If export fails, the scan still succeeds, but say `Report not generated: <error>` so the user knows there is no artifact to open.
+
+When the orchestrator returns, present the scan results to the user. Include the HTML report path when present. If the mode is `visual-editable`, use `AskUserQuestion` to ask the fix strategy:
 
 - "Fix everything" — all issues by category
 - "Critical only" — P0 + P1 issues only
@@ -335,6 +483,12 @@ Agent(
 ```
 
 The orchestrator reads the plan file, processes each issue (checkpoint → fix → verify), and returns a summary.
+When you relay that summary to the user, include exactly one explicit report outcome line:
+
+- `Report saved: <actual path returned by report generate>`
+- `Report not generated: <error>`
+
+Never say the report exists without the concrete path, and do not invent a placeholder filename.
 
 ## Phase 4: Cleanup
 

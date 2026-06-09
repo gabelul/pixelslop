@@ -1,6 +1,7 @@
 {
   "id": "low-vision-user",
   "name": "Low Vision User",
+  "humanName": "Pat",
   "category": "accessibility",
   "description": "Uses browser zoom at 200%+ and may have custom high-contrast settings. Tests whether content reflows properly at increased zoom, whether contrast ratios hold, and whether text is resizable without layout breakage.",
 

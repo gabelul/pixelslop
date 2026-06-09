@@ -22,6 +22,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { execSync, execFileSync } = require('child_process');
 
 // ─────────────────────────────────────────────
@@ -221,6 +222,19 @@ function execGitSafe(...args) {
   return execFileSync('git', args, { cwd: CWD, encoding: 'utf-8' }).trim();
 }
 
+/**
+ * Check if the current working directory is inside a git repo.
+ * @returns {boolean} True when git is available and CWD is a repo
+ */
+function hasGit() {
+  try {
+    execGitSafe('rev-parse', '--git-dir');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ─────────────────────────────────────────────
 // Markdown / Frontmatter Helpers
 // ─────────────────────────────────────────────
@@ -382,6 +396,91 @@ function parseIssues(body) {
   return issues;
 }
 
+/**
+ * Extract a named markdown section body.
+ * @param {string} body - Plan markdown body
+ * @param {string} heading - Section heading without hashes
+ * @returns {string|null} Section content, trimmed
+ */
+function readMarkdownSection(body, heading) {
+  const headingMarker = `## ${heading}\n\n`;
+  const start = body.indexOf(headingMarker);
+  if (start === -1) return null;
+
+  const sectionStart = start + headingMarker.length;
+  const remaining = body.slice(sectionStart);
+  const nextHeadingMatch = remaining.match(/\n## [^\n]+\n/);
+  const sectionEnd = nextHeadingMatch ? sectionStart + nextHeadingMatch.index : body.length;
+  return body.slice(sectionStart, sectionEnd).trim();
+}
+
+/**
+ * Replace an existing markdown section or append it if missing.
+ * @param {string} body - Plan markdown body
+ * @param {string} heading - Section heading without hashes
+ * @param {string} content - Section content without heading
+ * @returns {string} Updated body
+ */
+function writeMarkdownSection(body, heading, content) {
+  const normalizedContent = content.trim();
+  const section = `## ${heading}\n\n${normalizedContent}\n`;
+  const headingMarker = `## ${heading}\n\n`;
+  const start = body.indexOf(headingMarker);
+
+  if (start !== -1) {
+    const sectionStart = start + headingMarker.length;
+    const remaining = body.slice(sectionStart);
+    const nextHeadingMatch = remaining.match(/\n## [^\n]+\n/);
+    const sectionEnd = nextHeadingMatch ? sectionStart + nextHeadingMatch.index : body.length;
+    return `${body.slice(0, start)}${section}\n${body.slice(sectionEnd).replace(/^\n*/, '')}`;
+  }
+
+  const trimmed = body.replace(/\s*$/, '');
+  return `${trimmed}\n\n${section}`;
+}
+
+/**
+ * Parse the optional issue details section from the plan body.
+ * Stored as a JSON code block keyed by issue id.
+ * @param {string} body - Plan markdown body
+ * @returns {Record<string, {whatChanged?: string, evidence?: string, source?: string}>}
+ */
+function parseIssueDetails(body) {
+  const section = readMarkdownSection(body, 'Issue Details');
+  if (!section || section === '(none yet)') return {};
+
+  let jsonText = section.trim();
+  if (jsonText.startsWith('```json')) {
+    jsonText = jsonText.replace(/^```json\s*/, '');
+    jsonText = jsonText.replace(/\s*```$/, '');
+  } else if (jsonText.startsWith('```')) {
+    jsonText = jsonText.replace(/^```\s*/, '');
+    jsonText = jsonText.replace(/\s*```$/, '');
+  }
+  jsonText = jsonText.trim();
+  if (!jsonText) return {};
+
+  try {
+    const parsed = JSON.parse(jsonText);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Serialize issue details to the markdown section format.
+ * @param {Record<string, {whatChanged?: string, evidence?: string, source?: string}>} details
+ * @returns {string} Section body content
+ */
+function serializeIssueDetails(details) {
+  const entries = Object.entries(details || {}).filter(([, value]) => value && typeof value === 'object' && Object.keys(value).length > 0);
+  if (entries.length === 0) return '(none yet)';
+
+  const stable = Object.fromEntries(entries.sort(([a], [b]) => a.localeCompare(b)));
+  return `\`\`\`json\n${JSON.stringify(stable, null, 2)}\n\`\`\``;
+}
+
 // ─────────────────────────────────────────────
 // Plan Commands
 // ─────────────────────────────────────────────
@@ -440,7 +539,7 @@ function planBegin(args) {
     }
   }
 
-  const body = `\n## Issues\n\n${issuesMd || '(none yet)'}\n\n## Scores\n\n${scoresMd || '(no scores yet)'}\n`;
+  const body = `\n## Issues\n\n${issuesMd || '(none yet)'}\n\n## Issue Details\n\n(none yet)\n\n## Scores\n\n${scoresMd || '(no scores yet)'}\n`;
   writePlan(meta, body, args.root);
   // Auto-log plan creation
   const issueCount = issuesMd ? issuesMd.split('\n').filter(l => l.startsWith('- [')).length : 0;
@@ -459,14 +558,29 @@ function planUpdate(issueId, newStatus, args = {}) {
   if (!validStatuses.includes(newStatus)) fail(`Invalid status: ${newStatus}. Valid: ${validStatuses.join(', ')}`);
 
   const { meta, body } = readPlan(args.root);
+  const issueDetails = parseIssueDetails(body);
   // Regex replacement on the status marker — not full file rewrite
   const pattern = new RegExp(`(- \\[)[\\w-]+(\\]\\s+${escapeRegex(issueId)}\\s)`);
   if (!pattern.test(body)) fail(`Issue not found: ${issueId}`);
-  const newBody = body.replace(pattern, `$1${newStatus}$2`);
+  let newBody = body.replace(pattern, `$1${newStatus}$2`);
+
+  const detailPatch = {};
+  if (args['what-changed']) detailPatch.whatChanged = sanitizeLogField(args['what-changed']);
+  if (args.evidence) detailPatch.evidence = sanitizeLogField(args.evidence);
+  if (args.source) detailPatch.source = sanitizeLogField(args.source);
+
+  if (Object.keys(detailPatch).length > 0) {
+    issueDetails[issueId] = { ...(issueDetails[issueId] || {}), ...detailPatch };
+    newBody = writeMarkdownSection(newBody, 'Issue Details', serializeIssueDetails(issueDetails));
+  }
+
   writePlan(meta, newBody, args.root);
   // Auto-log status transitions so the session log captures orchestrator activity
   autoLog('orchestrator', 'info', `plan update: ${issueId} → ${newStatus}`, args.root);
-  output(RAW ? { status: 'updated', issue: issueId, new_status: newStatus } : `Updated ${issueId} → ${newStatus}`);
+  output(RAW
+    ? { status: 'updated', issue: issueId, new_status: newStatus, details: issueDetails[issueId] || null }
+    : `Updated ${issueId} → ${newStatus}`
+  );
 }
 
 /**
@@ -543,7 +657,8 @@ function planAdvance(args = {}) {
  */
 function planSnapshot(args = {}) {
   const { meta, body, path: planPath } = readPlan(args.root);
-  const issues = parseIssues(body);
+  const issueDetails = parseIssueDetails(body);
+  const issues = parseIssues(body).map(issue => ({ ...issue, ...(issueDetails[issue.id] || {}) }));
   const summary = {
     pending: issues.filter(i => i.status === 'pending').length,
     fixed: issues.filter(i => i.status === 'fixed').length,
@@ -552,7 +667,7 @@ function planSnapshot(args = {}) {
     skipped: issues.filter(i => i.status === 'skipped').length,
     total: issues.length
   };
-  output({ ...meta, issues, summary, path: planPath }, true);
+  output({ ...meta, issues, issue_details: issueDetails, summary, path: planPath }, true);
 }
 
 /**
@@ -573,40 +688,54 @@ function planJson(args = {}) {
  * @param {string} issueId - Issue identifier
  * @param {string[]} files - Files that will be modified
  */
-function checkpointCreate(issueId, files) {
+function checkpointCreate(issueId, files, noGit) {
   if (!issueId) fail('Usage: checkpoint create <issue-id> --files file1,file2');
   if (!files || files.length === 0) fail('--files required: comma-separated paths to checkpoint');
 
   const cpDir = path.join(CWD, '.pixelslop', 'checkpoints');
   fs.mkdirSync(cpDir, { recursive: true });
 
-  // Verify all files are tracked and clean
+  const useGit = !noGit && hasGit();
+
+  // Verify files are within the project root (prevents ../escape traversal)
   for (const f of files) {
-    const fullPath = path.join(CWD, f);
-    if (!fs.existsSync(fullPath)) fail(`File not found: ${f}`);
-    try {
-      execGitSafe('ls-files', '--error-unmatch', '--', f);
-    } catch {
-      fail(`File not tracked by git: ${f}. Pixelslop requires tracked files for safe rollback.`);
+    if (path.isAbsolute(f)) fail(`Absolute paths not allowed: ${f}. Use paths relative to project root.`);
+    const resolved = path.resolve(CWD, f);
+    const relative = path.relative(CWD, resolved);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      fail(`Path escapes project root: ${f}. Files must be within the project directory.`);
     }
   }
 
-  // Check for uncommitted changes in target files
-  const dirty = execGitSafe('diff', '--name-only', '--', ...files);
-  if (dirty) fail(`Uncommitted changes in target files: ${dirty}. Commit or stash first.`);
+  // Verify files exist (always) and are git-tracked + clean (when git available)
+  for (const f of files) {
+    const fullPath = path.join(CWD, f);
+    if (!fs.existsSync(fullPath)) fail(`File not found: ${f}`);
+    if (useGit) {
+      try {
+        execGitSafe('ls-files', '--error-unmatch', '--', f);
+      } catch {
+        fail(`File not tracked by git: ${f}. Pixelslop requires tracked files for safe rollback. Use --no-git to skip this check.`);
+      }
+    }
+  }
 
-  // Save current content as the "before" state
-  // We capture the file contents so we can restore even after edits
+  if (useGit) {
+    const dirty = execGitSafe('diff', '--name-only', '--', ...files);
+    if (dirty) fail(`Uncommitted changes in target files: ${dirty}. Commit or stash first.`);
+  }
+
+  // Save current content as the "before" state via file copies
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const cpId = `${issueId}-${timestamp}`;
 
-  // Save metadata
   const metadata = {
     id: cpId,
     issue_id: issueId,
     files: files,
     created: new Date().toISOString(),
-    status: 'pending'
+    status: 'pending',
+    git: useGit,
   };
 
   fs.writeFileSync(path.join(cpDir, `${issueId}.json`), JSON.stringify(metadata, null, 2));
@@ -643,18 +772,25 @@ function checkpointRevert(issueId) {
     const saved = path.join(beforeDir, f.replace(/\//g, '__'));
     if (fs.existsSync(saved)) {
       fs.copyFileSync(saved, path.join(CWD, f));
-    } else {
-      // Fallback: use git checkout
+    } else if (metadata.git !== false) {
+      // Fallback: use git checkout (only when git was used for the checkpoint)
       try {
         execGitSafe('checkout', '--', f);
       } catch (e) {
         fail(`Failed to revert ${f}: ${e.message}`);
       }
+    } else {
+      fail(`Failed to revert ${f}: backup copy missing and no git available`);
     }
   }
 
-  // Verify revert succeeded — files should be clean in git
-  const stillDirty = execGitSafe('diff', '--name-only', '--', ...metadata.files);
+  // Verify revert — only check git status when git was used
+  let stillDirty = false;
+  if (metadata.git !== false) {
+    try {
+      stillDirty = !!execGitSafe('diff', '--name-only', '--', ...metadata.files);
+    } catch { stillDirty = false; }
+  }
 
   // Update metadata status
   metadata.status = 'reverted';
@@ -888,6 +1024,80 @@ function configRead(args = {}) {
   }
 
   output(RAW ? result : Object.entries(result).map(([k, v]) => `${k}: ${v}`).join('\n'));
+}
+
+/**
+ * Parse the flat `key: value` lines of a Design Tokens section body into a map.
+ * @param {string|null} section - The section body, or null if absent
+ * @returns {Record<string,string>} token key -> value
+ */
+function parseTokenLines(section) {
+  const tokens = {};
+  if (!section) return tokens;
+  for (const line of section.split('\n')) {
+    const kv = line.match(/^([A-Za-z][\w-]*)\s*:\s*(.+?)\s*$/);
+    if (kv) tokens[kv[1]] = kv[2];
+  }
+  return tokens;
+}
+
+/**
+ * Read the normative design tokens authored in .pixelslop.md.
+ *
+ * Tokens live as flat `key: value` lines under a `## Design Tokens` section
+ * (e.g. `color-primary: #b8422e`, `font-body: Inter, sans-serif`). The fixer
+ * reads these so a fix moves toward the project's intended palette, type, and
+ * spacing instead of inventing a generic-but-safe value — which is its own slop.
+ */
+function configReadTokens(args = {}) {
+  const configPath = path.join(resolveProjectRoot(args.root), '.pixelslop.md');
+  if (!fs.existsSync(configPath)) {
+    return output(RAW ? { tokens: {}, hasTokens: false } : 'No design tokens found.');
+  }
+  const tokens = parseTokenLines(readMarkdownSection(fs.readFileSync(configPath, 'utf-8'), 'Design Tokens'));
+  const hasTokens = Object.keys(tokens).length > 0;
+  output(RAW ? { tokens, hasTokens } : (hasTokens
+    ? Object.entries(tokens).map(([k, v]) => `${k}: ${v}`).join('\n')
+    : 'No design tokens found.'));
+}
+
+/**
+ * Write or merge normative design tokens into .pixelslop.md.
+ *
+ * Accepts a JSON object via `--json`, or newline `key: value` lines via `--data`.
+ * Merges with any existing tokens (unspecified keys are preserved) and only
+ * touches the `## Design Tokens` section — every other section is left intact.
+ */
+function configWriteTokens(args = {}) {
+  const configPath = path.join(resolveProjectRoot(args.root), '.pixelslop.md');
+
+  const incoming = {};
+  if (args.json) {
+    let parsed;
+    try { parsed = JSON.parse(args.json); } catch (e) { fail(`Invalid --json for tokens: ${e.message}`); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      fail('--json must be a JSON object of token key/value pairs.');
+    }
+    for (const [k, v] of Object.entries(parsed)) {
+      if (/^[A-Za-z][\w-]*$/.test(k)) incoming[k] = String(v).replace(/[\r\n]+/g, ' ').trim();
+    }
+  } else if (args.data) {
+    Object.assign(incoming, parseTokenLines(String(args.data)));
+  } else {
+    fail('Provide tokens via --json \'{"color-primary":"#b8422e"}\' or --data "key: value".');
+  }
+  if (Object.keys(incoming).length === 0) fail('No valid tokens provided.');
+
+  // Read-merge-write so a partial update never drops the tokens it didn't mention.
+  const body = fs.existsSync(configPath)
+    ? fs.readFileSync(configPath, 'utf-8')
+    : '# Pixelslop — Project Design Context\n';
+  const merged = { ...parseTokenLines(readMarkdownSection(body, 'Design Tokens')), ...incoming };
+  const sectionBody = Object.entries(merged).map(([k, v]) => `${k}: ${v}`).join('\n');
+
+  fs.writeFileSync(configPath, normalizeMd(writeMarkdownSection(body, 'Design Tokens', sectionBody)));
+  output(RAW ? { status: 'written', count: Object.keys(merged).length, path: configPath }
+    : `Design tokens written (${Object.keys(merged).length}): ${configPath}`);
 }
 
 /**
@@ -1393,6 +1603,26 @@ function probeUrl(url, timeoutMs = 1200) {
 }
 
 /**
+ * Poll a local URL until it accepts HTTP requests or the timeout expires.
+ * @param {string} url - URL to probe
+ * @param {number} [timeoutMs=2000] - Maximum wait time in milliseconds
+ * @param {number} [intervalMs=100] - Delay between probes
+ * @returns {{ reachable: boolean, status_code: number|null }}
+ */
+function waitForUrlReachable(url, timeoutMs = 2000, intervalMs = 100) {
+  const deadline = Date.now() + timeoutMs;
+  let last = { reachable: false, status_code: null };
+
+  while (Date.now() < deadline) {
+    last = probeUrl(url, Math.min(intervalMs, 500));
+    if (last.reachable) return last;
+    sleepSync(intervalMs);
+  }
+
+  return last;
+}
+
+/**
  * Get a process command line on POSIX systems.
  * @param {number} pid - Process ID
  * @returns {string|null} Command line
@@ -1637,6 +1867,21 @@ function isProcessAlive(pid) {
 }
 
 /**
+ * Wait for a process to exit within a bounded timeout.
+ * @param {number} pid - Process identifier
+ * @param {number} [timeoutMs=1200] - Maximum time to wait
+ * @returns {boolean} True when the process exited before the timeout
+ */
+function waitForProcessExit(pid, timeoutMs = 1200) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isProcessAlive(pid)) return true;
+    sleepSync(100);
+  }
+  return !isProcessAlive(pid);
+}
+
+/**
  * Remove temp-server bookkeeping files.
  * @param {string} resolvedRoot - Absolute project root
  * @param {object|null} state - Parsed server state
@@ -1745,7 +1990,11 @@ function serveStart(args) {
   }
 
   const existingState = readServeState(resolvedRoot);
-  if (existingState && isProcessAlive(existingState.pid)) {
+  const existingServerReachable = existingState && isProcessAlive(existingState.pid)
+    ? waitForUrlReachable(`http://127.0.0.1:${existingState.port}`, 1200, 100).reachable
+    : false;
+
+  if (existingState && existingServerReachable) {
     output(RAW
       ? {
           url: `http://localhost:${existingState.port}`,
@@ -1821,8 +2070,9 @@ process.on('SIGTERM', () => { server.close(); process.exit(0); });
   // The child writes its port/pid info to a temp "ready" file.
   // We poll for it synchronously — avoids async callbacks that keep
   // the parent process alive.
-  const readyFile = path.join(os.tmpdir(), `pixelslop-serve-ready-${Date.now()}.json`);
-  const tmpScript = path.join(os.tmpdir(), `pixelslop-serve-${Date.now()}.cjs`);
+  const tempId = `${process.pid}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+  const readyFile = path.join(os.tmpdir(), `pixelslop-serve-ready-${tempId}.json`);
+  const tmpScript = path.join(os.tmpdir(), `pixelslop-serve-${tempId}.cjs`);
 
   // Append the ready-file write to the server script
   const fullScript = serverScript.replace(
@@ -1857,6 +2107,15 @@ process.on('SIGTERM', () => { server.close(); process.exit(0); });
     try { fs.unlinkSync(readyFile); } catch {}
     try { fs.unlinkSync(tmpScript); } catch {}
     fail('Server failed to start within 3 seconds');
+  }
+
+  const startedUrl = `http://127.0.0.1:${info.port}`;
+  if (!waitForUrlReachable(startedUrl, 2000, 100).reachable) {
+    try { process.kill(info.pid, 'SIGTERM'); } catch {}
+    waitForProcessExit(info.pid, 1000);
+    try { fs.unlinkSync(readyFile); } catch {}
+    try { fs.unlinkSync(tmpScript); } catch {}
+    fail(`Server bound port ${info.port} but never became reachable`);
   }
 
   // Save project-scoped state so concurrent sessions do not stomp each other.
@@ -1910,6 +2169,15 @@ function serveStop(args = {}) {
     process.kill(info.pid, 'SIGTERM');
   } catch {
     // Already dead? That's fine.
+  }
+
+  if (isProcessAlive(info.pid) && !waitForProcessExit(info.pid, 1500)) {
+    try {
+      process.kill(info.pid, 'SIGKILL');
+    } catch {
+      // Process may have exited between checks.
+    }
+    waitForProcessExit(info.pid, 1000);
   }
 
   cleanupServeState(resolvedRoot, info);
@@ -2016,10 +2284,14 @@ function initScan(args) {
   // Validate root
   const rootValid = fs.existsSync(resolvedRoot) && fs.statSync(resolvedRoot).isDirectory();
   let rootHasGit = false;
+  let rootHasGitBaseline = false;
   let rootHasPackageJson = false;
 
   if (rootValid) {
     try { execGitSafe('-C', resolvedRoot, 'rev-parse', '--git-dir'); rootHasGit = true; } catch {}
+    if (rootHasGit) {
+      try { execGitSafe('-C', resolvedRoot, 'rev-parse', '--verify', 'HEAD'); rootHasGitBaseline = true; } catch {}
+    }
     rootHasPackageJson = fs.existsSync(path.join(resolvedRoot, 'package.json'));
   }
 
@@ -2057,10 +2329,10 @@ function initScan(args) {
 
   // Determine mode
   let mode = 'visual-report-only';
-  if (rootValid && rootHasGit && urlType === 'local') {
+  if (rootValid && rootHasGit && rootHasGitBaseline && urlType === 'local') {
     mode = 'visual-editable';
-  } else if (rootValid && !rootHasGit) {
-    mode = 'visual-report-only'; // can't checkpoint without git
+  } else if (rootValid && urlType === 'local' && args['allow-no-git']) {
+    mode = 'visual-editable'; // user opted into no-git mode — file backups provide rollback
   }
 
   // If code-check flag is set, override mode
@@ -2107,6 +2379,22 @@ function initScan(args) {
     }
   }
 
+  const editableBlockers = [];
+  if (!rootValid) editableBlockers.push('invalid-root');
+  if (urlType === 'remote') editableBlockers.push('remote-url');
+  if (urlType === 'local' && !rootHasGit && !args['allow-no-git']) editableBlockers.push('missing-git');
+  if (urlType === 'local' && rootHasGit && !rootHasGitBaseline && !args['allow-no-git']) {
+    editableBlockers.push('missing-git-baseline');
+  }
+  if (baselineGreen === false) editableBlockers.push('baseline-red');
+
+  let reportOnlyReason = null;
+  if (editableBlockers.includes('invalid-root')) reportOnlyReason = 'invalid-root';
+  else if (editableBlockers.includes('remote-url')) reportOnlyReason = 'remote-url';
+  else if (editableBlockers.includes('missing-git')) reportOnlyReason = 'missing-git';
+  else if (editableBlockers.includes('missing-git-baseline')) reportOnlyReason = 'missing-git-baseline';
+  else if (editableBlockers.includes('baseline-red')) reportOnlyReason = 'baseline-red';
+
   const result = {
     mode,
     url,
@@ -2115,6 +2403,8 @@ function initScan(args) {
     root_resolved: resolvedRoot,
     root_valid: rootValid,
     root_has_git: rootHasGit,
+    no_git: !rootHasGit,
+    root_has_git_baseline: rootHasGitBaseline,
     root_has_package_json: rootHasPackageJson,
     gate_command: gate.command || 'none',
     gate_source: gate.source,
@@ -2124,6 +2414,26 @@ function initScan(args) {
     monorepo,
     monorepo_marker: monorepoMarker,
     detected_apps: detectedApps,
+    editable_ready: mode === 'visual-editable',
+    editable_blockers: editableBlockers,
+    report_only_reason: reportOnlyReason,
+    preflight_action_required: mode === 'visual-report-only'
+      && (reportOnlyReason === 'missing-git' || reportOnlyReason === 'missing-git-baseline'),
+    can_opt_in_no_git: rootValid && urlType === 'local' && (!rootHasGit || !rootHasGitBaseline),
+    suggested_action:
+      mode === 'visual-report-only'
+      && (reportOnlyReason === 'missing-git' || reportOnlyReason === 'missing-git-baseline')
+        ? 'ask-editable-setup-or-report-only'
+        : null,
+    suggested_commands: {
+      git_init: rootValid ? `git -C "${resolvedRoot}" init` : null,
+      git_baseline_commit: rootValid && rootHasGit && !rootHasGitBaseline
+        ? `git -C "${resolvedRoot}" add -A && git -C "${resolvedRoot}" commit -m "chore: baseline"`
+        : null,
+      enable_no_git_mode: rootValid && urlType === 'local' && (!rootHasGit || !rootHasGitBaseline)
+        ? `node bin/pixelslop-tools.cjs init scan --url "${url}" --root "${root}" --allow-no-git --raw`
+        : null,
+    },
     checkpoint_dir: '.pixelslop/checkpoints/',
     screenshot_dir: '.pixelslop/screenshots/',
     pixelslop_config: pixelslopConfig
@@ -2352,6 +2662,498 @@ function parseArgs(argv) {
 // ─────────────────────────────────────────────
 // Router
 // ─────────────────────────────────────────────
+// Report generation
+// ─────────────────────────────────────────────
+
+/**
+ * Escape HTML special characters to prevent XSS when injecting content.
+ * @param {string} str - Raw text to escape
+ * @returns {string} HTML-safe string
+ */
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Coerce arbitrary input to a finite non-negative number.
+ * @param {*} value - Raw input
+ * @param {number} fallback - Value returned when coercion fails
+ * @returns {number} Safe numeric value
+ */
+function safeNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return fallback;
+  return numeric;
+}
+
+/**
+ * Check whether a resolved path lives under the allowed directory.
+ * @param {string} candidate - Candidate file path
+ * @param {string} allowedDir - Directory root that contains allowed files
+ * @returns {boolean} True when the candidate is inside the allowed directory
+ */
+function isWithinDir(candidate, allowedDir) {
+  const relative = path.relative(allowedDir, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/**
+ * Build a safe link target for the report header.
+ * Only http/https URLs remain clickable.
+ * @param {*} rawUrl - Raw URL from scan JSON
+ * @returns {{ href: string, text: string, clickable: boolean }} Safe URL parts
+ */
+function buildSafeReportUrl(rawUrl) {
+  const text = typeof rawUrl === 'string' ? rawUrl : '';
+  if (!text) return { href: '', text: '', clickable: false };
+
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { href: '', text, clickable: false };
+    }
+    return { href: parsed.href, text, clickable: true };
+  } catch {
+    return { href: '', text, clickable: false };
+  }
+}
+
+/**
+ * Resolve a screenshot path safely inside the project's screenshot directory.
+ * Refuses paths that escape .pixelslop/screenshots, including symlink escapes.
+ * @param {string} filePath - Screenshot path from scan JSON
+ * @param {string} projectRoot - Absolute project root
+ * @returns {string|null} Safe absolute screenshot path or null
+ */
+function resolveSafeScreenshotPath(filePath, projectRoot) {
+  if (typeof filePath !== 'string' || filePath.trim() === '') return null;
+
+  const screenshotDir = path.join(projectRoot, '.pixelslop', 'screenshots');
+  const candidatePath = path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(projectRoot, filePath);
+
+  if (!fs.existsSync(candidatePath)) return null;
+
+  try {
+    const resolvedCandidate = fs.realpathSync(candidatePath);
+    const resolvedScreenshotDir = fs.existsSync(screenshotDir)
+      ? fs.realpathSync(screenshotDir)
+      : screenshotDir;
+
+    if (!isWithinDir(resolvedCandidate, resolvedScreenshotDir)) return null;
+    return resolvedCandidate;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read a screenshot file and return a data URI, or null if missing/oversized.
+ * Caps at 1MB base64 encoded to keep reports reasonable.
+ * @param {string} filePath - Screenshot path from scan JSON
+ * @param {string} projectRoot - Absolute project root
+ * @returns {string|null} Data URI or null
+ */
+function screenshotToDataUri(filePath, projectRoot) {
+  try {
+    const safePath = resolveSafeScreenshotPath(filePath, projectRoot);
+    if (!safePath) return null;
+    const buf = fs.readFileSync(safePath);
+    if (buf.length > 750000) return null; // ~1MB after base64
+    return `data:image/png;base64,${buf.toString('base64')}`;
+  } catch { return null; }
+}
+
+/**
+ * Resolve the report template across two runtime layouts:
+ * - Install root (~/.pixelslop/): pixelslop.mjs copies dist/skill → skill,
+ *   and bin/ stays as bin/. __dirname = ~/.pixelslop/bin, so ../skill/ hits.
+ * - Source repo / npm package: __dirname = <pkg>/bin, so ../dist/skill/ hits
+ *   (dist/ is tracked in git and shipped in the npm package).
+ * @returns {string|null} Absolute template path when found
+ */
+function resolveReportTemplatePath() {
+  const candidates = [
+    path.resolve(__dirname, '..', 'skill', 'resources', 'report-template.html'),
+    path.resolve(__dirname, '..', 'dist', 'skill', 'resources', 'report-template.html'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  return null;
+}
+
+/**
+ * Save assembled scan results to a deterministic path.
+ * The orchestrator calls this after assembling pillar scores, findings,
+ * persona stories, and screenshots into a single JSON object. This
+ * replaces the fragile "agent writes a temp file" approach.
+ * @param {object} flags - { json?: string, 'json-file'?: string, root?: string }
+ * @returns {{ ok: boolean, path?: string, error?: string }}
+ */
+function scanSaveResults(flags) {
+  try {
+    let data;
+    if (flags['json-file'] && fs.existsSync(flags['json-file'])) {
+      data = JSON.parse(fs.readFileSync(flags['json-file'], 'utf-8'));
+    } else if (flags.json) {
+      data = JSON.parse(flags.json);
+    } else {
+      return { ok: false, error: '--json or --json-file is required' };
+    }
+
+    // Validate required fields
+    if (!data.scores) return { ok: false, error: 'Missing required field: scores' };
+    if (!data.findings) return { ok: false, error: 'Missing required field: findings' };
+
+    const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
+    const outDir = path.join(root, '.pixelslop');
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    const outPath = path.join(outDir, 'scan-results.json');
+    fs.writeFileSync(outPath, JSON.stringify(data, null, 2), 'utf-8');
+
+    return { ok: true, path: outPath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * Generate a self-contained HTML report from scan results.
+ * Fail-soft: returns { ok: false, error } on any failure.
+ * @param {object} flags - { 'scan-results': path, 'fix-results'?: path, root?: string }
+ * @returns {{ ok: boolean, path?: string, size?: string, error?: string }}
+ */
+function reportGenerate(flags) {
+  try {
+    const rawScanPath = flags['scan-results'];
+    if (!rawScanPath) return { ok: false, error: '--scan-results path is required' };
+
+    // Resolve scan-results path relative to --root when it's a relative path
+    const root = flags.root ? resolveProjectRoot(flags.root) : process.cwd();
+    const scanPath = path.isAbsolute(rawScanPath) ? rawScanPath : path.resolve(root, rawScanPath);
+    if (!fs.existsSync(scanPath)) return { ok: false, error: `Scan results not found: ${scanPath}` };
+
+    const scan = JSON.parse(fs.readFileSync(scanPath, 'utf-8'));
+
+    // Optional data sources — resolve relative to root too
+    const resolvePath = (p) => p ? (path.isAbsolute(p) ? p : path.resolve(root, p)) : null;
+    const planSnapshotPath = resolvePath(flags['plan-snapshot']);
+    const planSnapshot = planSnapshotPath && fs.existsSync(planSnapshotPath)
+      ? JSON.parse(fs.readFileSync(planSnapshotPath, 'utf-8'))
+      : null;
+    const fixResultsPath = resolvePath(flags['fix-results']);
+    const fixResults = fixResultsPath && fs.existsSync(fixResultsPath)
+      ? JSON.parse(fs.readFileSync(fixResultsPath, 'utf-8'))
+      : null;
+
+    const templatePath = resolveReportTemplatePath();
+    if (!templatePath) return { ok: false, error: 'Report template not found' };
+    let html = fs.readFileSync(templatePath, 'utf-8');
+
+    // ── Core data extraction ──
+    const title = scan.title || scan.url || 'Untitled';
+    const url = scan.url || '';
+    const safeUrl = buildSafeReportUrl(url);
+    const date = typeof scan.timestamp === 'string'
+      ? scan.timestamp
+      : (typeof scan.date === 'string' ? scan.date : new Date().toISOString());
+    const confidence = Math.min(100, Math.round(safeNumber(scan.confidence)));
+    const scores = scan.scores || {};
+    const pillarOrder = ['hierarchy', 'typography', 'color', 'responsiveness', 'accessibility'];
+
+    /** Extract a pillar score safely */
+    const pillarScore = (name) => {
+      const raw = scores[name];
+      return Math.min(4, safeNumber(typeof raw === 'object' && raw !== null ? raw.score : raw));
+    };
+    /** Extract pillar evidence string */
+    const pillarEvidence = (name) => {
+      const raw = scores[name];
+      return (typeof raw === 'object' && raw !== null) ? (raw.evidence || '') : '';
+    };
+
+    const total = Math.min(20, pillarOrder.reduce((sum, p) => sum + pillarScore(p), 0));
+    const ratingBand = total >= 17 ? 'Excellent' : total >= 13 ? 'Good' : total >= 9 ? 'Needs Work' : total >= 5 ? 'Poor' : 'Critical';
+    const slopBand = scan.slop?.band || scan.slopLevel || 'CLEAN';
+    const slopCount = Math.round(safeNumber(scan.slop?.patternCount ?? scan.slopCount));
+    const personaStories = scan.personaStories || [];
+    const findings = scan.findings || [];
+
+    // Build issue status map from plan snapshot (id → { status, category, description })
+    const issueMap = new Map();
+    const planIssues = planSnapshot?.issues || [];
+    for (const iss of planIssues) {
+      if (iss.id) issueMap.set(iss.id, iss);
+    }
+    const hasFixData = planSnapshot && planIssues.some(i => i.status !== 'pending');
+    const hasPersonas = personaStories.length > 0;
+
+    // ── Tab radios + labels (conditional) ──
+    const tabs = [{ id: 'overview', label: 'Overview', checked: true }];
+    if (hasPersonas) tabs.push({ id: 'personas', label: 'Personas' });
+    tabs.push({ id: 'findings', label: 'Findings' });
+    if (hasFixData) tabs.push({ id: 'fixes', label: 'Fixes' });
+
+    const tabRadios = tabs.map(t =>
+      `<input type="radio" name="tab" id="tab-${t.id}" class="tab-radio"${t.checked ? ' checked' : ''}>`
+    ).join('\n  ');
+    const tabLabels = tabs.map(t =>
+      `<label for="tab-${t.id}">${escapeHtml(t.label)}</label>`
+    ).join('\n    ');
+
+    // ── KPI blocks ──
+    const scoreStatus = total >= 13 ? 'good' : total >= 9 ? 'warn' : 'bad';
+    const slopStatus = slopBand === 'CLEAN' ? 'good' : slopBand === 'TERMINAL' ? 'bad' : 'warn';
+    const kpiBlocks = [
+      `<div class="kpi-block" data-status="${scoreStatus}"><div class="kpi-value">${total}/20</div><div class="kpi-label">${escapeHtml(ratingBand)}</div></div>`,
+      `<div class="kpi-block" data-status="${slopStatus}"><div class="kpi-value"><span class="slop-status slop-${escapeHtml(slopBand)}">${escapeHtml(slopBand)}</span></div><div class="kpi-label">${slopCount} patterns detected</div></div>`,
+      `<div class="kpi-block"><div class="kpi-value">${confidence}%</div><div class="kpi-label">Confidence</div></div>`,
+    ].join('\n      ');
+
+    // ── Slop patterns list (below KPI strip, before pillar table) ──
+    const slopPatterns = scan.slop?.patterns || [];
+    let slopPatternsHtml = '';
+    if (slopPatterns.length > 0) {
+      const items = slopPatterns.map(p => {
+        const pName = escapeHtml(typeof p === 'string' ? p : (p.name || ''));
+        const pEv = escapeHtml(typeof p === 'object' ? (p.evidence || '') : '');
+        return `<li><strong>${pName}</strong>${pEv ? ` \u2014 ${pEv}` : ''}</li>`;
+      }).join('\n        ');
+      slopPatternsHtml = `<div class="slop-patterns"><div class="section-sublabel">Detected Patterns</div><ul>\n        ${items}\n      </ul></div>`;
+    }
+
+    // ── Pillar table rows (with evidence column) ──
+    const pillarRows = pillarOrder.map(name => {
+      const score = pillarScore(name);
+      const pct = (score / 4) * 100;
+      const label = name.charAt(0).toUpperCase() + name.slice(1);
+      const ev = escapeHtml(pillarEvidence(name));
+      return `<tr><td class="pillar-name">${escapeHtml(label)}</td><td class="pillar-bar-cell"><div class="bar-track"><div class="bar-fill" data-level="${score}" style="width:${pct}%"></div></div></td><td class="pillar-score">${score}/4</td><td class="pillar-evidence">${ev}</td></tr>`;
+    }).join('\n        ');
+
+    // ── Screenshots ──
+    const screenshots = scan.screenshots || {};
+    const viewports = [
+      { key: 'desktop', label: 'Desktop 1440\u00d7900' },
+      { key: 'tablet', label: 'Tablet 768\u00d71024' },
+      { key: 'mobile', label: 'Mobile 375\u00d7812' },
+    ];
+    const screenshotGrid = viewports.map(({ key, label }) => {
+      const dataUri = screenshotToDataUri(screenshots[key], root);
+      if (dataUri) {
+        return `<div class="screenshot-card"><img src="${dataUri}" alt="${escapeHtml(label)}"><div class="screenshot-label">${escapeHtml(label)}</div></div>`;
+      }
+      return `<div class="screenshot-card"><div class="screenshot-placeholder">${escapeHtml(label)}<br>Not captured</div></div>`;
+    }).join('\n      ');
+
+    // ── Persona sections (entire tab-section div, or empty) ──
+    let personaSections = '';
+    if (hasPersonas) {
+      const cards = personaStories.map(p => {
+        const hName = escapeHtml(p.humanName || p.name || 'Unknown');
+        const fullName = escapeHtml(p.name || '');
+        const narrative = escapeHtml(p.narrative || '');
+        const issueCount = safeNumber(p.issueCount);
+        const priority = escapeHtml(p.priority || 'Low');
+        const positive = escapeHtml(p.positiveSignals || '');
+
+        // Per-persona issue sub-table (from linkedIssues or plan data)
+        const linkedIssues = Array.isArray(p.linkedIssues) ? p.linkedIssues : [];
+        let issueSubTable = '';
+        if (linkedIssues.length > 0) {
+          const rows = linkedIssues.map(li => {
+            const pTag = escapeHtml(li.priority || 'P2');
+            const desc = escapeHtml(li.description || li.id || '');
+            const st = escapeHtml(li.fixStatus || 'OPEN');
+            return `<div class="persona-issue-row"><span class="priority-tag priority-${pTag}">${pTag}</span><span>${desc}</span><span class="fix-status fix-${st}">${st}</span></div>`;
+          }).join('\n          ');
+          issueSubTable = `<div class="persona-issues"><div class="section-sublabel">Issues found</div>${rows}</div>`;
+        }
+
+        return `<div class="persona-card" data-priority="${priority}">
+        <div class="persona-name">${hName}</div>
+        <div class="persona-role">${fullName}</div>
+        <div class="persona-narrative">${narrative}</div>
+        ${issueSubTable}
+        <div class="persona-meta">
+          <span><strong>Issues:</strong> ${issueCount}</span>
+          <span><strong>Priority:</strong> ${priority}</span>
+          ${positive ? `<span><strong>Worked well:</strong> ${positive}</span>` : ''}
+        </div>
+      </div>`;
+      }).join('\n    ');
+
+      personaSections = `<div class="tab-section tab-section-personas">
+    <div class="section-label">Persona Stories</div>
+    ${cards}
+  </div>`;
+    }
+
+    // ── Findings table ──
+    let findingsHtml;
+    if (hasFixData && findings.length > 0) {
+      // Full table with category + status columns
+      const rows = findings.map(f => {
+        const text = typeof f === 'string' ? f : (f.description || '');
+        const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
+        const category = typeof f === 'object' ? (f.category || '') : '';
+        // Try to match finding to plan issue for status
+        let fixStatus = 'OPEN';
+        if (typeof f === 'object' && f.id && issueMap.has(f.id)) {
+          fixStatus = (issueMap.get(f.id).status || 'pending').toUpperCase();
+        }
+        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-category">${escapeHtml(category)}</td><td class="col-finding">${escapeHtml(text)}</td><td class="col-status"><span class="fix-status fix-${escapeHtml(fixStatus)}">${escapeHtml(fixStatus)}</span></td></tr>`;
+      }).join('\n      ');
+      findingsHtml = `<table class="data-table findings-table"><thead><tr><th>Priority</th><th>Category</th><th>Finding</th><th>Status</th></tr></thead><tbody>\n      ${rows}\n    </tbody></table>`;
+    } else if (findings.length > 0) {
+      // Simple table without category/status
+      const rows = findings.map(f => {
+        const text = typeof f === 'string' ? f : (f.description || '');
+        const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
+        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-finding">${escapeHtml(text)}</td></tr>`;
+      }).join('\n      ');
+      findingsHtml = `<table class="data-table findings-table"><thead><tr><th>Priority</th><th>Finding</th></tr></thead><tbody>\n      ${rows}\n    </tbody></table>`;
+    } else {
+      findingsHtml = '<p style="color:var(--ink-ghost);font-size:11px;text-transform:uppercase;letter-spacing:0.08em">No findings</p>';
+    }
+
+    // ── Fix section (entire tab-section div, or empty) ──
+    let fixSection = '';
+    if (hasFixData) {
+      const summary = planSnapshot.summary || {};
+      const baselineScore = safeNumber(planSnapshot.baseline_score);
+
+      // Score comparison table (before/after per pillar)
+      const compareRows = pillarOrder.map(name => {
+        const after = pillarScore(name);
+        // Before score from plan's scores table, or fall back to after (no change)
+        const beforeScores = planSnapshot.beforeScores || {};
+        const before = safeNumber(beforeScores[name] ?? after);
+        const delta = after - before;
+        const deltaClass = delta > 0 ? 'delta-up' : delta < 0 ? 'delta-down' : 'delta-same';
+        const deltaText = delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : '—';
+        const label = name.charAt(0).toUpperCase() + name.slice(1);
+        return `<tr><td class="pillar-name">${escapeHtml(label)}</td><td class="compare-cell"><div class="compare-bar"><div class="bar-track"><div class="bar-fill" data-level="${before}" style="width:${(before/4)*100}%"></div></div><span class="compare-val">${before}/4</span></div></td><td class="compare-cell"><div class="compare-bar"><div class="bar-track"><div class="bar-fill" data-level="${after}" style="width:${(after/4)*100}%"></div></div><span class="compare-val">${after}/4</span></div></td><td><span class="score-delta ${deltaClass}">${deltaText}</span></td></tr>`;
+      }).join('\n        ');
+
+      // Fix summary strip
+      const fixedCount = safeNumber(summary.fixed);
+      const partialCount = safeNumber(summary.partial);
+      const failedCount = safeNumber(summary.failed);
+      const openCount = safeNumber(summary.pending) + safeNumber(summary.skipped);
+      const summaryStrip = `<div class="fix-summary-strip">
+        <div class="fix-summary-block" data-type="fixed"><div class="fix-summary-val">${fixedCount}</div><div class="fix-summary-label">Fixed</div></div>
+        <div class="fix-summary-block" data-type="partial"><div class="fix-summary-val">${partialCount}</div><div class="fix-summary-label">Partial</div></div>
+        <div class="fix-summary-block" data-type="failed"><div class="fix-summary-val">${failedCount}</div><div class="fix-summary-label">Failed</div></div>
+        <div class="fix-summary-block" data-type="open"><div class="fix-summary-val">${openCount}</div><div class="fix-summary-label">Open</div></div>
+      </div>`;
+
+      // Fix detail table from plan issues
+      const fixRows = planIssues.map(iss => {
+        const st = (iss.status || 'pending').toUpperCase();
+        return `<tr><td style="font-family:var(--mono);font-size:12px">${escapeHtml(iss.id || '')}</td><td>${escapeHtml(iss.description || '')}</td><td><span class="fix-status fix-${escapeHtml(st)}">${escapeHtml(st)}</span></td></tr>`;
+      }).join('\n        ');
+
+      const detailedIssues = planIssues.filter(iss => iss.whatChanged || iss.evidence);
+      const fixDetails = detailedIssues.length > 0
+        ? `<div class="section-label">What Changed</div>
+    <div class="fix-detail-list">
+      ${detailedIssues.map(iss => {
+        const st = (iss.status || 'pending').toUpperCase();
+        const summaryText = escapeHtml(iss.whatChanged || iss.description || '');
+        const evidenceText = escapeHtml(iss.evidence || '');
+        const sourceText = escapeHtml((iss.source || '').toUpperCase());
+        return `<div class="fix-detail-card" data-status="${escapeHtml(st)}">
+        <div class="fix-detail-head">
+          <div class="fix-detail-issue">${escapeHtml(iss.id || '')}</div>
+          <span class="fix-status fix-${escapeHtml(st)}">${escapeHtml(st)}</span>
+        </div>
+        <div class="fix-detail-summary">${summaryText}</div>
+        ${evidenceText ? `<div class="fix-detail-evidence">${evidenceText}</div>` : ''}
+        ${sourceText ? `<div class="fix-detail-meta">Source: ${sourceText}</div>` : ''}
+      </div>`;
+      }).join('\n      ')}
+    </div>`
+        : '';
+
+      const totalDelta = total - baselineScore;
+      const totalDeltaClass = totalDelta > 0 ? 'delta-up' : totalDelta < 0 ? 'delta-down' : 'delta-same';
+      const totalDeltaText = totalDelta > 0 ? `+${totalDelta}` : totalDelta < 0 ? `${totalDelta}` : '—';
+
+      fixSection = `<div class="tab-section tab-section-fixes">
+    <div class="section-label">Fix Outcome</div>
+    <div style="display:flex;gap:24px;align-items:baseline;margin-bottom:24px">
+      <div><span style="font-family:var(--mono);font-size:28px;font-weight:700">${baselineScore}</span><span style="color:var(--ink-tertiary);font-size:11px;margin-left:4px">/20 before</span></div>
+      <div style="font-size:20px;color:var(--ink-ghost)">\u2192</div>
+      <div><span style="font-family:var(--mono);font-size:28px;font-weight:700">${total}</span><span style="color:var(--ink-tertiary);font-size:11px;margin-left:4px">/20 after</span></div>
+      <div><span class="score-delta ${totalDeltaClass}" style="font-size:16px">${totalDeltaText}</span></div>
+    </div>
+
+    ${summaryStrip}
+
+    <div class="section-label">Score Comparison</div>
+    <table class="data-table score-compare">
+      <thead><tr><th>Pillar</th><th>Before</th><th>After</th><th></th></tr></thead>
+      <tbody>
+        ${compareRows}
+      </tbody>
+    </table>
+
+    <div class="section-label">All Issues</div>
+    <table class="data-table">
+      <thead><tr><th>Issue</th><th>Description</th><th>Status</th></tr></thead>
+      <tbody>
+        ${fixRows}
+      </tbody>
+    </table>
+
+    ${fixDetails}
+  </div>`;
+    }
+
+    // ── Token replacement ──
+    const urlMeta = safeUrl.clickable
+      ? `<a href="${escapeHtml(safeUrl.href)}">${escapeHtml(safeUrl.text)}</a>`
+      : `<span>${escapeHtml(safeUrl.text)}</span>`;
+
+    html = html.replace(/\{\{TITLE\}\}/g, escapeHtml(title));
+    html = html.replace(/\{\{URL_META\}\}/g, urlMeta);
+    html = html.replace(/\{\{DATE\}\}/g, escapeHtml(date));
+    html = html.replace(/\{\{CONFIDENCE\}\}/g, escapeHtml(String(confidence)));
+    html = html.replace(/\{\{TAB_RADIOS\}\}/g, tabRadios);
+    html = html.replace(/\{\{TAB_LABELS\}\}/g, tabLabels);
+    html = html.replace(/\{\{KPI_BLOCKS\}\}/g, kpiBlocks);
+    html = html.replace(/\{\{SLOP_PATTERNS\}\}/g, slopPatternsHtml);
+    html = html.replace(/\{\{PILLAR_ROWS\}\}/g, pillarRows);
+    html = html.replace(/\{\{SCREENSHOT_GRID\}\}/g, screenshotGrid);
+    html = html.replace(/\{\{PERSONA_SECTIONS\}\}/g, personaSections);
+    html = html.replace(/\{\{FINDINGS_DETAIL\}\}/g, findingsHtml);
+    html = html.replace(/\{\{FIX_SECTION\}\}/g, fixSection);
+
+    // Write the report
+    const reportsDir = path.join(root, '.pixelslop', 'reports');
+    if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const outPath = path.join(reportsDir, `report-${stamp}.html`);
+    fs.writeFileSync(outPath, html, 'utf-8');
+
+    return { ok: true, path: outPath, size: `${Math.round(html.length / 1024)}KB` };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// ─────────────────────────────────────────────
 
 /**
  * Main entry point. Parses args and routes to the appropriate handler.
@@ -2383,6 +3185,10 @@ async function main() {
     console.log('  browser styles --url <url> --selector <css>');
     console.log('  browser snapshot --url <url>');
     console.log('  browser screenshot --url <url> [--viewport <name|WxH>] [--out <file>]');
+    console.log('  browser analyze-page --url <url>               # Classify page type and suggest personas');
+    console.log('  scan save-results --json \'<json>\' [--root <path>]  # Save assembled scan results');
+    console.log('  scan save-results --json-file <path> [--root <path>]');
+    console.log('  report generate --scan-results <path> [--plan-snapshot <path>] [--root <path>]');
     console.log('  config set <key> <value> [--root <path>]     # Set a project setting');
     console.log('  config get [<key>] [--root <path>]            # Get one or all settings');
     console.log('  config set-all --headed true --deep false ...  # Set multiple settings at once');
@@ -2413,7 +3219,7 @@ async function main() {
 
     case 'checkpoint':
       switch (command) {
-        case 'create': return checkpointCreate(positional[2] || flags.id, (flags.files || '').split(',').filter(Boolean));
+        case 'create': return checkpointCreate(positional[2] || flags.id, (flags.files || '').split(',').filter(Boolean), flags['no-git'] === true || flags['no-git'] === 'true');
         case 'revert': return checkpointRevert(positional[2] || flags.id);
         case 'verify': return checkpointVerify(positional[2] || flags.id);
         case 'list': return checkpointList();
@@ -2440,7 +3246,9 @@ async function main() {
         case 'set-all': return configSetAll(flags);
         case 'save-context': return configSaveContext(flags);
         case 'load-context': return configLoadContext(flags);
-        default: fail(`Unknown config command: ${command}. Valid: write, read, exists, set, get, set-all, save-context, load-context`);
+        case 'read-tokens': return configReadTokens(flags);
+        case 'write-tokens': return configWriteTokens(flags);
+        default: fail(`Unknown config command: ${command}. Valid: write, read, exists, set, get, set-all, save-context, load-context, read-tokens, write-tokens`);
       }
       break;
 
@@ -2494,8 +3302,24 @@ async function main() {
       return output(result, true);
     }
 
+    case 'scan': {
+      switch (command) {
+        case 'save-results': return output(scanSaveResults(flags), true);
+        default: fail(`Unknown scan command: ${command}. Valid: save-results`);
+      }
+      break;
+    }
+
+    case 'report': {
+      switch (command) {
+        case 'generate': return output(reportGenerate(flags), true);
+        default: fail(`Unknown report command: ${command}. Valid: generate`);
+      }
+      break;
+    }
+
     default:
-      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, log, discover, serve, init, verify, browser`);
+      fail(`Unknown group: ${group}. Valid: plan, checkpoint, gate, config, log, discover, serve, init, verify, browser, scan, report`);
   }
 }
 

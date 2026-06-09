@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: light;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixelslop Report — {{TITLE}}</title>
+  <style>
+    /* ── Pixelslop Report v2 — Command Folio ──
+       Multi-section layout with CSS-only tab navigation.
+       Zero radius. No shadows. Tonal stacking. Monospace for data.
+       Self-contained: no external fonts, scripts, or stylesheets. */
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --canvas: #FAFAF8;
+      --surface-1: #F4F4F2;
+      --surface-2: #EEEEEC;
+      --surface-3: #E8E8E6;
+      --surface-white: #FFFFFF;
+      --ink: #111111;
+      --ink-secondary: #666666;
+      --ink-tertiary: #888888;
+      --ink-ghost: #AAAAAA;
+      --sage: #4A6741;
+      --orange: #C47A2C;
+      --red: #8B3A3A;
+      --border-heavy: #111111;
+      --border-light: #E0E0DC;
+      --heading: system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif;
+      --body: system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif;
+      --mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    }
+
+    body {
+      font-family: var(--body);
+      background: var(--canvas);
+      color: var(--ink);
+      line-height: 1.55;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 32px 24px 24px;
+      font-size: 13px;
+    }
+
+    /* ── Header ── */
+    .report-header {
+      border-bottom: 2px solid var(--border-heavy);
+      padding-bottom: 16px;
+      margin-bottom: 0;
+    }
+    .report-wordmark {
+      font-family: var(--heading); font-size: 11px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-tertiary);
+      margin-bottom: 8px;
+    }
+    .report-wordmark a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .report-wordmark a:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .report-title {
+      font-family: var(--heading); font-size: 22px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.2;
+      margin-bottom: 6px;
+    }
+    .report-meta {
+      font-family: var(--mono); font-size: 12px; color: var(--ink-secondary);
+    }
+    .report-meta a {
+      color: var(--ink-secondary); text-decoration: underline; text-underline-offset: 2px;
+    }
+
+    /* ── Tab navigation (CSS-only via hidden radio inputs) ── */
+    .tab-radio { display: none; }
+
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      background: var(--surface-1);
+      border-bottom: 2px solid var(--border-heavy);
+      margin-bottom: 24px;
+    }
+    .tab-bar label {
+      font-family: var(--heading); font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--ink-tertiary);
+      padding: 14px 16px 12px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.15s;
+    }
+    .tab-bar label:hover { color: var(--ink-secondary); }
+
+    /* Active tab states — radio checked highlights matching label */
+    #tab-overview:checked ~ .tab-bar label[for="tab-overview"],
+    #tab-personas:checked ~ .tab-bar label[for="tab-personas"],
+    #tab-findings:checked ~ .tab-bar label[for="tab-findings"],
+    #tab-fixes:checked ~ .tab-bar label[for="tab-fixes"] {
+      color: var(--ink);
+      font-weight: 700;
+      border-bottom-color: var(--ink);
+    }
+
+    /* Section visibility — only active tab's section shown */
+    .tab-section { display: none; }
+    #tab-overview:checked ~ .tab-section-overview { display: block; }
+    #tab-personas:checked ~ .tab-section-personas { display: block; }
+    #tab-findings:checked ~ .tab-section-findings { display: block; }
+    #tab-fixes:checked ~ .tab-section-fixes { display: block; }
+
+    /* ── Section labels ── */
+    .section-label {
+      font-family: var(--heading); font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-tertiary);
+      border-bottom: 2px solid var(--border-heavy);
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+    }
+    .section-label:not(:first-child) { margin-top: 32px; }
+
+    /* ── KPI strip ── */
+    .kpi-strip {
+      display: flex; gap: 1px;
+      background: var(--border-light);
+      margin-bottom: 24px;
+    }
+    .kpi-block {
+      flex: 1; background: var(--surface-1);
+      padding: 16px; border-left: 3px solid var(--ink);
+    }
+    .kpi-block[data-status="good"] { border-left-color: var(--sage); }
+    .kpi-block[data-status="warn"] { border-left-color: var(--orange); }
+    .kpi-block[data-status="bad"] { border-left-color: var(--red); }
+    .kpi-value {
+      font-family: var(--mono); font-size: 36px; font-weight: 700;
+      line-height: 1; margin-bottom: 4px;
+    }
+    .kpi-label {
+      font-family: var(--body); font-size: 10px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-tertiary);
+    }
+
+    /* ── Data tables (shared pattern) ── */
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table thead th {
+      font-family: var(--heading); font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em; text-align: left;
+      padding: 8px 12px; background: var(--ink); color: var(--canvas);
+    }
+    .data-table tbody tr { border-bottom: 1px solid var(--border-light); }
+    .data-table tbody tr:nth-child(odd) { background: var(--canvas); }
+    .data-table tbody tr:nth-child(even) { background: var(--surface-1); }
+    .data-table td {
+      padding: 8px 12px; font-size: 13px; vertical-align: middle;
+    }
+
+    /* ── Pillar table (extends data-table) ── */
+    .pillar-table .pillar-name { font-weight: 500; width: 130px; }
+    .pillar-table .pillar-bar-cell { width: auto; }
+    .pillar-table .pillar-score {
+      font-family: var(--mono); font-weight: 700; text-align: right; width: 50px;
+    }
+    .pillar-table .pillar-evidence {
+      font-size: 12px; color: var(--ink-secondary); max-width: 350px;
+    }
+
+    /* ── Slop patterns list ── */
+    .slop-patterns {
+      margin: 0 0 24px; padding: 12px 16px; background: var(--surface-1);
+    }
+    .slop-patterns .section-sublabel {
+      font-family: var(--heading); font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-tertiary);
+      margin-bottom: 8px;
+    }
+    .slop-patterns ul { margin: 0 0 0 16px; font-size: 12px; color: var(--ink-secondary); }
+    .slop-patterns li { margin-bottom: 4px; }
+    .slop-patterns li strong { color: var(--ink); }
+    .bar-track { height: 6px; background: var(--border-light); }
+    .bar-fill { height: 100%; background: var(--ink); }
+    .bar-fill[data-level="4"] { background: var(--sage); }
+    .bar-fill[data-level="3"] { background: var(--ink); }
+    .bar-fill[data-level="2"] { background: var(--orange); }
+    .bar-fill[data-level="1"] { background: var(--red); }
+
+    /* Score comparison — dual bars for before/after */
+    .score-compare .compare-cell { width: 100px; }
+    .score-compare .compare-bar { display: flex; align-items: center; gap: 8px; }
+    .score-compare .compare-bar .bar-track { flex: 1; }
+    .score-compare .compare-bar .compare-val {
+      font-family: var(--mono); font-size: 12px; font-weight: 700; width: 28px;
+    }
+    .score-delta {
+      font-family: var(--mono); font-size: 11px; font-weight: 700;
+    }
+    .delta-up { color: var(--sage); }
+    .delta-same { color: var(--ink-ghost); }
+    .delta-down { color: var(--red); }
+
+    /* ── Slop status ── */
+    .slop-status {
+      font-family: var(--mono); font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .slop-CLEAN { color: var(--sage); }
+    .slop-MILD { color: var(--orange); }
+    .slop-SLOPPY { color: var(--orange); }
+    .slop-TERMINAL { color: var(--red); }
+
+    /* ── Screenshots ── */
+    .screenshot-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1px; background: var(--border-light); margin-bottom: 24px;
+    }
+    .screenshot-card { background: var(--surface-white); overflow: hidden; }
+    .screenshot-card img { width: 100%; height: auto; display: block; }
+    .screenshot-label {
+      padding: 6px 12px; font-size: 10px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--ink-tertiary); background: var(--surface-1);
+    }
+    .screenshot-placeholder {
+      padding: 32px 12px; text-align: center;
+      background: var(--surface-1); color: var(--ink-ghost);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    }
+
+    /* ── Persona cards ── */
+    .persona-card {
+      background: var(--surface-white); border-left: 3px solid var(--ink);
+      padding: 16px 20px; margin-bottom: 1px;
+    }
+    .persona-card[data-priority="High"] { border-left-color: var(--red); }
+    .persona-card[data-priority="Medium"] { border-left-color: var(--orange); }
+    .persona-card[data-priority="Low"] { border-left-color: var(--sage); }
+    .persona-name {
+      font-family: var(--heading); font-size: 14px; font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .persona-role {
+      font-size: 10px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--ink-tertiary); margin-bottom: 10px;
+    }
+    .persona-narrative {
+      font-size: 13px; line-height: 1.65; color: var(--ink-secondary); margin-bottom: 12px;
+    }
+
+    /* Persona issue sub-table */
+    .persona-issues { margin-bottom: 12px; }
+    .persona-issues .section-sublabel {
+      font-family: var(--heading); font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-tertiary);
+      margin-bottom: 6px;
+    }
+    .persona-issue-row {
+      display: grid; grid-template-columns: 28px 1fr auto;
+      gap: 8px; padding: 4px 0;
+      border-bottom: 1px solid var(--border-light);
+      align-items: baseline; font-size: 12px;
+    }
+    .persona-issue-row:last-child { border-bottom: none; }
+
+    .persona-meta {
+      display: flex; gap: 16px; font-size: 11px; color: var(--ink-tertiary);
+      border-top: 1px solid var(--border-light); padding-top: 8px;
+    }
+    .persona-meta strong { color: var(--ink); font-weight: 600; }
+
+    /* ── Priority tags ── */
+    .priority-tag {
+      font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase;
+    }
+    .priority-P0 { color: var(--red); }
+    .priority-P1 { color: var(--orange); }
+    .priority-P2 { color: var(--ink-tertiary); }
+
+    /* ── Fix status labels ── */
+    .fix-status {
+      font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase;
+    }
+    .fix-FIXED, .fix-PASS { color: var(--sage); }
+    .fix-FAILED, .fix-FAIL { color: var(--red); }
+    .fix-PARTIAL { color: var(--orange); }
+    .fix-OPEN, .fix-PENDING { color: var(--ink-ghost); }
+    .fix-SKIPPED { color: var(--ink-ghost); }
+
+    /* Findings table extensions */
+    .findings-table .col-priority { width: 50px; }
+    .findings-table .col-category {
+      width: 110px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--ink-secondary);
+    }
+    .findings-table .col-status { width: 70px; }
+    .findings-table .col-finding { font-size: 13px; line-height: 1.5; }
+
+    /* Fix summary strip (reuses KPI pattern) */
+    .fix-summary-strip {
+      display: flex; gap: 1px;
+      background: var(--border-light);
+      margin-bottom: 24px;
+    }
+    .fix-summary-block {
+      flex: 1; background: var(--surface-1);
+      padding: 12px 16px; border-left: 3px solid var(--ink-ghost);
+    }
+    .fix-summary-block[data-type="fixed"] { border-left-color: var(--sage); }
+    .fix-summary-block[data-type="partial"] { border-left-color: var(--orange); }
+    .fix-summary-block[data-type="failed"] { border-left-color: var(--red); }
+    .fix-summary-block[data-type="open"] { border-left-color: var(--ink-ghost); }
+    .fix-summary-val {
+      font-family: var(--mono); font-size: 28px; font-weight: 700;
+      line-height: 1; margin-bottom: 2px;
+    }
+    .fix-summary-label {
+      font-size: 10px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.12em; color: var(--ink-tertiary);
+    }
+    .fix-detail-list {
+      display: grid;
+      gap: 1px;
+      background: var(--border-light);
+      margin-top: 16px;
+    }
+    .fix-detail-card {
+      background: var(--surface-white);
+      border-left: 3px solid var(--ink-ghost);
+      padding: 14px 16px;
+    }
+    .fix-detail-card[data-status="FIXED"] { border-left-color: var(--sage); }
+    .fix-detail-card[data-status="PARTIAL"] { border-left-color: var(--orange); }
+    .fix-detail-card[data-status="FAILED"] { border-left-color: var(--red); }
+    .fix-detail-card[data-status="SKIPPED"] { border-left-color: var(--ink-ghost); }
+    .fix-detail-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .fix-detail-issue {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .fix-detail-summary {
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+    .fix-detail-evidence {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--ink-secondary);
+    }
+    .fix-detail-meta {
+      margin-top: 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-tertiary);
+    }
+
+    /* ── Footer ── */
+    .report-footer {
+      margin-top: 32px; padding-top: 12px;
+      border-top: 2px solid var(--border-heavy);
+      font-size: 10px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--ink-ghost);
+    }
+    .report-footer a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .report-footer a:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* ── Print — show all sections, hide tab UI ── */
+    @media print {
+      body { max-width: 100%; padding: 12px; font-size: 11px; }
+      .tab-radio, .tab-bar { display: none !important; }
+      .tab-section { display: block !important; page-break-inside: avoid; }
+      .tab-section + .tab-section { margin-top: 24px; }
+      .kpi-block, .bar-fill, .priority-tag, .slop-status, .fix-status, .fix-summary-block {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+      }
+      .data-table thead th {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="report-header">
+    <div class="report-wordmark"><a href="https://github.com/gabelul/pixelslop">Pixelslop</a></div>
+    <h1 class="report-title">{{TITLE}}</h1>
+    <div class="report-meta">
+      {{URL_META}} · {{DATE}} · confidence {{CONFIDENCE}}%
+    </div>
+  </header>
+
+  <!-- Tab radios (conditional — only present tabs get a radio) -->
+  {{TAB_RADIOS}}
+
+  <!-- Tab navigation bar -->
+  <nav class="tab-bar">
+    {{TAB_LABELS}}
+  </nav>
+
+  <!-- OVERVIEW — always present, default active tab -->
+  <div class="tab-section tab-section-overview">
+    <div class="kpi-strip">
+      {{KPI_BLOCKS}}
+    </div>
+
+    {{SLOP_PATTERNS}}
+
+    <table class="data-table pillar-table">
+      <thead>
+        <tr><th>Pillar</th><th>Score</th><th></th><th>Key Observation</th></tr>
+      </thead>
+      <tbody>
+        {{PILLAR_ROWS}}
+      </tbody>
+    </table>
+
+    <div class="section-label">Screenshots</div>
+    <div class="screenshot-grid">
+      {{SCREENSHOT_GRID}}
+    </div>
+  </div>
+
+  <!-- PERSONAS — entire section injected or empty string -->
+  {{PERSONA_SECTIONS}}
+
+  <!-- FINDINGS — always present -->
+  <div class="tab-section tab-section-findings">
+    <div class="section-label">Findings</div>
+    {{FINDINGS_DETAIL}}
+  </div>
+
+  <!-- FIXES — entire section injected or empty string -->
+  {{FIX_SECTION}}
+
+  <footer class="report-footer">
+    <a href="https://github.com/gabelul/pixelslop">Pixelslop on GitHub</a> · Browser-first design quality review
+  </footer>
+
+</body>
+</html>

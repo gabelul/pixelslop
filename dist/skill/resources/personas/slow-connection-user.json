@@ -1,6 +1,7 @@
 {
   "id": "slow-connection-user",
   "name": "Slow Connection User",
+  "humanName": "Morgan",
   "category": "context",
   "description": "On a throttled or unreliable connection — rural broadband, mobile data in poor coverage, or international user on a high-latency link. Tests whether the page loads meaningfully without waiting for everything, whether images are optimized, and whether fonts degrade gracefully.",
 

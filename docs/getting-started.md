@@ -61,11 +61,25 @@ It'll look for running local servers, check if any belong to this repo, and ask 
 2. Screenshots, computed styles, contrast ratios, a11y tree — all measured from the real render
 3. Scores 5 pillars: Hierarchy, Typography, Color, Responsiveness, Accessibility (each 1-4, total /20)
 4. Checks 25 known AI slop patterns
-5. Evaluates from 8 user personas (screen reader user, rushed mobile user, design critic, etc.)
-6. Groups findings, assigns priorities (P0/P1/P2)
-7. Asks you what to fix — everything, critical only, cherry-pick, or just the report
-8. Runs the fix loop: checkpoint → fix → build gate → verify → pass/fail/rollback
-9. Final report with before/after delta
+5. Evaluates from named user personas (Sam, Alex, Casey, Quinn, etc.)
+6. Generates a self-contained HTML report with tabbed sections
+7. Groups findings, assigns priorities (P0/P1/P2)
+8. Asks you what to fix — everything, critical only, cherry-pick, or just the report
+9. Runs the fix loop: checkpoint → fix → build gate → verify → pass/fail/rollback
+10. Final report with before/after score comparison
+
+## Git and fixing
+
+**Scanning works without git.** You can scan any page and get a full report with scores, personas, and findings — no git setup needed.
+
+**Fixing works best with git.** The fix loop creates checkpoints before editing your files so it can roll back if something breaks. By default, this uses git to validate that files are tracked and clean before touching them.
+
+**No git? No problem.** If your project isn't in a git repo, pixelslop will ask whether you want to:
+- **Use no-git mode** — fixes still work, using file-based backups instead of git tracking. You get the same checkpoint/rollback safety, just without git history integration.
+- **Report only** — scan and report without fixing anything.
+- **Set up git first** — go initialize a repo, then come back.
+
+The no-git mode is solid for prototypes, static sites, or projects that haven't been committed yet. For production codebases, git mode gives you the extra safety of tracked-file validation and `git checkout` as a fallback rollback.
 
 The whole thing takes 2-5 minutes for a scan, plus 1-2 minutes per fix.
 
@@ -77,6 +91,7 @@ The whole thing takes 2-5 minutes for a scan, plus 1-2 minutes per fix.
 | `--personas none` | Skip persona evaluation |
 | `--personas screen-reader-user,design-critic` | Pick specific personas |
 | `--thorough` | Lower confidence threshold, show borderline findings |
+| `--quick` | Skip the per-run config step, use saved settings/defaults |
 | `--code-check` | Source analysis only, no browser |
 | `--debug` | Write session log for troubleshooting (see [troubleshooting](troubleshooting.md)) |
 

@@ -27,6 +27,18 @@ current_category: accessibility
 - [fixed] gradient-text P1 [slop] Gradient text on h1
 - [partial] touch-targets P1 [responsiveness] Footer links 19px — target 44px
 
+## Issue Details
+
+```json
+{
+  "gradient-text": {
+    "whatChanged": "Removed gradient text treatment from the h1 and restored solid ink color.",
+    "evidence": "Checker PASS — heading now renders as solid text in desktop and mobile screenshots.",
+    "source": "checker"
+  }
+}
+```
+
 ## Scores
 
 | Pillar | Before | After |
@@ -69,6 +81,14 @@ current_category: accessibility
 | `priority` | `P0`, `P1`, `P2` | P0 = must fix, P1 = should fix, P2 = nice to fix |
 | `category` | bracket-wrapped | Maps to fix guide pillar |
 | `description` | free text | What's wrong, with measured values |
+
+The issue line stays compact. Richer fix notes live in the optional `## Issue Details` section, keyed by issue id.
+
+| Detail field | Type | Notes |
+|-------------|------|-------|
+| `whatChanged` | string | Short, user-facing summary of the applied change |
+| `evidence` | string | Checker or fixer evidence that supports the outcome |
+| `source` | string | Usually `checker` or `fixer` |
 
 ---
 
