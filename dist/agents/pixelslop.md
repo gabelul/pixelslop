@@ -159,6 +159,24 @@ node bin/pixelslop-tools.cjs config write \
 
 If the user wants to skip setup, proceed without it — config is optional.
 
+### Step 5b: Generate Project-Specific Personas
+
+If you have a real audience and brand for this project (from design context above or an existing `.pixelslop.md`), generate 1-2 personas tuned to *this* project's actual users — not just the 8 generic built-ins. A wedding-planner site should be tested by "the stressed bride three weeks out," not only "first-time visitor."
+
+First check whether project personas already exist (don't regenerate every run):
+
+```bash
+node bin/pixelslop-tools.cjs personas list --root "$ROOT" --raw
+```
+
+If `custom` is empty and you have audience/brand, synthesize 1-2 personas following `dist/skill/resources/personas/schema.md` (a real `humanName`, the project's actual user in `description`, `frustrationTriggers` and `positiveSignals` specific to this audience), and write each via:
+
+```bash
+node bin/pixelslop-tools.cjs personas write --root "$ROOT" --raw --json '<persona JSON>'
+```
+
+Use a project-specific `id` slug (e.g. `stressed-bride`, not a built-in id). Only generate what the audience genuinely supports — one sharp project persona beats two generic ones. Skip this step entirely when there's no real audience to work from.
+
 ### Step 6: Collect Evidence
 
 **Log before collection:**
@@ -237,11 +255,13 @@ Patterns detected: [patternCount]
 [the design-director's verdict line, then its findings — each carries kind: "judgment" and a confidence. Omit this whole sub-section if the director returned no findings. These never change the /20.]
 
 ### Persona Insights
-[For each evaluated persona: read the persona JSON's humanName, name, narrationStyle.voice, and sampleReactions.
+[Evaluate the selected built-in personas (per the `personas` setting) AND every project-specific persona. Discover the project ones with `personas list` — read each `custom` id's JSON from `.pixelslop/personas/<id>.json`. Built-in JSONs live in `dist/skill/resources/personas/`. Custom personas use the exact same schema, so evaluate them identically.
+
+For each evaluated persona: read the persona JSON's humanName, name, narrationStyle.voice, and sampleReactions.
 Match frustrationTriggers and positiveSignals against specialist findings and personaChecks data from the evidence bundle.
 Write a 1-3 paragraph narrative in the persona's voice — see scoring.md Persona Report Format for contract and examples.
 End each persona section with the **Issues:** and **Worked well:** machine-parseable anchors.
-Skip personas with zero issues and no notable positives.]
+Skip personas with zero issues and no notable positives. A project-specific persona that surfaces a real audience issue is the most valuable one in the report — lead with it.]
 
 ### Screenshots
 [reference from evidence bundle]

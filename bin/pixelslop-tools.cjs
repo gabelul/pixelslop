@@ -1100,6 +1100,72 @@ function configWriteTokens(args = {}) {
     : `Design tokens written (${Object.keys(merged).length}): ${configPath}`);
 }
 
+// The 8 shipped persona profiles. Custom (project-specific) personas live in
+// .pixelslop/personas/ and must not collide with these ids.
+const BUILTIN_PERSONA_IDS = [
+  'screen-reader-user', 'low-vision-user', 'keyboard-user', 'rushed-mobile-user',
+  'slow-connection-user', 'non-native-english', 'design-critic', 'first-time-visitor'
+];
+
+/**
+ * Write a project-specific persona to .pixelslop/personas/<id>.json after
+ * validating it. The setup agent generates these from the project's audience,
+ * and the orchestrator evaluates them alongside the built-ins.
+ */
+function personasWrite(args = {}) {
+  try {
+    if (!args.json) return { ok: false, error: '--json is required' };
+    let persona;
+    try { persona = JSON.parse(args.json); } catch (e) { return { ok: false, error: `Invalid --json: ${e.message}` }; }
+    if (!persona || typeof persona !== 'object' || Array.isArray(persona)) {
+      return { ok: false, error: '--json must be a persona object' };
+    }
+
+    const required = ['id', 'name', 'category', 'description', 'designPriorities', 'frustrationTriggers', 'positiveSignals'];
+    const missing = required.filter((k) => persona[k] == null);
+    if (missing.length) return { ok: false, error: `Missing persona fields: ${missing.join(', ')}` };
+    if (!Array.isArray(persona.frustrationTriggers) || !Array.isArray(persona.positiveSignals)) {
+      return { ok: false, error: 'frustrationTriggers and positiveSignals must be arrays' };
+    }
+
+    const id = String(persona.id);
+    // id doubles as the filename, so it must be a safe slug — no traversal, no surprises.
+    if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(id)) {
+      return { ok: false, error: `Persona id must be a lowercase slug [a-z0-9-], 2-41 chars: got "${id}"` };
+    }
+    if (BUILTIN_PERSONA_IDS.includes(id)) {
+      return { ok: false, error: `"${id}" collides with a built-in persona; use a project-specific id` };
+    }
+
+    const dir = path.join(resolveProjectRoot(args.root), '.pixelslop', 'personas');
+    const outPath = path.join(dir, `${id}.json`);
+    // Defence in depth: the written file must stay inside the personas dir.
+    if (path.dirname(path.resolve(outPath)) !== path.resolve(dir)) {
+      return { ok: false, error: 'unsafe persona path' };
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(outPath, JSON.stringify(persona, null, 2), 'utf-8');
+    return { ok: true, id, path: outPath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * List available personas: the built-ins plus any custom ones in
+ * .pixelslop/personas/. Lets the orchestrator discover generated personas.
+ */
+function personasList(args = {}) {
+  const dir = path.join(resolveProjectRoot(args.root), '.pixelslop', 'personas');
+  let custom = [];
+  if (fs.existsSync(dir)) {
+    custom = fs.readdirSync(dir)
+      .filter((f) => f.endsWith('.json') && !f.startsWith('._'))
+      .map((f) => f.replace(/\.json$/, ''));
+  }
+  return { ok: true, builtin: BUILTIN_PERSONA_IDS, custom, dir };
+}
+
 /**
  * Check if .pixelslop.md exists.
  */
@@ -3419,6 +3485,15 @@ async function main() {
       switch (command) {
         case 'generate': return output(reportGenerate(flags), true);
         default: fail(`Unknown report command: ${command}. Valid: generate`);
+      }
+      break;
+    }
+
+    case 'personas': {
+      switch (command) {
+        case 'write': return output(personasWrite(flags), true);
+        case 'list': return output(personasList(flags), true);
+        default: fail(`Unknown personas command: ${command}. Valid: write, list`);
       }
       break;
     }
