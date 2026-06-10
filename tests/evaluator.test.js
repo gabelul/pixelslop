@@ -90,10 +90,11 @@ describe('Internal evaluator agents directory', () => {
     assert.ok(existsSync(INTERNAL), 'Missing: dist/agents/internal/');
   });
 
-  it('contains exactly 6 evaluator specs', () => {
+  it('contains the 6 measured evaluators plus the design-director (7 total)', () => {
     const files = readdirSync(INTERNAL).filter(f => f.endsWith('.md') && !f.startsWith('._'));
-    assert.equal(files.length, 6,
-      `Expected 6 internal evaluator specs, found ${files.length}: ${files.join(', ')}`);
+    assert.equal(files.length, 7,
+      `Expected 7 internal evaluator specs (6 measured + design-director), found ${files.length}: ${files.join(', ')}`);
+    assert.ok(files.includes('pixelslop-eval-design-director.md'), 'design-director spec must be present');
   });
 });
 
@@ -189,9 +190,11 @@ describe('Pillar coverage', () => {
     assert.ok(existsSync(INTERNAL), `INTERNAL dir missing: ${INTERNAL}`);
     const raw = readdirSync(INTERNAL);
     const mdFiles = raw.filter(f => f.endsWith('.md') && !f.startsWith('._'));
-    const pillarFiles = mdFiles.filter(f => !f.includes('eval-slop'));
+    // Pillar evaluators exclude the slop classifier and the design-director —
+    // the director is the subjective judgment pass, not a scored pillar.
+    const pillarFiles = mdFiles.filter(f => !f.includes('eval-slop') && !f.includes('eval-design-director'));
     assert.equal(pillarFiles.length, 5,
-      `Expected 5 pillar evaluators (excluding slop), found ${pillarFiles.length}. Raw dir: ${raw.join(', ')}. MD files: ${mdFiles.join(', ')}. Pillar files: ${pillarFiles.join(', ')}`);
+      `Expected 5 pillar evaluators (excluding slop + design-director), found ${pillarFiles.length}. Raw dir: ${raw.join(', ')}. MD files: ${mdFiles.join(', ')}. Pillar files: ${pillarFiles.join(', ')}`);
   });
 });
 

@@ -1100,6 +1100,72 @@ function configWriteTokens(args = {}) {
     : `Design tokens written (${Object.keys(merged).length}): ${configPath}`);
 }
 
+// The 8 shipped persona profiles. Custom (project-specific) personas live in
+// .pixelslop/personas/ and must not collide with these ids.
+const BUILTIN_PERSONA_IDS = [
+  'screen-reader-user', 'low-vision-user', 'keyboard-user', 'rushed-mobile-user',
+  'slow-connection-user', 'non-native-english', 'design-critic', 'first-time-visitor'
+];
+
+/**
+ * Write a project-specific persona to .pixelslop/personas/<id>.json after
+ * validating it. The setup agent generates these from the project's audience,
+ * and the orchestrator evaluates them alongside the built-ins.
+ */
+function personasWrite(args = {}) {
+  try {
+    if (!args.json) return { ok: false, error: '--json is required' };
+    let persona;
+    try { persona = JSON.parse(args.json); } catch (e) { return { ok: false, error: `Invalid --json: ${e.message}` }; }
+    if (!persona || typeof persona !== 'object' || Array.isArray(persona)) {
+      return { ok: false, error: '--json must be a persona object' };
+    }
+
+    const required = ['id', 'name', 'category', 'description', 'designPriorities', 'frustrationTriggers', 'positiveSignals'];
+    const missing = required.filter((k) => persona[k] == null);
+    if (missing.length) return { ok: false, error: `Missing persona fields: ${missing.join(', ')}` };
+    if (!Array.isArray(persona.frustrationTriggers) || !Array.isArray(persona.positiveSignals)) {
+      return { ok: false, error: 'frustrationTriggers and positiveSignals must be arrays' };
+    }
+
+    const id = String(persona.id);
+    // id doubles as the filename, so it must be a safe slug — no traversal, no surprises.
+    if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(id)) {
+      return { ok: false, error: `Persona id must be a lowercase slug [a-z0-9-], 2-41 chars: got "${id}"` };
+    }
+    if (BUILTIN_PERSONA_IDS.includes(id)) {
+      return { ok: false, error: `"${id}" collides with a built-in persona; use a project-specific id` };
+    }
+
+    const dir = path.join(resolveProjectRoot(args.root), '.pixelslop', 'personas');
+    const outPath = path.join(dir, `${id}.json`);
+    // Defence in depth: the written file must stay inside the personas dir.
+    if (path.dirname(path.resolve(outPath)) !== path.resolve(dir)) {
+      return { ok: false, error: 'unsafe persona path' };
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(outPath, JSON.stringify(persona, null, 2), 'utf-8');
+    return { ok: true, id, path: outPath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * List available personas: the built-ins plus any custom ones in
+ * .pixelslop/personas/. Lets the orchestrator discover generated personas.
+ */
+function personasList(args = {}) {
+  const dir = path.join(resolveProjectRoot(args.root), '.pixelslop', 'personas');
+  let custom = [];
+  if (fs.existsSync(dir)) {
+    custom = fs.readdirSync(dir)
+      .filter((f) => f.endsWith('.json') && !f.startsWith('._'))
+      .map((f) => f.replace(/\.json$/, ''));
+  }
+  return { ok: true, builtin: BUILTIN_PERSONA_IDS, custom, dir };
+}
+
 /**
  * Check if .pixelslop.md exists.
  */
@@ -1113,10 +1179,14 @@ function configExists(args = {}) {
 // ─────────────────────────────────────────────
 
 /** Valid setting keys and their value types/defaults */
+// Defaults are exhaustive on purpose. Pixelslop is usually driven by an AI agent
+// that won't remember to pass --thorough or --deep, so the default has to be the
+// thorough one. `--fast` (handled in SKILL.md) is the opt-out that turns deep and
+// thorough back off for a quick pass.
 const SETTING_DEFS = {
   headed:   { type: 'boolean', default: false,  description: 'Open visible browser window' },
-  deep:     { type: 'boolean', default: false,  description: 'Extended collection with doubled budgets' },
-  thorough: { type: 'boolean', default: false,  description: 'Show lower-confidence findings' },
+  deep:     { type: 'boolean', default: true,   description: 'Extended collection with doubled budgets (off with --fast)' },
+  thorough: { type: 'boolean', default: true,   description: 'Show lower-confidence findings, tagged (off with --fast)' },
   personas: { type: 'string',  default: 'all',  description: 'Persona IDs (comma-separated, "all", or "none")' },
 };
 
@@ -3077,32 +3147,53 @@ function reportGenerate(flags) {
   </div>`;
     }
 
-    // ── Findings table ──
-    let findingsHtml;
-    if (hasFixData && findings.length > 0) {
-      // Full table with category + status columns
-      const rows = findings.map(f => {
-        const text = typeof f === 'string' ? f : (f.description || '');
-        const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
+    // ── Findings table (split into measured evidence vs design judgment) ──
+    // kind defaults to 'measured' so existing scans render exactly as before;
+    // the design-director pass is the only producer of 'judgment' findings.
+    const kindOf = (f) => (typeof f === 'object' && f.kind === 'judgment') ? 'judgment' : 'measured';
+    const measuredFindings = findings.filter(f => kindOf(f) === 'measured');
+    const judgmentFindings = findings.filter(f => kindOf(f) === 'judgment');
+
+    const renderRows = (list) => list.map(f => {
+      const text = typeof f === 'string' ? f : (f.description || '');
+      const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
+      // Judgment findings carry a confidence the report surfaces inline.
+      const conf = (typeof f === 'object' && f.confidence != null)
+        ? ` <span style="color:var(--ink-ghost);font-size:10px">(${escapeHtml(String(f.confidence))})</span>` : '';
+      if (hasFixData) {
         const category = typeof f === 'object' ? (f.category || '') : '';
-        // Try to match finding to plan issue for status
         let fixStatus = 'OPEN';
         if (typeof f === 'object' && f.id && issueMap.has(f.id)) {
           fixStatus = (issueMap.get(f.id).status || 'pending').toUpperCase();
         }
-        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-category">${escapeHtml(category)}</td><td class="col-finding">${escapeHtml(text)}</td><td class="col-status"><span class="fix-status fix-${escapeHtml(fixStatus)}">${escapeHtml(fixStatus)}</span></td></tr>`;
-      }).join('\n      ');
-      findingsHtml = `<table class="data-table findings-table"><thead><tr><th>Priority</th><th>Category</th><th>Finding</th><th>Status</th></tr></thead><tbody>\n      ${rows}\n    </tbody></table>`;
-    } else if (findings.length > 0) {
-      // Simple table without category/status
-      const rows = findings.map(f => {
-        const text = typeof f === 'string' ? f : (f.description || '');
-        const priority = typeof f === 'object' ? (f.priority || 'P2') : 'P2';
-        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-finding">${escapeHtml(text)}</td></tr>`;
-      }).join('\n      ');
-      findingsHtml = `<table class="data-table findings-table"><thead><tr><th>Priority</th><th>Finding</th></tr></thead><tbody>\n      ${rows}\n    </tbody></table>`;
-    } else {
+        return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-category">${escapeHtml(category)}</td><td class="col-finding">${escapeHtml(text)}${conf}</td><td class="col-status"><span class="fix-status fix-${escapeHtml(fixStatus)}">${escapeHtml(fixStatus)}</span></td></tr>`;
+      }
+      return `<tr><td class="col-priority"><span class="priority-tag priority-${escapeHtml(priority)}">${escapeHtml(priority)}</span></td><td class="col-finding">${escapeHtml(text)}${conf}</td></tr>`;
+    }).join('\n      ');
+
+    const tableFor = (list) => {
+      const head = hasFixData
+        ? '<thead><tr><th>Priority</th><th>Category</th><th>Finding</th><th>Status</th></tr></thead>'
+        : '<thead><tr><th>Priority</th><th>Finding</th></tr></thead>';
+      return `<table class="data-table findings-table">${head}<tbody>\n      ${renderRows(list)}\n    </tbody></table>`;
+    };
+    const layerHeading = (title, note) =>
+      `<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-tertiary);margin:18px 0 8px">${escapeHtml(title)} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-ghost)">— ${escapeHtml(note)}</span></h3>`;
+
+    let findingsHtml;
+    if (findings.length === 0) {
       findingsHtml = '<p style="color:var(--ink-ghost);font-size:11px;text-transform:uppercase;letter-spacing:0.08em">No findings</p>';
+    } else if (judgmentFindings.length === 0) {
+      // Only measured findings — render the single table, no layer headings (unchanged look).
+      findingsHtml = tableFor(measuredFindings.length ? measuredFindings : findings);
+    } else {
+      // Both layers present — label and separate them so judgment never reads as measured fact.
+      const sections = [];
+      if (measuredFindings.length > 0) {
+        sections.push(layerHeading('Measured', 'evidence-backed') + tableFor(measuredFindings));
+      }
+      sections.push(layerHeading('Design judgment', "a design director's read, not measured") + tableFor(judgmentFindings));
+      findingsHtml = sections.join('\n    ');
     }
 
     // ── Fix section (entire tab-section div, or empty) ──
@@ -3394,6 +3485,15 @@ async function main() {
       switch (command) {
         case 'generate': return output(reportGenerate(flags), true);
         default: fail(`Unknown report command: ${command}. Valid: generate`);
+      }
+      break;
+    }
+
+    case 'personas': {
+      switch (command) {
+        case 'write': return output(personasWrite(flags), true);
+        case 'list': return output(personasList(flags), true);
+        default: fail(`Unknown personas command: ${command}. Valid: write, list`);
       }
       break;
     }

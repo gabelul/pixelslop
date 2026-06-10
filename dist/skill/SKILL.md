@@ -1,9 +1,12 @@
 ---
 name: pixelslop
 description: >
-  Browser-first design quality review and fix. Scans pages with Playwright,
-  scores 5 design pillars, detects AI slop patterns, fixes issues with
-  checkpoint-based rollback.
+  Browser-first design quality review and fix. Scans real pages with Playwright,
+  scores 5 measured pillars, detects AI slop patterns, and runs a design-director
+  pass for subjective judgment findings. Evaluates against 8 built-in personas
+  plus project-specific ones generated from your audience, tracks score trends
+  across runs, and fixes issues toward your design tokens with checkpoint-based
+  rollback. Exhaustive by default (--fast for a quick pass).
 user-invokable: true
 args:
   - name: url
@@ -22,7 +25,13 @@ args:
     description: Persona IDs to evaluate (comma-separated, "all", or "none"). Default all
     required: false
   - name: thorough
-    description: Show lower-confidence findings (threshold 50% instead of 65%)
+    description: Show lower-confidence findings, tagged with confidence. Default true (exhaustive)
+    required: false
+  - name: deep
+    description: Extended collection with doubled budgets and more elements tested. Default true (exhaustive)
+    required: false
+  - name: fast
+    description: Quick pass — turns deep and thorough off for a faster, high-confidence-only scan
     required: false
   - name: debug
     description: Enable session logging to .pixelslop-session.log for troubleshooting
@@ -34,6 +43,16 @@ args:
     description: Skip run-time config, use saved settings/defaults directly
     required: false
 ---
+
+## Asking the user (works in any harness)
+
+Pixelslop runs under different harnesses (Claude Code, Codex CLI, and others), and they ask the user questions differently. Wherever this skill says to ask the user — including every `AskUserQuestion(...)` block below — present the **same question and the same options** using whatever your harness supports:
+
+- **Claude Code:** use the `AskUserQuestion` tool with the listed options (structured, selectable).
+- **Codex CLI, or any harness with no choice-prompt tool:** print the question and its options as a short numbered list, then **stop and wait** for the user to reply with a number or text. Codex has no `AskUserQuestion`-style popup (it's an open request upstream), so a plain numbered menu is the equivalent. Don't silently pick a default and continue — the point is to let the user choose.
+- **Non-interactive runs** (`codex exec`, CI, or `--quick`): don't ask at all. Use the saved setting or the documented default and proceed.
+
+The `AskUserQuestion(...)` snippets in this file are the question **content** — the exact wording and options to surface. *How* you render them is your harness's call; *what* you ask is not. If you're not on Claude Code, read each block as "ask this question, offer these options" and present it your way.
 
 ## Settings Mode
 
@@ -131,6 +150,60 @@ Tell them: "These settings apply to all future `/pixelslop` runs in this project
 **After settings mode completes, stop. Don't continue to the scan workflow.**
 
 ---
+
+## Capabilities & Options (the full menu)
+
+Everything Pixelslop can do, in one place. Read this so you can tell the user what's available — most people (and most agents) don't know half of it. When a scan finishes, mention the one or two options that fit their situation.
+
+**What a scan produces:**
+- **5 measured pillars** (hierarchy, typography, color, responsiveness, accessibility), scored /20 from real browser evidence.
+- **AI slop detection** — 25 visual patterns + source patterns.
+- **Design-director judgment** — a subjective pass that looks at the screenshots and flags what measurement can't (generic composition, AI-generated feel, missed opportunities). Shown in a separate "Design judgment" layer; never affects the /20.
+- **Persona evaluation** — 8 built-in personas, plus 1-2 project-specific personas generated from your audience/brand.
+- **Score trends** — each run's score is recorded; repeat scans show movement (`scan trend`).
+- **Self-contained HTML report** with screenshots and the measured/judgment split.
+
+**Run options (flags):**
+- `--fast` — quick pass; turns off deep + thorough (Pixelslop is exhaustive by default).
+- `--thorough` / `--deep` — both default **on**; `--fast` is the opt-out.
+- `--personas all|none|<ids>` — which personas to evaluate (default all).
+- `--code-check` — source-only analysis, no browser.
+- `--quick` — skip the per-run config prompt, use saved settings/defaults.
+- `--headed` — visible browser window.
+- `--settings` — open the interactive settings configurator.
+- `--debug` — session logging for troubleshooting.
+
+**Beyond scanning:**
+- **Fix loop** — locates the source, fixes *toward your design tokens*, checkpoints before editing, rolls back if the build breaks.
+- **Design tokens** — `config read-tokens` / `write-tokens` hold your real palette/type/spacing so fixes match the project.
+- **Custom personas** — `personas write` adds your own; the orchestrator also generates project-specific ones automatically.
+- **Settings** — `/pixelslop settings` saves preferences per project so you don't pass flags every run.
+
+If a scan was slow, mention `--fast`. If the user has a clear audience, project personas are already working for them. If they've scanned before, point at the trend. Surface what's relevant; don't dump the whole list every time.
+
+## Advise, don't interrogate (read this before asking the user anything)
+
+You are an advisor, not a config form. Before you scan, work out what the user is actually trying to do and **lead with a recommendation**, then offer the alternative. Don't open with a wall of settings questions, and don't silently run defaults on a request that implies something else.
+
+Infer intent from how they asked, then match it:
+
+| What they said / the situation | Recommend | Why |
+|--------------------------------|-----------|-----|
+| "quick look", "does this look ok", a glance | **`--fast`** | high-confidence findings only, ~10s — respects "quick" |
+| "review", "before launch", "audit", or unspecified | **the default** (exhaustive: 5 pillars + design-director + personas) | catches the soft stuff, not just what's measurable |
+| First scan of this project (no `.pixelslop.md`) | **setup first**, then scan | gathering audience/brand unlocks project personas + token-aware fixes |
+| Clear audience/brand mentioned | default + **let it generate a project persona** | tests against their real users, not just generic profiles |
+| No URL, local project | help resolve a dev-server URL, or **`--code-check`** | code-check needs no browser |
+| "in CI", "automate", "for every PR" | **`--fast --quick --personas none`** | fast and deterministic, no prompts |
+| "is it getting better?", iterating | scan, then **`scan trend`** | shows the /20 climbing across runs |
+| Wants fixes, not just a report | scan → **fix loop** → re-scan | fixes move toward their tokens; the trend confirms it |
+
+How to actually advise:
+1. **State your recommendation and the one tradeoff**, in a sentence. "You're pre-launch, so I'll run the full exhaustive scan with a persona tuned to your audience — it's thorough so ~30-40s. Want a fast gut-check instead?"
+2. **Only ask when there's a real fork.** If the intent is clear, recommend and proceed. If it's genuinely ambiguous (quick vs thorough, fix vs report-only), present 2-3 concrete options with their tradeoff and let them pick — don't ask about individual flags.
+3. **Never** present the raw settings questions (personas? deep? thorough?) as the opening move. Those are for `/pixelslop settings`, not for advising a scan. Translate intent into the flags yourself.
+
+The point: the user shouldn't need to know the flags exist. You know them. Recommend the right run, explain it in one line, and let them redirect.
 
 ## How This Works
 
@@ -349,7 +422,9 @@ A lightweight pre-scan step that lets the user tweak settings for this specific 
 | 1 | CLI flags | This run only — e.g., `--personas none --thorough` |
 | 2 | Per-run answers | This run only — user picks in Phase 2b |
 | 3 | Saved settings | All runs — from `.pixelslop.md` |
-| 4 | Defaults | Fallback — `personas: all`, `thorough: false`, etc. |
+| 4 | Defaults | Fallback — exhaustive by default: `personas: all`, `thorough: true`, `deep: true` |
+
+**Exhaustive by default.** Pixelslop is usually driven by an AI agent that won't remember to pass `--thorough` or `--deep`, so those default to **on**. `thorough: true` shows lower-confidence findings tagged with their confidence rather than hiding them; `deep: true` doubles collection budgets for more evidence (at the cost of a slower scan). The opt-out is **`--fast`**: when the user passes `--fast`, set `thorough: false` and `deep: false` for that run (a quick, high-confidence-only pass). `--fast` is a CLI flag, so it wins over saved settings for this run, same as any other flag.
 
 ### Skip conditions
 

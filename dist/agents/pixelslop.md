@@ -159,6 +159,24 @@ node bin/pixelslop-tools.cjs config write \
 
 If the user wants to skip setup, proceed without it — config is optional.
 
+### Step 5b: Generate Project-Specific Personas
+
+If you have a real audience and brand for this project (from design context above or an existing `.pixelslop.md`), generate 1-2 personas tuned to *this* project's actual users — not just the 8 generic built-ins. A wedding-planner site should be tested by "the stressed bride three weeks out," not only "first-time visitor."
+
+First check whether project personas already exist (don't regenerate every run):
+
+```bash
+node bin/pixelslop-tools.cjs personas list --root "$ROOT" --raw
+```
+
+If `custom` is empty and you have audience/brand, synthesize 1-2 personas following `dist/skill/resources/personas/schema.md` (a real `humanName`, the project's actual user in `description`, `frustrationTriggers` and `positiveSignals` specific to this audience), and write each via:
+
+```bash
+node bin/pixelslop-tools.cjs personas write --root "$ROOT" --raw --json '<persona JSON>'
+```
+
+Use a project-specific `id` slug (e.g. `stressed-bride`, not a built-in id). Only generate what the audience genuinely supports — one sharp project persona beats two generic ones. Skip this step entirely when there's no real audience to work from.
+
 ### Step 6: Collect Evidence
 
 **Log before collection:**
@@ -185,22 +203,24 @@ node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --messa
 
 ### Step 6b: Spawn Specialist Evaluators
 
-Spawn all 6 specialist evaluators from `dist/agents/internal/`. Each receives the evidence file path and reads its own domain resource files.
+Spawn the 6 measured specialists plus the design-director from `dist/agents/internal/`. Each receives the evidence file path and reads its own domain resource files.
 
 ```
 Spawn agents (parallel where runtime supports it):
-  - pixelslop-eval-hierarchy    (evidence_path, thorough flag)
-  - pixelslop-eval-typography   (evidence_path, thorough flag)
-  - pixelslop-eval-color        (evidence_path, thorough flag)
-  - pixelslop-eval-responsiveness (evidence_path, thorough flag)
-  - pixelslop-eval-accessibility (evidence_path, thorough flag)
-  - pixelslop-eval-slop         (evidence_path, thorough flag)
+  - pixelslop-eval-hierarchy       (evidence_path, thorough flag)
+  - pixelslop-eval-typography      (evidence_path, thorough flag)
+  - pixelslop-eval-color           (evidence_path, thorough flag)
+  - pixelslop-eval-responsiveness  (evidence_path, thorough flag)
+  - pixelslop-eval-accessibility   (evidence_path, thorough flag)
+  - pixelslop-eval-slop            (evidence_path, thorough flag)
+  - pixelslop-eval-design-director (evidence_path, thorough flag)
 ```
 
 Each pillar specialist returns JSON: `{ "pillar": "...", "score": N, "evidence": "...", "findings": [...] }`
 The slop classifier returns JSON: `{ "band": "...", "patternCount": N, "patterns": [...] }`
+The design-director returns JSON: `{ "kind": "design-director", "verdict": "...", "findings": [...] }` where every finding is `kind: "judgment"` with a `confidence`. It returns **no score** — it never affects the /20.
 
-Collect all 6 results.
+Collect all 7 results. The 6 measured specialists feed the scores and measured findings; the design-director feeds only the judgment layer.
 
 ### Step 6c: Aggregate Report
 
@@ -227,14 +247,21 @@ Patterns detected: [patternCount]
 [patterns list from eval-slop]
 
 ### Findings
-[merge all specialist findings, sort by priority]
+
+**Measured** [evidence-backed]
+[merge the 6 measured specialists' findings, sort by priority — each carries kind: "measured"]
+
+**Design judgment** [the design director's read, not measured]
+[the design-director's verdict line, then its findings — each carries kind: "judgment" and a confidence. Omit this whole sub-section if the director returned no findings. These never change the /20.]
 
 ### Persona Insights
-[For each evaluated persona: read the persona JSON's humanName, name, narrationStyle.voice, and sampleReactions.
+[Evaluate the selected built-in personas (per the `personas` setting) AND every project-specific persona. Discover the project ones with `personas list` — read each `custom` id's JSON from `.pixelslop/personas/<id>.json`. Built-in JSONs live in `dist/skill/resources/personas/`. Custom personas use the exact same schema, so evaluate them identically.
+
+For each evaluated persona: read the persona JSON's humanName, name, narrationStyle.voice, and sampleReactions.
 Match frustrationTriggers and positiveSignals against specialist findings and personaChecks data from the evidence bundle.
 Write a 1-3 paragraph narrative in the persona's voice — see scoring.md Persona Report Format for contract and examples.
 End each persona section with the **Issues:** and **Worked well:** machine-parseable anchors.
-Skip personas with zero issues and no notable positives.]
+Skip personas with zero issues and no notable positives. A project-specific persona that surfaces a real audience issue is the most valuable one in the report — lead with it.]
 
 ### Screenshots
 [reference from evidence bundle]
