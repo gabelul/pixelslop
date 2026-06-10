@@ -83,6 +83,19 @@ describe('a capabilities overview section exists', () => {
   });
 });
 
+describe('the asking protocol is harness-neutral (works under Codex too)', () => {
+  it('has an "Asking the user" protocol', () => {
+    assert.ok(/## Asking the user/i.test(SKILL),
+      'SKILL.md must define how to ask the user across harnesses — AskUserQuestion is Claude Code only');
+  });
+  it('tells non-Claude harnesses what to do instead of AskUserQuestion', () => {
+    assert.ok(/AskUserQuestion/i.test(SKILL), 'still describes the Claude Code mechanism');
+    assert.ok(/Codex/i.test(SKILL), 'names Codex specifically');
+    assert.ok(/numbered (list|menu)/i.test(SKILL), 'gives the Codex/plain-text equivalent (a numbered menu)');
+    assert.ok(/wait/i.test(SKILL), 'tells the agent to stop and wait for the reply');
+  });
+});
+
 describe('the skill drives advisory behaviour, not a config form', () => {
   it('has an advise-the-user playbook', () => {
     assert.ok(/## Advise/i.test(SKILL),

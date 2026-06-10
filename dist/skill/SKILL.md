@@ -44,6 +44,16 @@ args:
     required: false
 ---
 
+## Asking the user (works in any harness)
+
+Pixelslop runs under different harnesses (Claude Code, Codex CLI, and others), and they ask the user questions differently. Wherever this skill says to ask the user — including every `AskUserQuestion(...)` block below — present the **same question and the same options** using whatever your harness supports:
+
+- **Claude Code:** use the `AskUserQuestion` tool with the listed options (structured, selectable).
+- **Codex CLI, or any harness with no choice-prompt tool:** print the question and its options as a short numbered list, then **stop and wait** for the user to reply with a number or text. Codex has no `AskUserQuestion`-style popup (it's an open request upstream), so a plain numbered menu is the equivalent. Don't silently pick a default and continue — the point is to let the user choose.
+- **Non-interactive runs** (`codex exec`, CI, or `--quick`): don't ask at all. Use the saved setting or the documented default and proceed.
+
+The `AskUserQuestion(...)` snippets in this file are the question **content** — the exact wording and options to surface. *How* you render them is your harness's call; *what* you ask is not. If you're not on Claude Code, read each block as "ask this question, offer these options" and present it your way.
+
 ## Settings Mode
 
 When `--settings` is passed (e.g., `/pixelslop settings`), run the interactive settings configurator and stop — don't scan anything.
