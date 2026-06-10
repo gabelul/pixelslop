@@ -185,22 +185,24 @@ node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --messa
 
 ### Step 6b: Spawn Specialist Evaluators
 
-Spawn all 6 specialist evaluators from `dist/agents/internal/`. Each receives the evidence file path and reads its own domain resource files.
+Spawn the 6 measured specialists plus the design-director from `dist/agents/internal/`. Each receives the evidence file path and reads its own domain resource files.
 
 ```
 Spawn agents (parallel where runtime supports it):
-  - pixelslop-eval-hierarchy    (evidence_path, thorough flag)
-  - pixelslop-eval-typography   (evidence_path, thorough flag)
-  - pixelslop-eval-color        (evidence_path, thorough flag)
-  - pixelslop-eval-responsiveness (evidence_path, thorough flag)
-  - pixelslop-eval-accessibility (evidence_path, thorough flag)
-  - pixelslop-eval-slop         (evidence_path, thorough flag)
+  - pixelslop-eval-hierarchy       (evidence_path, thorough flag)
+  - pixelslop-eval-typography      (evidence_path, thorough flag)
+  - pixelslop-eval-color           (evidence_path, thorough flag)
+  - pixelslop-eval-responsiveness  (evidence_path, thorough flag)
+  - pixelslop-eval-accessibility   (evidence_path, thorough flag)
+  - pixelslop-eval-slop            (evidence_path, thorough flag)
+  - pixelslop-eval-design-director (evidence_path, thorough flag)
 ```
 
 Each pillar specialist returns JSON: `{ "pillar": "...", "score": N, "evidence": "...", "findings": [...] }`
 The slop classifier returns JSON: `{ "band": "...", "patternCount": N, "patterns": [...] }`
+The design-director returns JSON: `{ "kind": "design-director", "verdict": "...", "findings": [...] }` where every finding is `kind: "judgment"` with a `confidence`. It returns **no score** — it never affects the /20.
 
-Collect all 6 results.
+Collect all 7 results. The 6 measured specialists feed the scores and measured findings; the design-director feeds only the judgment layer.
 
 ### Step 6c: Aggregate Report
 
@@ -227,7 +229,12 @@ Patterns detected: [patternCount]
 [patterns list from eval-slop]
 
 ### Findings
-[merge all specialist findings, sort by priority]
+
+**Measured** [evidence-backed]
+[merge the 6 measured specialists' findings, sort by priority — each carries kind: "measured"]
+
+**Design judgment** [the design director's read, not measured]
+[the design-director's verdict line, then its findings — each carries kind: "judgment" and a confidence. Omit this whole sub-section if the director returned no findings. These never change the /20.]
 
 ### Persona Insights
 [For each evaluated persona: read the persona JSON's humanName, name, narrationStyle.voice, and sampleReactions.
