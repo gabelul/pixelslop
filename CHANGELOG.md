@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.4](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.3...pixelslop-v0.3.4) (2026-06-10)
+
+
+### Bug Fixes
+
+* rewrite skill paths on install so /pixelslop works in any project ([59394da](https://github.com/gabelul/pixelslop/commit/59394da307ce663331bc8ffe32ac048c179bd9a8))
+* rewrite skill paths on install so /pixelslop works in any project ([a09e43a](https://github.com/gabelul/pixelslop/commit/a09e43ad20b5e71a2ff7a935cdc5d5855dc7a1a0))
+
 ## [0.3.3](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.2...pixelslop-v0.3.3) (2026-06-10)
 
 
