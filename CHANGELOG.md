@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.3](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.2...pixelslop-v0.3.3) (2026-06-10)
+
+
+### Features
+
+* add the design-director pass for subjective findings ([2fb915e](https://github.com/gabelul/pixelslop/commit/2fb915e34b337e81568b4db2f2f07ee2d5dbd718))
+* exhaustive-by-default scans with a design-judgment layer ([7c8d0b3](https://github.com/gabelul/pixelslop/commit/7c8d0b39ad35d7638bf8189ebd085779dec7943a))
+* generate and evaluate project-specific personas ([6dcd540](https://github.com/gabelul/pixelslop/commit/6dcd540a7c7e1871442e7a93379c0f47c9608bff))
+* generate native Codex TOML agents at install time ([92cfb7e](https://github.com/gabelul/pixelslop/commit/92cfb7e8e2c64ff8ef57ba0f386e1fb20f47ccfb))
+* make every option discoverable from the skill, guarded against drift ([5c01132](https://github.com/gabelul/pixelslop/commit/5c011325da0190c08126c5fa76847b2ce227f6e6))
+* make scans exhaustive by default ([26468b9](https://github.com/gabelul/pixelslop/commit/26468b94a575d08ed60d68c7c9e04842eed313d7))
+* make the skill advise the user, not just run ([011391b](https://github.com/gabelul/pixelslop/commit/011391bc04d574cf87b4d4d7c81f100593f40a41))
+* split report findings into measured and judgment layers ([aeaaf6f](https://github.com/gabelul/pixelslop/commit/aeaaf6f4a60e1a2a13a63c7ccb6deb2d091ebae4))
+
+
+### Bug Fixes
+
+* make agent spawning work under Codex (inline fallback + native TOML) ([5f9f850](https://github.com/gabelul/pixelslop/commit/5f9f850fa0895868523654b7f2df75b15c3864ff))
+* make the user-asking protocol work under Codex, not just Claude Code ([3bc3920](https://github.com/gabelul/pixelslop/commit/3bc39200b6fd91199e7a61873d846335cd0ce848))
+* run agents inline when the harness can't spawn them (Codex) ([c7dd90e](https://github.com/gabelul/pixelslop/commit/c7dd90e7529c1631dcfd0ec441e62437a4d94586))
+
 ## [0.3.2](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.1...pixelslop-v0.3.2) (2026-06-09)
 
 
