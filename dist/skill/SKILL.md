@@ -54,6 +54,16 @@ Pixelslop runs under different harnesses (Claude Code, Codex CLI, and others), a
 
 The `AskUserQuestion(...)` snippets in this file are the question **content** — the exact wording and options to surface. *How* you render them is your harness's call; *what* you ask is not. If you're not on Claude Code, read each block as "ask this question, offer these options" and present it your way.
 
+## Spawning agents (works in any harness)
+
+Pixelslop's work is split across named agents — an orchestrator, a setup agent, an evidence collector, six measured evaluators, a design-director, a fixer, a checker. How you run a named agent depends on your harness:
+
+- **Claude Code:** spawn it as a subagent by name (the Task/Agent tool), parallel where the runtime supports it.
+- **Codex CLI:** Codex supports named subagents, but only when the agent is installed in its TOML format. If a Pixelslop agent isn't spawnable, use the inline fallback below.
+- **Any harness where the named agent isn't spawnable (or that has no subagents at all):** run the agent **inline** — read its spec file (e.g. `dist/agents/internal/pixelslop-eval-hierarchy.md`, or the installed path) and follow its instructions yourself, in sequence.
+
+So **"Spawn agent: X" everywhere in this skill means: spawn X as a subagent if you can, otherwise read X's spec and execute it inline.** The output contract is identical either way — you only lose parallelism. Never skip an agent because you can't spawn it; run it inline instead. A scan with the evaluators run inline is still a complete scan, just sequential.
+
 ## Settings Mode
 
 When `--settings` is passed (e.g., `/pixelslop settings`), run the interactive settings configurator and stop — don't scan anything.

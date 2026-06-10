@@ -202,6 +202,56 @@ export function rewriteAgentPaths(content, installRoot) {
     .replaceAll('dist/skill/resources/', resourcesPath);
 }
 
+/**
+ * Convert a Pixelslop agent spec (Markdown + YAML frontmatter) into a Codex
+ * custom-agent TOML. Codex spawns agents from `.codex/agents/<name>.toml` and
+ * can't read our Markdown specs, so without this it can only fall back to running
+ * them inline. This gives it native, spawnable agents as the primary path; the
+ * inline fallback in the skill is the safety net.
+ *
+ * Required TOML fields: name, description, developer_instructions. `model` and
+ * `sandbox_mode` are omitted on purpose so a spawned agent inherits the parent
+ * session's settings — mapping Claude's "sonnet" onto a Codex model would be wrong.
+ *
+ * @param {string} md - The agent spec markdown (already path-rewritten)
+ * @returns {string|null} TOML text, or null if the spec has no usable frontmatter
+ */
+export function agentMdToCodexToml(md) {
+  const fm = md.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!fm) return null;
+  const frontmatter = fm[1];
+  const body = fm[2].trim();
+
+  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
+  const name = nameMatch ? nameMatch[1].trim() : null;
+  if (!name) return null;
+
+  // description is inline (`description: text`) or a folded block (`description: >`
+  // then indented lines).
+  let description = '';
+  const inline = frontmatter.match(/^description:\s*(?!>)(\S.*)$/m);
+  if (inline) {
+    description = inline[1].trim();
+  } else {
+    const folded = frontmatter.match(/^description:\s*>?\s*\n((?:[ \t]+\S.*\n?)+)/m);
+    if (folded) description = folded[1].split('\n').map((l) => l.trim()).filter(Boolean).join(' ');
+  }
+
+  const escBasic = (s) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  // Multiline LITERAL string ('''...''') so backslashes and regex inside code
+  // blocks survive verbatim. Specs never contain ''' — guard just in case.
+  const safeBody = body.includes("'''") ? body.replace(/'''/g, "'' '") : body;
+
+  return [
+    `name = "${escBasic(name)}"`,
+    `description = "${escBasic(description)}"`,
+    "developer_instructions = '''",
+    safeBody,
+    "'''",
+    ''
+  ].join('\n');
+}
+
 // ─────────────────────────────────────────────
 // Browser Runtime Detection
 // ─────────────────────────────────────────────
@@ -1155,17 +1205,30 @@ function install(options = {}) {
   for (const client of selectedClients) {
     header(`Configuring ${client.name}`);
 
-    // Copy agent files with path rewriting
+    // Copy agent files with path rewriting. Codex also gets a native TOML agent
+    // per spec (it spawns from .codex/agents/<name>.toml; the .md is the inline
+    // fallback). Always keep the .md so the fallback has something to read.
     mkdirSync(client.agentDir, { recursive: true });
+    let codexTomlCount = 0;
+    const writeCodexToml = (rewritten, mdFilename) => {
+      if (client.id !== 'codex') return;
+      const toml = agentMdToCodexToml(rewritten);
+      if (!toml) return;
+      writeFileSync(join(client.agentDir, mdFilename.replace(/\.md$/, '.toml')), toml);
+      codexTomlCount += 1;
+    };
     for (const agentFile of AGENT_FILES) {
       const srcPath = join(PACKAGE_ROOT, 'dist', 'agents', agentFile);
       const raw = readFileSync(srcPath, 'utf8');
       const rewritten = rewriteAgentPaths(raw, INSTALL_ROOT);
       writeFileSync(join(client.agentDir, agentFile), rewritten);
+      writeCodexToml(rewritten, agentFile);
     }
     log('✓', `${AGENT_FILES.length} agent specs ${dim('→')} ${dim(client.agentDir)}`);
 
-    // Copy internal evaluator agents (not in AGENT_FILES — orchestrator-only)
+    // Copy internal evaluator agents (not in AGENT_FILES — orchestrator-only).
+    // Their .md stays under internal/; the Codex TOML goes flat in agentDir,
+    // because Codex looks for spawnable agents directly in .codex/agents/.
     const internalSrc = join(PACKAGE_ROOT, 'dist', 'agents', 'internal');
     if (existsSync(internalSrc)) {
       const internalDest = join(client.agentDir, 'internal');
@@ -1173,9 +1236,14 @@ function install(options = {}) {
       const internalFiles = readdirSync(internalSrc).filter(f => f.endsWith('.md') && !f.startsWith('._'));
       for (const file of internalFiles) {
         const raw = readFileSync(join(internalSrc, file), 'utf8');
-        writeFileSync(join(internalDest, file), rewriteAgentPaths(raw, INSTALL_ROOT));
+        const rewritten = rewriteAgentPaths(raw, INSTALL_ROOT);
+        writeFileSync(join(internalDest, file), rewritten);
+        writeCodexToml(rewritten, file);
       }
       log('✓', `${internalFiles.length} internal evaluators ${dim('→')} ${dim(internalDest)}`);
+    }
+    if (codexTomlCount > 0) {
+      log('✓', `${codexTomlCount} Codex agents ${dim('(.toml)')} ${dim('→')} ${dim(client.agentDir)}`);
     }
 
     // Install skill via linkOrCopy — method is tracked
@@ -1372,6 +1440,13 @@ function uninstall() {
       const agentPath = join(client.agentDir, agentFile);
       if (existsSync(agentPath)) {
         rmSync(agentPath);
+      }
+    }
+
+    // Remove generated Codex agent TOMLs (only ours — pixelslop*.toml).
+    if (existsSync(client.agentDir)) {
+      for (const file of readdirSync(client.agentDir).filter(f => f.startsWith('pixelslop') && f.endsWith('.toml'))) {
+        rmSync(join(client.agentDir, file));
       }
     }
 
