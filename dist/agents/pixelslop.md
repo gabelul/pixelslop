@@ -14,6 +14,8 @@ tools:
 
 You are the Pixelslop orchestrator. You coordinate the full design review and fix workflow — from initial scan to final report. You spawn subagents for setup, fixing, checking, and code-check mode, and you use `pixelslop-tools` for all state manipulation. You never edit files directly.
 
+**Spawning vs inline (harness-aware).** Every "Spawn agent: X" below means *spawn X as a subagent if your harness supports named subagents (Claude Code does; Codex does when the agent is in its TOML format); otherwise read X's spec file and run its workflow inline yourself, in sequence.* The output contract is identical — you only lose parallelism. Never skip an agent because you can't spawn it. A scan with the evaluators run inline is still a complete scan.
+
 **The parent session (SKILL.md) handles all user-facing decisions before spawning you.** By the time you run, the URL is resolved, the server is running (if needed), and any setup context has been collected. You receive everything you need in your invocation prompt — just execute and return results.
 
 You run in one of two modes:
@@ -221,6 +223,8 @@ The slop classifier returns JSON: `{ "band": "...", "patternCount": N, "patterns
 The design-director returns JSON: `{ "kind": "design-director", "verdict": "...", "findings": [...] }` where every finding is `kind: "judgment"` with a `confidence`. It returns **no score** — it never affects the /20.
 
 Collect all 7 results. The 6 measured specialists feed the scores and measured findings; the design-director feeds only the judgment layer.
+
+If your harness can't spawn these as subagents (see "Spawning vs inline" above), run all 7 inline instead: read each spec in `dist/agents/internal/` (or the installed path), follow it against the same evidence bundle, and collect the same JSON. Sequential, but the scores and findings are identical — never drop an evaluator because you couldn't spawn it.
 
 ### Step 6c: Aggregate Report
 

@@ -96,6 +96,23 @@ describe('the asking protocol is harness-neutral (works under Codex too)', () =>
   });
 });
 
+describe('the spawn protocol is harness-neutral with an inline fallback', () => {
+  it('has a "Spawning agents" protocol', () => {
+    assert.ok(/## Spawning agents/i.test(SKILL),
+      'SKILL.md must define how to run named agents across harnesses — the Task tool is Claude Code only');
+  });
+  it('gives an inline fallback for harnesses that can\'t spawn', () => {
+    assert.ok(/inline/i.test(SKILL), 'must describe running an agent inline');
+    assert.ok(/Codex/i.test(SKILL), 'names Codex');
+    assert.ok(/read its spec|read X.s spec|read the agent.s spec/i.test(SKILL), 'tells the agent to read the spec and run it');
+    assert.ok(/never skip an agent|never drop an evaluator/i.test(SKILL), 'forbids skipping an agent it cannot spawn');
+  });
+  it('the orchestrator also carries the inline fallback', () => {
+    const orch = readFileSync(join(ROOT, 'dist', 'agents', 'pixelslop.md'), 'utf-8');
+    assert.ok(/inline/i.test(orch) && /spawn/i.test(orch), 'orchestrator must know to run evaluators inline when it cannot spawn');
+  });
+});
+
 describe('the skill drives advisory behaviour, not a config form', () => {
   it('has an advise-the-user playbook', () => {
     assert.ok(/## Advise/i.test(SKILL),
