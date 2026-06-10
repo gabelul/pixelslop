@@ -252,6 +252,31 @@ export function agentMdToCodexToml(md) {
   ].join('\n');
 }
 
+/**
+ * Rewrite bin/ and resources/ paths in every Markdown file under an installed
+ * skill tree, exactly the way agent specs are rewritten. Without this, SKILL.md
+ * and fix guides like checkpoint-protocol.md keep relative `bin/pixelslop-tools.cjs`
+ * paths that only resolve from the repo checkout — so `/pixelslop` fails in any
+ * other project ("tools.cjs not installed").
+ *
+ * @param {string} skillDir - The installed skill directory (INSTALL_ROOT/skill)
+ * @param {string} installRoot - Install root for resolving absolute paths
+ */
+export function rewriteSkillTreePaths(skillDir, installRoot) {
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('._')) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) { walk(full); continue; }
+      if (!entry.name.endsWith('.md')) continue;
+      const raw = readFileSync(full, 'utf8');
+      const rewritten = rewriteAgentPaths(raw, installRoot);
+      if (rewritten !== raw) writeFileSync(full, rewritten);
+    }
+  };
+  walk(skillDir);
+}
+
 // ─────────────────────────────────────────────
 // Browser Runtime Detection
 // ─────────────────────────────────────────────
@@ -1190,11 +1215,15 @@ function install(options = {}) {
   // Step 3: Ensure a browser runtime exists before wiring clients
   const browserRuntime = ensureBrowserRuntime();
 
-  // Step 4: Copy skill directory to install root (source of truth)
+  // Step 4: Copy skill directory to install root (source of truth), then rewrite
+  // its bin/ and resources/ paths to absolute — same as agents. Without this the
+  // skill keeps relative `bin/pixelslop-tools.cjs` paths that only resolve from
+  // the repo, so /pixelslop reports "not installed" in every other project.
   copyDir(
     join(PACKAGE_ROOT, 'dist', 'skill'),
     join(INSTALL_ROOT, 'skill')
   );
+  rewriteSkillTreePaths(join(INSTALL_ROOT, 'skill'), INSTALL_ROOT);
   const resourceCount = readdirSync(join(INSTALL_ROOT, 'skill', 'resources')).length;
   log('✓', `skill/SKILL.md + ${resourceCount} resources`);
 
