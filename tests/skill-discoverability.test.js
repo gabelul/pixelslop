@@ -82,3 +82,15 @@ describe('a capabilities overview section exists', () => {
       'SKILL.md must have a single canonical Capabilities & Options section');
   });
 });
+
+describe('the skill drives advisory behaviour, not a config form', () => {
+  it('has an advise-the-user playbook', () => {
+    assert.ok(/## Advise/i.test(SKILL),
+      'SKILL.md must have an advisory section so any harness leads with a recommendation, not a settings form');
+  });
+  it('tells the agent to recommend by intent and not open with raw settings questions', () => {
+    assert.ok(/lead with a recommendation/i.test(SKILL), 'must instruct leading with a recommendation');
+    assert.ok(/intent/i.test(SKILL), 'must map user intent to a run');
+    assert.ok(/advisor, not a config form|advise, don.t interrogate/i.test(SKILL), 'must frame the agent as an advisor');
+  });
+});

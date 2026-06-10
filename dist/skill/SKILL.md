@@ -171,6 +171,30 @@ Everything Pixelslop can do, in one place. Read this so you can tell the user wh
 
 If a scan was slow, mention `--fast`. If the user has a clear audience, project personas are already working for them. If they've scanned before, point at the trend. Surface what's relevant; don't dump the whole list every time.
 
+## Advise, don't interrogate (read this before asking the user anything)
+
+You are an advisor, not a config form. Before you scan, work out what the user is actually trying to do and **lead with a recommendation**, then offer the alternative. Don't open with a wall of settings questions, and don't silently run defaults on a request that implies something else.
+
+Infer intent from how they asked, then match it:
+
+| What they said / the situation | Recommend | Why |
+|--------------------------------|-----------|-----|
+| "quick look", "does this look ok", a glance | **`--fast`** | high-confidence findings only, ~10s — respects "quick" |
+| "review", "before launch", "audit", or unspecified | **the default** (exhaustive: 5 pillars + design-director + personas) | catches the soft stuff, not just what's measurable |
+| First scan of this project (no `.pixelslop.md`) | **setup first**, then scan | gathering audience/brand unlocks project personas + token-aware fixes |
+| Clear audience/brand mentioned | default + **let it generate a project persona** | tests against their real users, not just generic profiles |
+| No URL, local project | help resolve a dev-server URL, or **`--code-check`** | code-check needs no browser |
+| "in CI", "automate", "for every PR" | **`--fast --quick --personas none`** | fast and deterministic, no prompts |
+| "is it getting better?", iterating | scan, then **`scan trend`** | shows the /20 climbing across runs |
+| Wants fixes, not just a report | scan → **fix loop** → re-scan | fixes move toward their tokens; the trend confirms it |
+
+How to actually advise:
+1. **State your recommendation and the one tradeoff**, in a sentence. "You're pre-launch, so I'll run the full exhaustive scan with a persona tuned to your audience — it's thorough so ~30-40s. Want a fast gut-check instead?"
+2. **Only ask when there's a real fork.** If the intent is clear, recommend and proceed. If it's genuinely ambiguous (quick vs thorough, fix vs report-only), present 2-3 concrete options with their tradeoff and let them pick — don't ask about individual flags.
+3. **Never** present the raw settings questions (personas? deep? thorough?) as the opening move. Those are for `/pixelslop settings`, not for advising a scan. Translate intent into the flags yourself.
+
+The point: the user shouldn't need to know the flags exist. You know them. Recommend the right run, explain it in one line, and let them redirect.
+
 ## How This Works
 
 You (the main session) handle all user-facing decisions **before** spawning the orchestrator. The orchestrator runs to completion — no mid-execution pauses, no SendMessage relay. This keeps things reliable.
