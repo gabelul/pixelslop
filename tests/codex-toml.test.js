@@ -80,9 +80,10 @@ describe('agentMdToCodexToml — edge cases', () => {
 });
 
 describe('every shipped agent spec converts cleanly', () => {
+  const md = (f) => f.endsWith('.md') && !f.startsWith('._');
   const specs = [
-    ...readdirSync(join(ROOT, 'dist', 'agents')).filter(f => f.endsWith('.md')),
-    ...readdirSync(join(ROOT, 'dist', 'agents', 'internal')).filter(f => f.endsWith('.md') && !f.startsWith('._')).map(f => join('internal', f)),
+    ...readdirSync(join(ROOT, 'dist', 'agents')).filter(md),
+    ...readdirSync(join(ROOT, 'dist', 'agents', 'internal')).filter(md).map(f => join('internal', f)),
   ];
 
   for (const rel of specs) {
