@@ -1,9 +1,12 @@
 ---
 name: pixelslop
 description: >
-  Browser-first design quality review and fix. Scans pages with Playwright,
-  scores 5 design pillars, detects AI slop patterns, fixes issues with
-  checkpoint-based rollback.
+  Browser-first design quality review and fix. Scans real pages with Playwright,
+  scores 5 measured pillars, detects AI slop patterns, and runs a design-director
+  pass for subjective judgment findings. Evaluates against 8 built-in personas
+  plus project-specific ones generated from your audience, tracks score trends
+  across runs, and fixes issues toward your design tokens with checkpoint-based
+  rollback. Exhaustive by default (--fast for a quick pass).
 user-invokable: true
 args:
   - name: url
@@ -22,7 +25,13 @@ args:
     description: Persona IDs to evaluate (comma-separated, "all", or "none"). Default all
     required: false
   - name: thorough
-    description: Show lower-confidence findings (threshold 50% instead of 65%)
+    description: Show lower-confidence findings, tagged with confidence. Default true (exhaustive)
+    required: false
+  - name: deep
+    description: Extended collection with doubled budgets and more elements tested. Default true (exhaustive)
+    required: false
+  - name: fast
+    description: Quick pass — turns deep and thorough off for a faster, high-confidence-only scan
     required: false
   - name: debug
     description: Enable session logging to .pixelslop-session.log for troubleshooting
@@ -131,6 +140,36 @@ Tell them: "These settings apply to all future `/pixelslop` runs in this project
 **After settings mode completes, stop. Don't continue to the scan workflow.**
 
 ---
+
+## Capabilities & Options (the full menu)
+
+Everything Pixelslop can do, in one place. Read this so you can tell the user what's available — most people (and most agents) don't know half of it. When a scan finishes, mention the one or two options that fit their situation.
+
+**What a scan produces:**
+- **5 measured pillars** (hierarchy, typography, color, responsiveness, accessibility), scored /20 from real browser evidence.
+- **AI slop detection** — 25 visual patterns + source patterns.
+- **Design-director judgment** — a subjective pass that looks at the screenshots and flags what measurement can't (generic composition, AI-generated feel, missed opportunities). Shown in a separate "Design judgment" layer; never affects the /20.
+- **Persona evaluation** — 8 built-in personas, plus 1-2 project-specific personas generated from your audience/brand.
+- **Score trends** — each run's score is recorded; repeat scans show movement (`scan trend`).
+- **Self-contained HTML report** with screenshots and the measured/judgment split.
+
+**Run options (flags):**
+- `--fast` — quick pass; turns off deep + thorough (Pixelslop is exhaustive by default).
+- `--thorough` / `--deep` — both default **on**; `--fast` is the opt-out.
+- `--personas all|none|<ids>` — which personas to evaluate (default all).
+- `--code-check` — source-only analysis, no browser.
+- `--quick` — skip the per-run config prompt, use saved settings/defaults.
+- `--headed` — visible browser window.
+- `--settings` — open the interactive settings configurator.
+- `--debug` — session logging for troubleshooting.
+
+**Beyond scanning:**
+- **Fix loop** — locates the source, fixes *toward your design tokens*, checkpoints before editing, rolls back if the build breaks.
+- **Design tokens** — `config read-tokens` / `write-tokens` hold your real palette/type/spacing so fixes match the project.
+- **Custom personas** — `personas write` adds your own; the orchestrator also generates project-specific ones automatically.
+- **Settings** — `/pixelslop settings` saves preferences per project so you don't pass flags every run.
+
+If a scan was slow, mention `--fast`. If the user has a clear audience, project personas are already working for them. If they've scanned before, point at the trend. Surface what's relevant; don't dump the whole list every time.
 
 ## How This Works
 
