@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.5](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.4...pixelslop-v0.3.5) (2026-06-16)
+
+
+### Features
+
+* add a doctor self-check so stale/broken installs self-diagnose ([92e20fb](https://github.com/gabelul/pixelslop/commit/92e20fbb0e7c0f27ffcdb64b6d27b988f8672916))
+* add a doctor self-check so stale/broken installs self-diagnose ([6c88fb6](https://github.com/gabelul/pixelslop/commit/6c88fb63079ad070313818eed0e55e300e8d7f0f))
+
 ## [0.3.4](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.3...pixelslop-v0.3.4) (2026-06-10)
 
 
