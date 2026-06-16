@@ -326,6 +326,22 @@ If the user confirms starting a dev server, run the detected start command and w
 
 ## Phase 2: Pre-flight Check
 
+### Install self-check (do this first)
+
+Before anything else, confirm the pixelslop install is healthy and current:
+
+```bash
+node bin/pixelslop-tools.cjs doctor --raw
+```
+
+- **If this command fails to run** (command not found, file missing, non-zero exit) the install is broken or incomplete — almost always a stale or partial install. Stop and tell the user: *"Your pixelslop install looks broken or incomplete. Run `npx pixelslop@latest update`, then try again."* Don't attempt the scan.
+- **If it returns `"stale": true`** a newer version is published. Tell the user once: *"A newer pixelslop is available — run `npx pixelslop@latest update` for the latest fixes. Continuing with the installed version."* Then proceed (don't block).
+- **If it returns `"status": "ok"`** proceed silently.
+
+This is what makes a stale or broken install self-diagnose instead of failing opaquely mid-scan. `doctor` only checks the network once per day (cached), so it's cheap to run every time.
+
+### Validate the environment
+
 Run init to validate the environment:
 
 ```bash
