@@ -2975,6 +2975,90 @@ function scanTrend(flags) {
         : 'No scan history yet.'));
 }
 
+/** Compare two dotted versions; true if a is strictly older than b. */
+function versionLt(a, b) {
+  const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) < (pb[i] || 0)) return true;
+    if ((pa[i] || 0) > (pb[i] || 0)) return false;
+  }
+  return false;
+}
+
+/**
+ * Resolve the installed version + root. Works in both layouts: an installed
+ * tree (install-manifest.json next to bin/) and the dev repo (package.json).
+ * @returns {{ version: string|null, installRoot: string, source: string|null }}
+ */
+function resolveToolVersion() {
+  const installRoot = path.dirname(__dirname); // bin/ -> install root (or repo root)
+  const manifestPath = path.join(installRoot, 'install-manifest.json');
+  if (fs.existsSync(manifestPath)) {
+    try {
+      const m = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      if (m.version) return { version: String(m.version), installRoot, source: 'manifest' };
+    } catch { /* fall through */ }
+  }
+  const pkgPath = path.join(installRoot, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const p = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      if (p.name === 'pixelslop' && p.version) return { version: String(p.version), installRoot, source: 'package' };
+    } catch { /* fall through */ }
+  }
+  return { version: null, installRoot, source: null };
+}
+
+/**
+ * The latest published version, throttled to one network call per 24h (cached
+ * in the install root). Fail-soft: returns null if offline or npm is slow, so a
+ * scan is never blocked by a flaky network.
+ */
+function resolveLatestVersion(installRoot, offline) {
+  if (offline) return { latest: null, source: 'offline' };
+  const cachePath = path.join(installRoot, '.pixelslop-doctor-cache.json');
+  try {
+    if (fs.existsSync(cachePath)) {
+      const c = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+      if (c.checkedAt && Date.now() - new Date(c.checkedAt).getTime() < 24 * 3600 * 1000) {
+        return { latest: c.latest || null, source: 'cache' };
+      }
+    }
+  } catch { /* ignore cache errors */ }
+  let latest = null;
+  try {
+    latest = execFileSync('npm', ['view', 'pixelslop', 'version'], {
+      encoding: 'utf-8', timeout: 8000, stdio: ['ignore', 'pipe', 'ignore']
+    }).trim();
+  } catch { latest = null; }
+  if (latest) {
+    try { fs.writeFileSync(cachePath, JSON.stringify({ checkedAt: new Date().toISOString(), latest })); } catch { /* best effort */ }
+  }
+  return { latest, source: latest ? 'npm' : 'unreachable' };
+}
+
+/**
+ * Self-check the install: confirm this tool is reachable, report the version,
+ * and (throttled) flag if a newer version is published. The skill runs this at
+ * preflight so a stale or broken install self-diagnoses instead of failing
+ * opaquely. Flags: --offline (skip the network check), --raw.
+ */
+function doctorCheck(flags = {}) {
+  const { version, installRoot, source } = resolveToolVersion();
+  const { latest, source: latestSource } = resolveLatestVersion(installRoot, flags.offline);
+  const stale = !!(version && latest && versionLt(version, latest));
+
+  const status = stale ? 'stale' : 'ok';
+  const message = stale
+    ? `pixelslop ${version} is behind the latest ${latest}. Update with: npx pixelslop@latest update`
+    : `pixelslop ${version || '(unknown version)'} — install reachable and current`;
+
+  output(RAW
+    ? { ok: true, status, version, latest, stale, reachable: true, installRoot, toolPath: __filename, versionSource: source, latestSource }
+    : message);
+}
+
 /**
  * Generate a self-contained HTML report from scan results.
  * Fail-soft: returns { ok: false, error } on any failure.
@@ -3367,6 +3451,9 @@ async function main() {
   }
 
   switch (group) {
+    case 'doctor':
+      return doctorCheck(flags);
+
     case 'plan':
       switch (command) {
         case 'begin': return planBegin(flags);

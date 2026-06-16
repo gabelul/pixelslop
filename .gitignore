@@ -40,3 +40,6 @@ research/
 .env
 .env.*
 .codex/
+
+# Doctor staleness-check cache (per-install, transient)
+.pixelslop-doctor-cache.json

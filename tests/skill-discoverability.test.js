@@ -96,6 +96,15 @@ describe('the asking protocol is harness-neutral (works under Codex too)', () =>
   });
 });
 
+describe('the preflight runs a doctor self-check', () => {
+  it('SKILL.md runs doctor and handles broken/stale installs', () => {
+    assert.ok(/doctor/i.test(SKILL), 'SKILL.md must run the doctor self-check at preflight');
+    assert.ok(/broken or incomplete|broken or stale/i.test(SKILL), 'must handle a broken install');
+    assert.ok(/stale/i.test(SKILL) && /npx pixelslop@latest update/i.test(SKILL),
+      'must tell the user how to update when stale/broken');
+  });
+});
+
 describe('the spawn protocol is harness-neutral with an inline fallback', () => {
   it('has a "Spawning agents" protocol', () => {
     assert.ok(/## Spawning agents/i.test(SKILL),
