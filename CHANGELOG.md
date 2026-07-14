@@ -2,19 +2,26 @@
 
 ## [0.3.6](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.5...pixelslop-v0.3.6) (2026-07-14)
 
+This is the release where Pixelslop stops just *measuring* design and starts *reading* it.
+
+The headline: personas now open the screenshots and react to the page like the humans they stand for — the five-second gut read, where the eye lands, whether they'd trust it or bounce — instead of narrating the measured findings in a voice. Only the personas that matter for the page type run, each as its own independent read. And that read co-headlines the report now, in its own section above the score, so "how this actually lands for a person" sits next to the /20 instead of buried under it.
+
+Around that: typography is finally measured at mobile too (it was grading every page on its widest, most forgiving viewport), there's a detector for the copy-pasted card hover-zoom that gives a template away, the reviewer learns whether a surface is a brand or a product and judges it accordingly, and every report now declares how it was assembled so a weakened run is never silent.
+
+The /20 stays measured-only. The design read is judgment, grounded in what was actually seen — never a competing number.
 
 ### Features
 
-* capture design register and make critique provenance visible ([ff29f6d](https://github.com/gabelul/pixelslop/commit/ff29f6dbfd88d8aa8e29913c45460845084628a7))
-* detect uniform image hover-zoom (slop pattern 26) ([7ca8572](https://github.com/gabelul/pixelslop/commit/7ca857291a387d08052db2b92a2100eecb340927))
-* mobile typography, hover-zoom detector, register + critique provenance ([3726423](https://github.com/gabelul/pixelslop/commit/372642328df8d3654323d25ec102772de36c027f))
-* personas react to the page, and the design read co-headlines ([2ffde00](https://github.com/gabelul/pixelslop/commit/2ffde0090171a965f9b9ea7e931c31c0189faf60))
-* vision-first personas and a co-headline perceptual read ([9d33100](https://github.com/gabelul/pixelslop/commit/9d33100afd5001b3013facb647f90c8dee993ae6))
+* **Vision-first personas** — personas open the screenshots and react to the page as that human (first impression, eye-path, would-I-bounce), then ground it in measured evidence. Only the page-relevant personas run, each an independent read. ([2ffde00](https://github.com/gabelul/pixelslop/commit/2ffde0090171a965f9b9ea7e931c31c0189faf60))
+* **The Read** — the design-director's verdict and the sharpest persona reactions co-headline the report: a section above the score, a `Reads as:` line, and a card beside the /20. Judgment grounded in what was seen, never a number. ([2ffde00](https://github.com/gabelul/pixelslop/commit/2ffde0090171a965f9b9ea7e931c31c0189faf60))
+* **Design register** — the reviewer learns whether it's judging a brand surface or a product surface and calibrates the perceptual read to match; the measured pillars stay register-blind. ([ff29f6d](https://github.com/gabelul/pixelslop/commit/ff29f6dbfd88d8aa8e29913c45460845084628a7))
+* **Critique provenance** — the report's `Method:` line declares whether the evaluators ran isolated or inline, with a visible `DEGRADED` banner so a weakened run never looks clean. ([ff29f6d](https://github.com/gabelul/pixelslop/commit/ff29f6dbfd88d8aa8e29913c45460845084628a7))
+* **Uniform image hover-zoom** (slop pattern 26) — catches the copy-pasted card that zooms identically across a whole grid, while leaving a legit single product-zoom alone. ([7ca8572](https://github.com/gabelul/pixelslop/commit/7ca857291a387d08052db2b92a2100eecb340927))
 
 
 ### Bug Fixes
 
-* measure typography at mobile too, not just desktop ([0a4b0ba](https://github.com/gabelul/pixelslop/commit/0a4b0ba79647aac7e8f5cdba01d9d347b96e1039))
+* **Typography measured at mobile too** — line-length and tiny body text fail at 375px first, but the metrics only ran on desktop, so pages were graded on their most forgiving viewport. ([0a4b0ba](https://github.com/gabelul/pixelslop/commit/0a4b0ba79647aac7e8f5cdba01d9d347b96e1039))
 
 ## [0.3.5](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.4...pixelslop-v0.3.5) (2026-06-16)
 
