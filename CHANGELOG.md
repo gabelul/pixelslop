@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.6](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.5...pixelslop-v0.3.6) (2026-07-14)
+
+
+### Features
+
+* capture design register and make critique provenance visible ([ff29f6d](https://github.com/gabelul/pixelslop/commit/ff29f6dbfd88d8aa8e29913c45460845084628a7))
+* detect uniform image hover-zoom (slop pattern 26) ([7ca8572](https://github.com/gabelul/pixelslop/commit/7ca857291a387d08052db2b92a2100eecb340927))
+* mobile typography, hover-zoom detector, register + critique provenance ([3726423](https://github.com/gabelul/pixelslop/commit/372642328df8d3654323d25ec102772de36c027f))
+* personas react to the page, and the design read co-headlines ([2ffde00](https://github.com/gabelul/pixelslop/commit/2ffde0090171a965f9b9ea7e931c31c0189faf60))
+* vision-first personas and a co-headline perceptual read ([9d33100](https://github.com/gabelul/pixelslop/commit/9d33100afd5001b3013facb647f90c8dee993ae6))
+
+
+### Bug Fixes
+
+* measure typography at mobile too, not just desktop ([0a4b0ba](https://github.com/gabelul/pixelslop/commit/0a4b0ba79647aac7e8f5cdba01d9d347b96e1039))
+
 ## [0.3.5](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.4...pixelslop-v0.3.5) (2026-06-16)
 
 
