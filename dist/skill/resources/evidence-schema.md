@@ -216,11 +216,25 @@ Only screenshot + overflow check. Full extraction happens at desktop.
     "issues": [
       { "tag": "a", "text": "Terms", "width": 28, "height": 16 }
     ]
+  },
+  "typographyMetrics": {
+    "bodyFontSize": 13,
+    "bodyLeadingRatio": 1.4,
+    "bodyTrackingEm": 0,
+    "bodyCharsPerLine": 41,
+    "justifiedBody": false,
+    "allCapsBody": false,
+    "typeScaleRatio": 3,
+    "flatHierarchy": false,
+    "h1FontSize": 40,
+    "oversizedH1": true,
+    "bodyAtViewportEdge": true,
+    "samples": []
   }
 }
 ```
 
-Overflow + touch target audit. Touch targets need ≥44x44px.
+Overflow + touch target audit. Touch targets need ≥44x44px. `typographyMetrics` is the **same measurement as desktop, taken at 375px** — this is where line-length, tiny body text, oversized heroes, and text flush to the viewport edge actually surface. The typography evaluator grades the worse of the two viewports.
 
 ---
 
@@ -554,7 +568,7 @@ These fields are collected but not yet promoted to evaluator inputs:
 | visual-eval.md Section | JS Snippet | Evidence Field |
 |------------------------|-----------|----------------|
 | Typography extraction | `(() => { const elements...` | `viewports.desktop.typography` |
-| Typography metrics | `(() => { const charsPerLine...` | `viewports.desktop.typographyMetrics` |
+| Typography metrics | `(() => { const charsPerLine...` | `viewports.desktop.typographyMetrics` + `viewports.mobile.typographyMetrics` |
 | Color extraction | `(() => { const sampled...` | `viewports.desktop.colors` |
 | Spacing extraction | `(() => { const containers...` | `viewports.desktop.spacing` |
 | Decoration detection | `(() => { const all...` | `viewports.desktop.decorations` |

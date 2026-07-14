@@ -251,7 +251,8 @@ function makeEmptyBundle(url, root) {
         ...VIEWPORTS.mobile,
         screenshot: null,
         overflow: null,
-        touchTargets: null
+        touchTargets: null,
+        typographyMetrics: null
       }
     },
     console: { errors: [], warnings: [] },
@@ -547,6 +548,9 @@ async function collectMobile(bundle, page, root, url, stamp) {
   }, null);
   bundle.viewports.mobile.overflow = await safeStep(bundle, ['multiViewport'], () => page.evaluate(snippetOverflow), null);
   bundle.viewports.mobile.touchTargets = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetTouchTargets), null);
+  // Typography breaks worst at mobile — line-length blows past 85 chars, body drops below the 14px floor.
+  // Measure it here too so the evaluator can compare desktop vs mobile instead of grading a page on its best viewport.
+  bundle.viewports.mobile.typographyMetrics = await safeStep(bundle, ['computedStyles'], () => page.evaluate(snippetTypographyMetrics), null);
 }
 
 async function collectPersonaChecks(page) {
