@@ -95,7 +95,7 @@ describe('report template structure', () => {
     const required = [
       '{{TITLE}}', '{{URL_META}}', '{{DATE}}', '{{CONFIDENCE}}',
       '{{TAB_RADIOS}}', '{{TAB_LABELS}}',
-      '{{KPI_BLOCKS}}', '{{SLOP_PATTERNS}}', '{{PILLAR_ROWS}}',
+      '{{KPI_BLOCKS}}', '{{PERCEPTUAL_READ}}', '{{SLOP_PATTERNS}}', '{{PILLAR_ROWS}}',
       '{{SCREENSHOT_GRID}}', '{{PERSONA_SECTIONS}}',
       '{{FINDINGS_DETAIL}}', '{{FIX_SECTION}}',
     ];
@@ -220,6 +220,49 @@ describe('report generate command', () => {
     assert.ok(html.includes('Sam'), 'Should include persona humanName');
     assert.ok(html.includes('Screen Reader User'), 'Should include persona full name');
     assert.ok(html.includes('headings skip'), 'Should include narrative text');
+  });
+
+  it('renders The Read card when perceptualRead is present', () => {
+    const fixture = makeScanFixture({
+      perceptualRead: {
+        verdict: 'This reads as generated — a template hero with the content swapped in.',
+        confidence: 'high',
+        voices: [
+          { humanName: 'Casey', reaction: 'bounced before finding the CTA on mobile' },
+          { humanName: 'Quinn', reaction: 'called the hero a template' },
+        ],
+      },
+    });
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(fixture));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(html.includes('The Read'), 'Should render the perceptual card label');
+    assert.ok(html.includes('template hero'), 'Should render the verdict');
+    assert.ok(html.includes('Casey') && html.includes('bounced before finding the CTA'),
+      'Should render the persona voices');
+    assert.ok(!html.includes('{{PERCEPTUAL_READ}}'), 'Token must be substituted');
+  });
+
+  it('fails soft when perceptualRead is absent — no card, no leftover token', () => {
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(makeScanFixture())); // no perceptualRead
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(result.ok, 'Should still generate without a perceptual read');
+    assert.ok(!html.includes('{{PERCEPTUAL_READ}}'), 'Token must be substituted to empty');
+    assert.ok(!html.includes('class="the-read"'), 'No card should render without a read');
+  });
+
+  it('escapes HTML in the perceptual read', () => {
+    const fixture = makeScanFixture({
+      perceptualRead: { verdict: '<script>alert(1)</script>', confidence: 'high', voices: [] },
+    });
+    const scanPath = join(dir, 'scan.json');
+    writeFileSync(scanPath, JSON.stringify(fixture));
+    const result = runJson(`report generate --scan-results "${scanPath}" --root "${dir}" --raw`, dir);
+    const html = readFileSync(result.path, 'utf-8');
+    assert.ok(!html.includes('<script>alert(1)</script>'), 'Must escape injected HTML in the verdict');
   });
 
   it('omits persona section when no personas evaluated', () => {

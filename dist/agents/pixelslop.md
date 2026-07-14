@@ -206,6 +206,22 @@ The collector returns a tmpfile path to the JSON evidence bundle (e.g., `/tmp/pi
 node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --message "Evidence collected: $EVIDENCE_PATH"
 ```
 
+### Step 6a: Select the page-relevant personas
+
+Don't run all 8 personas on every page — a screen-reader deep-dive on a marketing splash is noise, and a design-critic on a settings form misses the point. Pick the few personas that actually matter for *this* page, then evaluate those deeply.
+
+```bash
+node bin/pixelslop-tools.cjs browser analyze-page --url "$URL" --raw
+```
+
+This returns `{ type, suggestedPersonas: { ids, names } }` — the page type (landing-page, e-commerce, content, form-heavy, app-like, general) and the ~4 built-in personas that matter most for it. Resolve the final set by the `personas` setting:
+
+- **`none`** — skip persona evaluation entirely. No selection, no spawn.
+- **`all`** (default) — take `suggestedPersonas.ids` (the page-relevant 4) **plus** every project-specific persona from `personas list` (custom personas are always relevant — they're this project's real users).
+- **explicit list** (`personas=screen-reader-user,design-critic`) — the user overrides selection; use exactly those ids, page-type be damned.
+
+Load each selected persona's JSON: built-ins from `dist/skill/resources/personas/<id>.json`, project ones from `.pixelslop/personas/<id>.json`. You'll hand each JSON to a persona evaluator in the next step.
+
 ### Step 6b: Spawn Specialist Evaluators
 
 Spawn the 6 measured specialists plus the design-director from `dist/agents/internal/`. Each receives the evidence file path and reads its own domain resource files.
@@ -219,17 +235,21 @@ Spawn agents (parallel where runtime supports it):
   - pixelslop-eval-accessibility   (evidence_path, thorough flag)
   - pixelslop-eval-slop            (evidence_path, thorough flag)
   - pixelslop-eval-design-director (evidence_path, thorough flag, register)
+  - pixelslop-eval-persona × N     (persona JSON, evidence_path, thorough flag, register) — one per persona selected in Step 6a
 ```
 
-Read the `## Register` value from `.pixelslop.md` (if present) and pass it to the design-director — `brand` or `product`. It only calibrates the *judgment* pass; the 6 measured specialists stay register-blind, because a 90-char line or a 3:1 contrast ratio is a defect on any surface. If there's no register, don't invent one — the director reads it balanced.
+Read the `## Register` value from `.pixelslop.md` (if present) and pass it to the design-director **and every persona evaluator** — `brand` or `product`. It calibrates the *judgment* and *perceptual* passes; the 6 measured specialists stay register-blind, because a 90-char line or a 3:1 contrast ratio is a defect on any surface. If there's no register, don't invent one.
+
+Spawn one `pixelslop-eval-persona` per persona selected in Step 6a, each with that persona's JSON. They open the screenshots and react as that human first, then ground the reaction in measured evidence — an independent read per persona, blind to the others (the point: a real person's reaction, not a voice narrating the spreadsheet). If Step 6a selected no personas (`personas none`), spawn none.
 
 Each pillar specialist returns JSON: `{ "pillar": "...", "score": N, "evidence": "...", "findings": [...] }`
 The slop classifier returns JSON: `{ "band": "...", "patternCount": N, "patterns": [...] }`
-The design-director returns JSON: `{ "kind": "design-director", "verdict": "...", "findings": [...] }` where every finding is `kind: "judgment"` with a `confidence`. It returns **no score** — it never affects the /20.
+The design-director returns JSON: `{ "kind": "design-director", "verdict": "...", "findings": [...] }` — every finding `kind: "judgment"` with a `confidence`, **no score**.
+Each persona evaluator returns JSON: `{ "kind": "persona", "humanName": "...", "name": "...", "narrative": "...", "issues": N, "priority": "...", "workedWell": "...", "reactedTo": [...] }` — a human read, **no score**.
 
-Collect all 7 results. The 6 measured specialists feed the scores and measured findings; the design-director feeds only the judgment layer.
+Collect every result. The 6 measured specialists feed the scores and measured findings; the design-director and the persona evaluators feed the perceptual layer (Step 6c), never the /20.
 
-If your harness can't spawn these as subagents (see "Spawning vs inline" above), run all 7 inline instead: read each spec in `dist/agents/internal/` (or the installed path), follow it against the same evidence bundle, and collect the same JSON. Sequential, but the scores and findings are identical — never drop an evaluator because you couldn't spawn it.
+If your harness can't spawn these as subagents (see "Spawning vs inline" above), run them all inline instead: read each spec in `dist/agents/internal/` (or the installed path), follow it against the same evidence bundle, and collect the same JSON. For the persona evaluators, that means adopting each persona's lens in turn — still open the screenshots and react first. Sequential, but the outputs are identical — never drop an evaluator because you couldn't spawn it.
 
 **Declare which path you took — a degraded run is never silent.** The evaluators are designed to run isolated so the slop detector's pattern count can't anchor the judgment pass. When they run as separate subagents, that isolation holds. When you run them inline in one context, it's weaker — you've seen every finding before you write the next. That's an acceptable fallback, not a free one, so the report's `Method:` line must say so:
 
@@ -248,6 +268,13 @@ URL: [url from evidence bundle]
 Date: [timestamp]
 Confidence: [calculate from evidence bundle confidence flags]
 Method: [provenance — see below]
+Reads as: [the design-director's verdict, condensed to a phrase] ([its confidence])
+
+### The Read
+[The perceptual co-headline — this leads the report alongside the measured score, not under it. Two parts:
+- The design-director's `verdict` sentence: does this look designed, or generated?
+- The 2-3 sharpest persona reactions as one-liners, each named: "Casey bounced before finding the CTA on mobile; the design-critic called the hero a template."
+This is judgment grounded in what was seen, NOT measurement — there is no number here. If there were no personas and the director returned no verdict, omit this section.]
 
 ### Scores
 | Pillar | Score | Evidence |
@@ -272,13 +299,15 @@ Patterns detected: [patternCount]
 [the design-director's verdict line, then its findings — each carries kind: "judgment" and a confidence. Omit this whole sub-section if the director returned no findings. These never change the /20.]
 
 ### Persona Insights
-[Evaluate the selected built-in personas (per the `personas` setting) AND every project-specific persona. Discover the project ones with `personas list` — read each `custom` id's JSON from `.pixelslop/personas/<id>.json`. Built-in JSONs live in `dist/skill/resources/personas/`. Custom personas use the exact same schema, so evaluate them identically.
+[Render one section per persona evaluator that returned findings (from Step 6b). Each returned `{ humanName, name, narrative, issues, priority, workedWell }` — you're formatting their reads, not re-deriving them.
 
-For each evaluated persona: read the persona JSON's humanName, name, narrationStyle.voice, and sampleReactions.
-Match frustrationTriggers and positiveSignals against specialist findings and personaChecks data from the evidence bundle.
-Write a 1-3 paragraph narrative in the persona's voice — see scoring.md Persona Report Format for contract and examples.
-End each persona section with the **Issues:** and **Worked well:** machine-parseable anchors.
-Skip personas with zero issues and no notable positives. A project-specific persona that surfaces a real audience issue is the most valuable one in the report — lead with it.]
+For each persona result, in the exact contract from scoring.md Persona Report Format:
+- Heading `#### [humanName] ([name])`
+- The persona's `narrative` (its vision-first read, grounded in evidence)
+- `**Issues:** [issues] | **Priority:** [priority]`
+- `**Worked well:** [workedWell]`
+
+Skip any persona that returned `issues: 0` with an empty `workedWell` (it looked and found nothing worth saying). A project-specific persona that surfaces a real audience issue is the most valuable one in the report — lead with it.]
 
 ### Screenshots
 [reference from evidence bundle]
@@ -300,6 +329,21 @@ node bin/pixelslop-tools.cjs scan save-results --json '$ASSEMBLED_SCAN_JSON' --r
 ```
 
 This writes to `.pixelslop/scan-results.json` and returns the path. Use this path as `$SCAN_RESULTS_PATH` for the HTML report step. If the JSON is too large for a CLI argument, write it to a temp file first and use `--json-file /tmp/pixelslop-scan-data.json` instead of `--json`.
+
+Include a `perceptualRead` object in the assembled JSON so the HTML report can co-headline the read next to the /20 — it's judgment, never a number:
+
+```json
+"perceptualRead": {
+  "verdict": "[the design-director's verdict sentence]",
+  "confidence": "[the director's confidence: high/medium/low]",
+  "voices": [
+    { "humanName": "Casey", "reaction": "bounced before finding the CTA on mobile" },
+    { "humanName": "Quinn", "reaction": "called the hero a template" }
+  ]
+}
+```
+
+Populate `voices` from the 2-3 sharpest persona reactions. Omit the whole `perceptualRead` object when there was no verdict and no personas — the report card fails soft and simply doesn't render.
 
 Saving also appends this run's score to `.pixelslop/scan-history.json`. After saving, read the trend and surface it in your scan summary so the user sees movement across runs:
 
@@ -341,7 +385,8 @@ Present the scan results clearly:
 ```
 ## Scan Results
 
-**Total: X/20** — [rating band]
+**Measured: X/20** — [rating band]
+**Reads as:** [the design-director's verdict, in plain words] — [the one sharpest persona reaction]
 **AI Slop: [CLEAN/MILD/SLOPPY/TERMINAL]** — N patterns detected
 
 ### Issues by Category

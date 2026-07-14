@@ -145,6 +145,27 @@
       text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-tertiary);
     }
 
+    /* ── The Read: the perceptual co-headline, judgment not measurement ── */
+    .the-read {
+      background: var(--surface-1); border-left: 3px solid var(--ink);
+      padding: 18px 20px; margin-bottom: 24px;
+    }
+    .the-read-label {
+      font-family: var(--body); font-size: 10px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-tertiary);
+      margin-bottom: 8px;
+    }
+    .the-read-verdict {
+      font-family: var(--heading); font-size: 18px; font-weight: 700;
+      line-height: 1.35; margin-bottom: 10px;
+    }
+    .the-read-voices { list-style: none; padding: 0; margin: 0; }
+    .the-read-voices li {
+      font-family: var(--body); font-size: 13px; line-height: 1.5;
+      color: var(--ink-secondary); padding: 2px 0;
+    }
+    .the-read-voices li strong { color: var(--ink); }
+
     /* ── Data tables (shared pattern) ── */
     .data-table { width: 100%; border-collapse: collapse; }
     .data-table thead th {
@@ -422,6 +443,8 @@
     <div class="kpi-strip">
       {{KPI_BLOCKS}}
     </div>
+
+    {{PERCEPTUAL_READ}}
 
     {{SLOP_PATTERNS}}
 

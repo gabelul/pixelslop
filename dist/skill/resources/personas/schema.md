@@ -1,6 +1,8 @@
 # Persona Schema
 
-Personas are evaluation lenses — not interaction simulators. They let the collector evaluate design quality from different user perspectives. "How does this page serve a screen reader user? A rushed mobile shopper? A non-native English speaker?"
+Personas are evaluation lenses — not interaction simulators. They let Pixelslop evaluate design quality from different user perspectives. "How does this page serve a screen reader user? A rushed mobile shopper? A non-native English speaker?"
+
+**Personas are evaluated vision-first.** Each selected persona is handed to the `pixelslop-eval-persona` agent, which opens the screenshots and reacts to the rendered page *as that human* — the five-second read, where the eye goes, whether they'd trust it or bounce — and only then grounds the reaction in the measured evidence. The fields below (`frustrationTriggers`, `positiveSignals`, `designPriorities`, `narrationStyle`) shape *what that person notices and how they sound*; they are not a checklist matched against a spreadsheet of findings. Which personas run on a given page is chosen by page type (see `browser analyze-page`), so a screen-reader deep-dive doesn't get spent on a marketing splash.
 
 ## Format
 

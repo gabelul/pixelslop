@@ -145,6 +145,14 @@ Agents use `pixelslop-tools` (bin/pixelslop-tools.cjs) for all state operations.
 - **Slop pattern 26 — Uniform Image Hover-Zoom.** The collector hovers a sample of images (`collectImageHoverPass` → `bundle.imageHoverTransforms`) and reads the transform delta. A lone product-zoom is legitimate; only `uniform: true` (3+ images sharing the identical transform, ≥60% of movers) counts. Targets are stamped with a `data-pixelslop-imghover` attribute for unique selection — image grids collapse hand-built `nth-of-type` selectors.
 - **Report provenance / `Method:` line.** The report header declares how the 7 evaluators ran: `Method: isolated (7 evaluators spawned)` on the good path, or `Method: ⚠️ DEGRADED — inline single-context (<reason>)` when the harness couldn't isolate them. Isolation is what keeps the slop detector's count from anchoring the judgment pass; the banner makes a weakened run visible instead of silent.
 
+## The Perceptual Layer (vision personas + The Read)
+
+The measured /20 is the objective backbone; the perceptual layer is how the page actually *reads to a human*. It never touches the score — it's judgment, grounded in what was seen.
+
+- **Personas are vision-first.** Each page-relevant persona is a spawned read-only vision agent (`dist/agents/internal/pixelslop-eval-persona.md`) that opens the screenshots and reacts as that human first — the five-second read, eye-path, trust, bounce — then grounds the reaction in measured evidence. Not all 8 run: the orchestrator picks the ~4 that matter for the page type via `browser analyze-page` → `suggestedPersonas`, plus project-specific personas. They spawn independently (blind to each other), with an inline fallback like the other evaluators. Returns `{ humanName, name, narrative, issues, priority, workedWell, reactedTo }` — `reactedTo` proves it opened a screenshot. This replaced the old inline "match triggers against measured findings" synthesis (a voice narrating the spreadsheet).
+- **The Read co-headlines.** The design-director's verdict + the sharpest persona reactions lead the report: a `### The Read` section above the Scores, a `Reads as:` header line, a co-led scan summary (`Measured: X/20` **and** `Reads as: …`), and an HTML card next to the /20 (`{{PERCEPTUAL_READ}}`, from `scan.perceptualRead`). It's prose grounded in what was seen — **never a competing number.** A second "/10" would be judgment masquerading as measurement, the exact failure the measured/judgment split prevents.
+- **The internal evaluator count is now 8** (6 pillars + design-director + persona). `evaluator.test.js` pins it.
+
 ## Voice & Persona
 
 All user-facing content — README, comments, commit messages, resource files, reports — is written in Gabi's voice. Reference the persona guide at `~/Desktop/my_persona_v3.md` for tone. Short version: direct, warm, slightly sarcastic, no corporate fluff, strategy-first.
