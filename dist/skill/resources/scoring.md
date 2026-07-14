@@ -280,6 +280,10 @@ URL: [url]
 Date: [timestamp]
 Confidence: [percentage]%
 Method: [isolated (7 evaluators spawned) | ⚠️ DEGRADED — inline single-context (<reason>)]
+Reads as: [design-director verdict, condensed] ([confidence])
+
+### The Read
+[The perceptual co-headline: the design-director's verdict sentence + 2-3 sharpest named persona reactions. Judgment grounded in what was seen, never a number. Omit if there's no verdict and no personas.]
 
 ### Scores
 | Pillar | Score | Evidence |
@@ -372,7 +376,7 @@ I can't find the main action. The CTA is buried below two full text sections —
 
 ### Rules for persona findings
 
-1. **Evidence required.** Persona findings must cite specific browser evidence. "Heading hierarchy skips h2" must reference the actual heading sequence from the a11y snapshot. No vague claims.
+1. **Evidence required — visual or measured.** Persona reactions are vision-first: the persona opens the screenshots and reacts to the rendered page as that human, then grounds the reaction in evidence. A screenshot IS browser evidence — "the CTA felt buried" is fair when it names what in the shot made it feel that way ("below two text blocks on the mobile screenshot"), and it's stronger when a measurement backs it up ("`aboveFoldCta` confirms it's below the fold"). Measured claims still cite the data: "heading hierarchy skips h2" references the actual a11y-snapshot sequence. What's never allowed is a vague claim tied to nothing seen or measured.
 
 2. **Weighted priority.** Calculated from the persona's `designPriorities` and severity of issues. High = multiple issues in priority-4 pillars. Medium = issues in priority-2-3 pillars. Low = minor issues in priority-1 pillars only.
 

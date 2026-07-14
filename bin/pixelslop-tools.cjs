@@ -3128,6 +3128,32 @@ function reportGenerate(flags) {
     const personaStories = scan.personaStories || [];
     const findings = scan.findings || [];
 
+    // ── The Read: perceptual co-headline (design-director verdict + sharpest persona voices) ──
+    // Prose, never a number — judgment sitting beside the measured /20, not a competing score.
+    // Fails soft: absent perceptualRead → empty string → the card simply doesn't render.
+    const perceptualRead = scan.perceptualRead || null;
+    let perceptualHtml = '';
+    if (perceptualRead && (perceptualRead.verdict || (Array.isArray(perceptualRead.voices) && perceptualRead.voices.length))) {
+      const verdict = escapeHtml(String(perceptualRead.verdict || '').trim());
+      const conf = perceptualRead.confidence ? ` <span class="the-read-label">(${escapeHtml(String(perceptualRead.confidence))} confidence)</span>` : '';
+      const voices = (Array.isArray(perceptualRead.voices) ? perceptualRead.voices : [])
+        .slice(0, 4)
+        .map(v => {
+          if (v && typeof v === 'object') {
+            const who = escapeHtml(String(v.humanName || v.name || '').trim());
+            const said = escapeHtml(String(v.reaction || v.said || '').trim());
+            return `<li>${who ? `<strong>${who}:</strong> ` : ''}${said}</li>`;
+          }
+          return `<li>${escapeHtml(String(v))}</li>`;
+        })
+        .join('\n        ');
+      perceptualHtml = `<div class="the-read">
+      <div class="the-read-label">The Read${conf}</div>
+      ${verdict ? `<div class="the-read-verdict">${verdict}</div>` : ''}
+      ${voices ? `<ul class="the-read-voices">\n        ${voices}\n      </ul>` : ''}
+    </div>`;
+    }
+
     // Build issue status map from plan snapshot (id → { status, category, description })
     const issueMap = new Map();
     const planIssues = planSnapshot?.issues || [];
@@ -3393,6 +3419,7 @@ function reportGenerate(flags) {
     html = html.replace(/\{\{TAB_RADIOS\}\}/g, tabRadios);
     html = html.replace(/\{\{TAB_LABELS\}\}/g, tabLabels);
     html = html.replace(/\{\{KPI_BLOCKS\}\}/g, kpiBlocks);
+    html = html.replace(/\{\{PERCEPTUAL_READ\}\}/g, perceptualHtml);
     html = html.replace(/\{\{SLOP_PATTERNS\}\}/g, slopPatternsHtml);
     html = html.replace(/\{\{PILLAR_ROWS\}\}/g, pillarRows);
     html = html.replace(/\{\{SCREENSHOT_GRID\}\}/g, screenshotGrid);
