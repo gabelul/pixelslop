@@ -151,6 +151,7 @@ After collecting or receiving context, write the config:
 
 ```bash
 node bin/pixelslop-tools.cjs config write \
+  --register "$REGISTER" \
   --audience "$AUDIENCE" \
   --brand "$BRAND" \
   --aesthetic "$AESTHETIC" \
@@ -158,6 +159,8 @@ node bin/pixelslop-tools.cjs config write \
   --off-limits "$OFF_LIMITS" \
   --build-cmd "$BUILD_CMD"
 ```
+
+`$REGISTER` is `brand` or `product` — the setup agent returns it in `inferred.register` (confirmed via its register question). It's the frame for the whole review: a brand surface is judged on distinctiveness and emotional pull, a product surface on clarity and low friction. When you don't have it, omit the flag (the design-director defaults to a balanced read).
 
 If the user wants to skip setup, proceed without it — config is optional.
 
@@ -215,8 +218,10 @@ Spawn agents (parallel where runtime supports it):
   - pixelslop-eval-responsiveness  (evidence_path, thorough flag)
   - pixelslop-eval-accessibility   (evidence_path, thorough flag)
   - pixelslop-eval-slop            (evidence_path, thorough flag)
-  - pixelslop-eval-design-director (evidence_path, thorough flag)
+  - pixelslop-eval-design-director (evidence_path, thorough flag, register)
 ```
+
+Read the `## Register` value from `.pixelslop.md` (if present) and pass it to the design-director — `brand` or `product`. It only calibrates the *judgment* pass; the 6 measured specialists stay register-blind, because a 90-char line or a 3:1 contrast ratio is a defect on any surface. If there's no register, don't invent one — the director reads it balanced.
 
 Each pillar specialist returns JSON: `{ "pillar": "...", "score": N, "evidence": "...", "findings": [...] }`
 The slop classifier returns JSON: `{ "band": "...", "patternCount": N, "patterns": [...] }`
@@ -225,6 +230,13 @@ The design-director returns JSON: `{ "kind": "design-director", "verdict": "..."
 Collect all 7 results. The 6 measured specialists feed the scores and measured findings; the design-director feeds only the judgment layer.
 
 If your harness can't spawn these as subagents (see "Spawning vs inline" above), run all 7 inline instead: read each spec in `dist/agents/internal/` (or the installed path), follow it against the same evidence bundle, and collect the same JSON. Sequential, but the scores and findings are identical — never drop an evaluator because you couldn't spawn it.
+
+**Declare which path you took — a degraded run is never silent.** The evaluators are designed to run isolated so the slop detector's pattern count can't anchor the judgment pass. When they run as separate subagents, that isolation holds. When you run them inline in one context, it's weaker — you've seen every finding before you write the next. That's an acceptable fallback, not a free one, so the report's `Method:` line must say so:
+
+- **Isolated (the good path):** `Method: isolated (7 evaluators spawned)`
+- **Degraded (inline fallback):** `Method: ⚠️ DEGRADED — inline single-context (<reason, e.g. no subagent tool in this harness>)`
+
+Emit the banner whenever you ran inline, whatever the reason. Asking-and-being-allowed to spawn is the good path; only an actual inline run is degraded. A silent degraded run is the one failure mode this line exists to prevent.
 
 ### Step 6c: Aggregate Report
 
@@ -235,6 +247,7 @@ Assemble the standard report from specialist outputs. The format is defined in `
 URL: [url from evidence bundle]
 Date: [timestamp]
 Confidence: [calculate from evidence bundle confidence flags]
+Method: [provenance — see below]
 
 ### Scores
 | Pillar | Score | Evidence |
@@ -380,6 +393,15 @@ If it returns `{ ok: false, error: "..." }`, include a standalone line:
 `Report not generated: <error>`
 
 This report is bonus output, not part of the critical path, but the user should never have to guess where it went.
+
+#### Recommended next
+
+Close the scan by pointing at the single highest-leverage next move — not a menu, one clear call. Read it off what the scan actually surfaced; don't run fresh analysis:
+
+- **Lead with the biggest lever.** The worst-scoring pillar or the fullest category is where a fix pass pays off most — name it and the specific issue IDs. "Biggest win: typography (2/4) — the mobile line-length and tiny-body findings. Fix those first?"
+- **Tune the call to the register.** A **brand** surface with a passing score but flat design-director judgment findings wants a distinctiveness pass, not another a11y sweep — say so. A **product** surface wants the friction/clarity issues cleared first. Register comes from `.pixelslop.md`; if it's absent, skip this flavoring.
+- **Point at the mode that fits.** If findings look thin and confidence is low, suggest `--thorough`. If the run was already thorough and slop is the story, suggest fixing the slop cluster. If the score trend is flat across runs, say which pillar hasn't moved.
+- **One sentence, actionable, with the exact issue IDs or flag.** The user should be able to act without re-reading the whole report.
 
 Present the scan results and return them to the parent session. Include all scores, issues, persona insights, and the HTML report path when available — use humanName from the persona JSONs, not IDs. **In scan mode, you're done here — return and let the parent handle the fix strategy.**
 

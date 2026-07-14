@@ -279,6 +279,7 @@ Every scan produces a report in this structure. No exceptions, no freestyle. The
 URL: [url]
 Date: [timestamp]
 Confidence: [percentage]%
+Method: [isolated (7 evaluators spawned) | ⚠️ DEGRADED — inline single-context (<reason>)]
 
 ### Scores
 | Pillar | Score | Evidence |

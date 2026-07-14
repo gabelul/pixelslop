@@ -983,13 +983,20 @@ function gateBaseline(args) {
 
 /**
  * Write structured design context to .pixelslop.md
- * @param {object} args - Config fields (audience, brand, aesthetic, principles, off-limits, build-cmd)
+ * @param {object} args - Config fields (register, audience, brand, aesthetic, principles, off-limits, build-cmd)
  */
 function configWrite(args) {
   const configPath = path.join(resolveProjectRoot(args.root), '.pixelslop.md');
   const sections = [];
 
   sections.push('# Pixelslop — Project Design Context\n');
+  // Register frames every judgment: a `brand` surface (landing, marketing, campaign) is judged on
+  // distinctiveness and emotional pull; a `product` surface (app, dashboard, tool) on clarity and
+  // efficiency. Bare value only — 'brand' or 'product'. Anything else is ignored.
+  if (args.register) {
+    const reg = String(args.register).replace(/[\r\n]+/g, ' ').trim().toLowerCase();
+    if (reg === 'brand' || reg === 'product') sections.push(`## Register\n\n${reg}\n`);
+  }
   if (args.audience) sections.push(`## Audience\n\n${args.audience}\n`);
   if (args.brand) sections.push(`## Brand\n\n${args.brand}\n`);
   if (args.aesthetic) sections.push(`## Aesthetic\n\n${args.aesthetic}\n`);

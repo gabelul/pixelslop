@@ -718,6 +718,25 @@ describe('config commands', () => {
     assert.equal(result.build, 'npm run build');
   });
 
+  it('config write stores a valid register and it round-trips through config read', () => {
+    run('config write --register brand --audience "Marketers"', dir);
+    const content = readFileSync(join(dir, '.pixelslop.md'), 'utf-8');
+    assert.ok(content.includes('## Register'), 'register section should be written');
+    assert.ok(content.includes('brand'), 'register value should be written');
+    assert.equal(runJson('config read', dir).register, 'brand', 'register should round-trip');
+  });
+
+  it('config write normalizes register case and rejects junk values', () => {
+    run('config write --register PRODUCT --audience "Ops team"', dir);
+    assert.equal(runJson('config read', dir).register, 'product', 'register should lowercase-normalize');
+
+    // A nonsense register must not land in the file — it frames judgment, so garbage-in is worse than absent.
+    const dir2 = mkdtempSync(join(tmpdir(), 'pixelslop-test-'));
+    run('config write --register "marketing-ish" --audience "x"', dir2);
+    const content2 = readFileSync(join(dir2, '.pixelslop.md'), 'utf-8');
+    assert.ok(!content2.includes('## Register'), 'invalid register should be dropped, not written');
+  });
+
   it('config exists returns true when config exists', () => {
     run('config write --audience "test"', dir);
     const result = runJson('config exists', dir);

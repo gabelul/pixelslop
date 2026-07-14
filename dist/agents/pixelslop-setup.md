@@ -108,6 +108,15 @@ Read $ROOT/README.md
 
 Extract: project description, audience hints, deployment context.
 
+### Step 5c: Register Hypothesis
+
+Form a hypothesis about the project's **register** — is this a *brand* surface or a *product* surface? It's the single most important framing for judgment, because it changes what "good" means:
+
+- **brand** — marketing, landing pages, campaigns, portfolios, long-form content. Design *is* the product. Judged on distinctiveness, emotional pull, and a first impression that lands. Signals: routes like `/`, `/about`, `/pricing`, `/blog/*`; hero sections; big type; scroll-driven marketing sections; a landing-page shape.
+- **product** — app UI, dashboards, admin, tools, settings. Design *serves* the product. Judged on clarity, efficiency, and low friction. Signals: routes like `/app/*`, `/dashboard`, `/settings`, `/(auth)`; forms; data tables; side/top nav; app-shell components.
+
+It's a hypothesis, not a decision — the register question below confirms it. If the signal is genuinely split (a product with a big marketing landing), pick the **primary** surface as the hypothesis and let the user correct it. When you can't tell, default the hypothesis to `product` and ask.
+
 ### Step 6: Compile Findings
 
 Return a structured JSON result:
@@ -115,6 +124,7 @@ Return a structured JSON result:
 ```json
 {
   "inferred": {
+    "register": "brand",
     "framework": "Next.js 14",
     "css_approach": "Tailwind CSS + CSS Modules",
     "component_library": "shadcn/ui",
@@ -128,6 +138,7 @@ Return a structured JSON result:
     "description": "Developer documentation platform"
   },
   "questions": [
+    "This looks like a brand/marketing surface (design is the product) rather than a product/app surface (design serves the product). Does that match, or is the primary surface the other one?",
     "Who is the target audience for this site? (developers, general public, enterprise, etc.)",
     "What is the intended brand personality? (e.g., 'Minimal and confident like Stripe' or 'Friendly and approachable like Notion')",
     "Are there any design elements that should not be changed? (e.g., logo, specific brand colors, existing illustrations)"
@@ -182,6 +193,7 @@ Only write tokens you actually found — missing tokens beat invented ones (the 
 
 Ask 2-4 questions. Focus on things you genuinely cannot infer from the code:
 
+- **Register** — brand surface or product surface? Lead with your hypothesis so it's a one-tap confirm, not an open question. Ask it first: it frames everything else.
 - **Audience** — who uses this? (unless obvious from README)
 - **Brand personality** — what should it feel like?
 - **Off-limits elements** — what should pixelslop never touch?

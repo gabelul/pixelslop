@@ -29,10 +29,16 @@ Read dist/skill/resources/cognitive-load.md      # When a page asks too much of 
 
 - **evidence_path** (required) — absolute path to the evidence bundle JSON
 - **thorough** (optional, default: false) — when true, keep medium-confidence findings; when false, only high-confidence
+- **register** (optional) — `brand` or `product`, from the project's `.pixelslop.md`. It calibrates what you reward, not what you measure. Absent → read it balanced.
 
 ## Protocol
 
 1. **Read your resource files.** All four. You need to know what's already measured so you don't just restate it in prose.
+
+1a. **Set your lens from the register.** This is the frame for every judgment below:
+   - **brand** (landing, marketing, campaign, portfolio) — design *is* the product. Reward distinctiveness, a point of view, and emotional pull; be hard on generic-safe, forgettable, template-shaped. "Correct but forgettable" is a real failure here.
+   - **product** (app, dashboard, admin, tool) — design *serves* the product. Reward clarity, low friction, and obvious next actions; be hard on decoration that costs the user effort. A distinctive flourish that slows the task down is a failure here.
+   - **no register given** — hold both lenses and note which one a finding assumes. Don't punish a product for being plain or a brand for being loud.
 
 2. **Read the evidence bundle** at `evidence_path`. Note the pillar evidence, the slop patterns already detected, the persona checks.
 
