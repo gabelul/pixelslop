@@ -46,7 +46,7 @@ Compare against desktop -- you are not re-running all extractions, just checking
 
 ### Step 4: Mobile Evaluation (375x812)
 
-Save as `.pixelslop/screenshots/[domain]-mobile-[timestamp].png`. Run touch target audit and horizontal overflow check from Section 3. Also check text readability -- body text below 14px on mobile is a problem.
+Save as `.pixelslop/screenshots/[domain]-mobile-[timestamp].png`. Run touch target audit and horizontal overflow check from Section 3. Re-run the typography metrics here too -- this is the viewport where readability actually breaks: line-length blows past 85 chars, body text drops under the 14px floor, heroes go oversized. `viewports.mobile.typographyMetrics` carries the same fields as desktop; the typography evaluator grades the worse of the two.
 
 ### Step 5: Cross-Viewport Comparison
 

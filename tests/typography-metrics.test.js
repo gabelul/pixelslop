@@ -100,6 +100,16 @@ describe('collector emits and wires the metrics snippet', () => {
       'desktop pass should evaluate the metrics snippet');
   });
 
+  it('also collects it on the mobile pass into viewports.mobile.typographyMetrics', () => {
+    // Typography breaks worst at 375px — measuring desktop-only grades a page on its best viewport.
+    assert.ok(browser.includes('viewports.mobile.typographyMetrics'),
+      'mobile pass should store typographyMetrics on the bundle');
+    // Both the desktop and mobile passes must actually run the snippet, not just declare the slot.
+    const evalCount = (browser.match(/page\.evaluate\(snippetTypographyMetrics\)/g) || []).length;
+    assert.ok(evalCount >= 2,
+      `metrics snippet should run at both desktop and mobile (found ${evalCount} evaluate calls)`);
+  });
+
   it('returns every documented field', () => {
     for (const field of [
       'bodyFontSize', 'bodyLeadingRatio', 'bodyTrackingEm', 'bodyCharsPerLine',
@@ -149,6 +159,11 @@ describe('typography evaluator consumes the metrics', () => {
 
   it('extracts typographyMetrics from the bundle', () => {
     assert.ok(evaluator.includes('typographyMetrics'), 'evaluator should read typographyMetrics');
+  });
+
+  it('reads the mobile viewport, not just desktop', () => {
+    assert.ok(evaluator.includes('viewports.mobile.typographyMetrics'),
+      'evaluator should read mobile typography metrics so it grades the worse viewport');
   });
 
   it('lists the new criteria in its output contract', () => {

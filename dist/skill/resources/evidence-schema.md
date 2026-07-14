@@ -216,11 +216,25 @@ Only screenshot + overflow check. Full extraction happens at desktop.
     "issues": [
       { "tag": "a", "text": "Terms", "width": 28, "height": 16 }
     ]
+  },
+  "typographyMetrics": {
+    "bodyFontSize": 13,
+    "bodyLeadingRatio": 1.4,
+    "bodyTrackingEm": 0,
+    "bodyCharsPerLine": 41,
+    "justifiedBody": false,
+    "allCapsBody": false,
+    "typeScaleRatio": 3,
+    "flatHierarchy": false,
+    "h1FontSize": 40,
+    "oversizedH1": true,
+    "bodyAtViewportEdge": true,
+    "samples": []
   }
 }
 ```
 
-Overflow + touch target audit. Touch targets need ≥44x44px.
+Overflow + touch target audit. Touch targets need ≥44x44px. `typographyMetrics` is the **same measurement as desktop, taken at 375px** — this is where line-length, tiny body text, oversized heroes, and text flush to the viewport edge actually surface. The typography evaluator grades the worse of the two viewports.
 
 ---
 
@@ -426,15 +440,33 @@ Collection metadata, timing, and bail-out tracking.
 
 ## Confidence Flags — Interaction Substrate
 
-The `confidence` object gained five new flags for interaction evidence:
+The `confidence` object carries these flags for interaction evidence:
 
 | Flag | Type | Meaning |
 |------|------|---------|
 | `interactiveMap` | `boolean` | `true` when `snippetBuildRefMap` ran and returned refs. |
 | `scrollData` | `boolean` | Reserved for future phases — scroll pass evidence collected. |
 | `hoverStates` | `boolean` | Reserved for future phases — hover pass evidence collected. |
+| `imageHoverTransforms` | `boolean` | `true` when the image-hover pass ran and returned a result. |
 | `focusPass` | `boolean` | Reserved for future phases — focus/tab pass evidence collected. |
 | `interactivePromises` | `boolean` | Reserved for future phases — interactive promise (click→verify) evidence collected. |
+
+### Image Hover Transforms
+
+Present when `confidence.imageHoverTransforms` is true. The collector hovers a sample of images and records how each one's `transform` changes — feeding slop pattern 26 (Uniform Image Hover-Zoom). A single image zooming is legitimate; only `uniform: true` (3+ images sharing the identical transform) is the templated-card fingerprint.
+
+```json
+"imageHoverTransforms": {
+  "tested": 8,
+  "transformed": 6,
+  "uniform": true,
+  "uniformTransform": "matrix(1.05, 0, 0, 1.05, 0, 0)",
+  "uniformCount": 6,
+  "samples": [
+    { "selector": ".card img", "tag": "img", "alt": "Product", "before": "none", "after": "matrix(1.05, 0, 0, 1.05, 0, 0)", "transformed": true, "scale": 1.05 }
+  ]
+}
+```
 
 ---
 
@@ -554,7 +586,7 @@ These fields are collected but not yet promoted to evaluator inputs:
 | visual-eval.md Section | JS Snippet | Evidence Field |
 |------------------------|-----------|----------------|
 | Typography extraction | `(() => { const elements...` | `viewports.desktop.typography` |
-| Typography metrics | `(() => { const charsPerLine...` | `viewports.desktop.typographyMetrics` |
+| Typography metrics | `(() => { const charsPerLine...` | `viewports.desktop.typographyMetrics` + `viewports.mobile.typographyMetrics` |
 | Color extraction | `(() => { const sampled...` | `viewports.desktop.colors` |
 | Spacing extraction | `(() => { const containers...` | `viewports.desktop.spacing` |
 | Decoration detection | `(() => { const all...` | `viewports.desktop.decorations` |

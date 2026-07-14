@@ -79,7 +79,7 @@ Evidence: distinctive font pairing (not just Inter/Roboto/Open Sans defaults), c
 - Letter-spacing values if present
 - Number of distinct font families in use
 
-**Measured signals (from `viewports.desktop.typographyMetrics`):** these are computed off real layout, so treat them as hard evidence, not impressions. Each is a concrete readability failure — fold them into the score and emit a finding when one fires:
+**Measured signals (from `viewports.desktop.typographyMetrics` and `viewports.mobile.typographyMetrics`):** these are computed off real layout at both viewports, so treat them as hard evidence, not impressions. Each is a concrete readability failure — check both viewports and grade the worse one, naming it in the finding. Line-length and tiny body text almost always fail on mobile first, so a metric that clears desktop but trips at 375px still counts. Fold them into the score and emit a finding when one fires:
 
 - **Measure** — `bodyCharsPerLine`. Comfortable is 45–85. Below 45 is cramped, above 85 is a tiring line. Either extreme caps Typography at 2.
 - **Body size** — `bodyFontSize`. Below 14px is under the readability floor (fail). 14–15px is a warn. 16px+ is the expectation.
@@ -279,6 +279,7 @@ Every scan produces a report in this structure. No exceptions, no freestyle. The
 URL: [url]
 Date: [timestamp]
 Confidence: [percentage]%
+Method: [isolated (7 evaluators spawned) | ⚠️ DEGRADED — inline single-context (<reason>)]
 
 ### Scores
 | Pillar | Score | Evidence |
