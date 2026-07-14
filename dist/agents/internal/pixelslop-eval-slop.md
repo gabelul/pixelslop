@@ -38,8 +38,9 @@ You receive three values:
    - `viewports.desktop.decorations` — gradient text samples, blur counts, shadow counts
    - `viewports.desktop.colors` — background colors, accent colors, gradient definitions
    - `viewports.desktop.typography` — font families (generic font detection)
+   - `imageHoverTransforms` — hover-simulation result for images (pattern 26). Only `uniform: true` counts as a detection: that means 3+ images did the *identical* transform on hover (`uniformTransform`, `uniformCount`), the copy-pasted-card fingerprint. A non-uniform result (a single product zoom, mixed transforms) is NOT slop — note it at low confidence at most, never count it toward the band. Null/absent means the pass didn't run — skip, don't guess.
    - `sourcePatterns` — S11-S16 pattern matches (only present when source root was provided)
-4. **Check each visual pattern (1-25 from the catalog)** against the evidence:
+4. **Check each visual pattern (1-26 from the catalog)** against the evidence:
    - For each pattern, look at the relevant evidence fields
    - If the evidence shows the pattern, record it with the specific data that triggered detection
    - If the evidence doesn't contain enough data to check a pattern, skip it — don't guess

@@ -227,6 +227,7 @@ function makeEmptyBundle(url, root) {
       interactiveMap: false,
       scrollData: false,
       hoverStates: false,
+      imageHoverTransforms: false,
       focusPass: false,
       interactivePromises: false
     },
@@ -262,6 +263,7 @@ function makeEmptyBundle(url, root) {
     interactiveElements: null,
     scroll: null,
     hoverStates: null,
+    imageHoverTransforms: null,
     focusPass: null,
     interactivePromises: null,
     meta: { mode: 'standard', collectionTimeMs: 0, passTimings: { scroll: 0, hover: 0, focus: 0, promises: 0 }, bailouts: [] }
@@ -332,6 +334,7 @@ function buildConfig(args) {
     promiseBudget: isDeep ? 24000 : PROMISE_PASS_BUDGET_MS,
     maxRefs: isDeep ? 500 : 150,
     maxHover: isDeep ? 75 : 15,
+    maxImageHover: isDeep ? 24 : 12,
     maxTabs: isDeep ? 100 : 30,
     maxPromises: isDeep ? 25 : 8,
     maxFolds: isDeep ? 20 : 10,
@@ -445,6 +448,20 @@ async function collectEvidence(args, deps = {}) {
         if (passResult.timedOut) {
           bundle.meta.bailouts.push({ pass: 'hover', reason: 'timeout', elapsedMs: passResult.elapsedMs });
           bundle.confidence.hoverStates = false;
+        }
+        return { __skipConfidence: passResult.timedOut };
+      }, null);
+      await resetBetweenPasses(page, cs);
+
+      // Image-hover pass — desktop only. Hovers images and reads the transform delta.
+      // A lone product-zoom is fine; the slop tell is the SAME scale applied across many images.
+      await safeStep(bundle, ['imageHoverTransforms'], async () => {
+        const passResult = await withPassBudget(config.hoverBudget, async (isBudgetExhausted) => {
+          await collectImageHoverPass(bundle, page, isBudgetExhausted, config);
+          return true;
+        });
+        if (passResult.timedOut) {
+          bundle.meta.bailouts.push({ pass: 'imageHover', reason: 'timeout', elapsedMs: passResult.elapsedMs });
         }
         return { __skipConfidence: passResult.timedOut };
       }, null);
@@ -2127,6 +2144,54 @@ function snippetStickyElements(maxElements) {
  * Runs inside page.evaluate().
  * @returns {Array} Array of { src, alt, hasAlt, loading, rect }
  */
+/**
+ * Collects hover-worthy image targets: real <img> tags plus card-sized elements painted with a
+ * background-image. Only visible, reasonably large ones (small icons don't zoom, and if they do it
+ * doesn't matter). Each target gets a stamped `data-pixelslop-imghover` index so the hover pass can
+ * drive it by a guaranteed-unique selector — image grids are exactly where hand-built CSS selectors
+ * collapse (four `img`s with no id/class all resolve to the same `nth-of-type` path), which would
+ * make the pass hover the first image N times and report false uniformity.
+ * @param {number} maxArg - Cap on how many targets to return
+ * @returns {Array<{selector: string, tag: string, alt: string, rect: Object}>}
+ */
+function snippetImageHoverTargets(maxArg) {
+  const MAX = maxArg || 12;
+  const MIN_SIDE = 80; // below this it's an icon/avatar, not a content image worth hovering
+
+  const seen = new Set();
+  const targets = [];
+
+  function consider(el, tag, alt) {
+    if (targets.length >= MAX || seen.has(el)) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < MIN_SIDE || rect.height < MIN_SIDE) return;
+    const style = getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) return;
+    seen.add(el);
+    const idx = targets.length;
+    el.setAttribute('data-pixelslop-imghover', String(idx));
+    targets.push({
+      selector: '[data-pixelslop-imghover="' + idx + '"]',
+      tag,
+      alt: alt || '',
+      rect: { top: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height) },
+    });
+  }
+
+  // Real images first — they're the common carrier of the copy-pasted hover-zoom.
+  document.querySelectorAll('img').forEach(img => consider(img, 'img', img.alt));
+  // Then card-sized elements painted with a background-image (hero tiles, gallery cells).
+  if (targets.length < MAX) {
+    document.querySelectorAll('*').forEach(el => {
+      if (targets.length >= MAX) return;
+      const bg = getComputedStyle(el).backgroundImage;
+      if (bg && bg !== 'none' && bg.includes('url(')) consider(el, el.tagName.toLowerCase(), '');
+    });
+  }
+
+  return targets;
+}
+
 function snippetImageSrcs() {
   return Array.from(document.querySelectorAll('img')).map(img => ({
     src: img.currentSrc || img.src || '',
@@ -2311,6 +2376,119 @@ async function collectHoverPass(bundle, page, isBudgetExhausted, config) {
   }
 
   bundle.hoverStates = results;
+}
+
+/**
+ * Image-hover pass. Hovers a sample of images and reads how their transform changes.
+ *
+ * The point is NOT "an image moved on hover" — a single product shot that zooms on hover is a
+ * perfectly good pattern. The slop fingerprint is the *template* version: every card image doing
+ * the identical `scale(1.05)` lift because a component was copy-pasted across the whole grid. So we
+ * measure two things — how many images transform on hover, and whether they transform *identically*.
+ * Uniform-scale-across-many is the signal; anything else is just noise we report at low confidence.
+ *
+ * @param {Object} bundle - Evidence bundle to populate (writes bundle.imageHoverTransforms)
+ * @param {Object} page - Playwright page, already at desktop viewport
+ * @param {Function} isBudgetExhausted - Returns true when the pass budget is spent
+ * @param {Object} config - Run config; reads config.maxImageHover for the sample cap
+ */
+async function collectImageHoverPass(bundle, page, isBudgetExhausted, config) {
+  if (!isBudgetExhausted) isBudgetExhausted = () => false;
+
+  const targets = await page.evaluate(snippetImageHoverTargets, config?.maxImageHover || 12);
+  if (!Array.isArray(targets) || targets.length === 0) {
+    bundle.imageHoverTransforms = { tested: 0, transformed: 0, uniform: false, uniformTransform: null, uniformCount: 0, samples: [] };
+    return;
+  }
+
+  const samples = [];
+  for (const target of targets) {
+    if (isBudgetExhausted()) break;
+    const capture = await captureBeforeAfter(page, target.selector, actionHover, ['transform']);
+    await resetProbeState(page);
+    if (!capture || !capture.found || capture.actionFailed) continue;
+
+    const before = capture.before?.transform || 'none';
+    const after = capture.after?.transform || 'none';
+    const scale = scaleFromTransform(after);
+    // A "hover transform" fired when the transform actually changed to something non-identity.
+    const transformed = before !== after && after !== 'none' && after !== 'matrix(1, 0, 0, 1, 0, 0)';
+    samples.push({
+      selector: target.selector,
+      tag: target.tag,
+      alt: target.alt || '',
+      before,
+      after,
+      transformed,
+      scale: scale != null ? Number(scale.toFixed(3)) : null,
+    });
+  }
+
+  bundle.imageHoverTransforms = classifyImageHoverSamples(samples);
+
+  // Remove the stamps so the tablet/mobile passes see a clean DOM.
+  await page.evaluate(() => {
+    document.querySelectorAll('[data-pixelslop-imghover]').forEach(el => el.removeAttribute('data-pixelslop-imghover'));
+  }).catch(() => {});
+}
+
+/**
+ * Decides whether a set of image-hover samples shows the "templated card" fingerprint.
+ * The tell is uniformity at scale: the SAME transform on 3+ images and on most of the ones that move
+ * at all (≥60%). A lone product-zoom, or a handful of different transforms, is not slop.
+ * @param {Array<{after: string, transformed: boolean}>} samples - Per-image hover results
+ * @returns {{tested: number, transformed: number, uniform: boolean, uniformTransform: string|null, uniformCount: number, samples: Array}}
+ */
+function classifyImageHoverSamples(samples) {
+  const list = Array.isArray(samples) ? samples : [];
+  const transformedSamples = list.filter(s => s && s.transformed);
+  // Bucket by the exact after-transform string; the biggest bucket is the "template" transform.
+  const buckets = new Map();
+  for (const s of transformedSamples) {
+    buckets.set(s.after, (buckets.get(s.after) || 0) + 1);
+  }
+  let uniformTransform = null;
+  let uniformCount = 0;
+  for (const [value, count] of buckets) {
+    if (count > uniformCount) { uniformCount = count; uniformTransform = value; }
+  }
+  const uniform = uniformCount >= 3 && uniformCount >= Math.ceil(transformedSamples.length * 0.6);
+  return {
+    tested: list.length,
+    transformed: transformedSamples.length,
+    uniform,
+    uniformTransform: uniform ? uniformTransform : null,
+    uniformCount,
+    samples: list,
+  };
+}
+
+/**
+ * Pulls a scale factor out of a computed CSS transform string (matrix or matrix3d).
+ * Returns null when there's no meaningful scale (identity, none, or unparseable).
+ * @param {string} transform - A getComputedStyle transform value
+ * @returns {number|null} The uniform-ish scale factor, or null
+ */
+function scaleFromTransform(transform) {
+  if (!transform || transform === 'none') return null;
+  const matrix = transform.match(/matrix\(([^)]+)\)/);
+  if (matrix) {
+    const parts = matrix[1].split(',').map(n => parseFloat(n.trim()));
+    if (parts.length >= 4) {
+      const sx = Math.hypot(parts[0], parts[1]);
+      if (Number.isFinite(sx) && Math.abs(sx - 1) > 0.001) return sx;
+    }
+    return null;
+  }
+  const matrix3d = transform.match(/matrix3d\(([^)]+)\)/);
+  if (matrix3d) {
+    const parts = matrix3d[1].split(',').map(n => parseFloat(n.trim()));
+    if (parts.length >= 6) {
+      const sx = Math.hypot(parts[0], parts[1], parts[2]);
+      if (Number.isFinite(sx) && Math.abs(sx - 1) > 0.001) return sx;
+    }
+  }
+  return null;
 }
 
 // ── Focus Pass Snippets ──
@@ -3209,6 +3387,10 @@ module.exports = {
     snippetImageSrcs,
     collectScrollPass,
     collectHoverPass,
+    collectImageHoverPass,
+    classifyImageHoverSamples,
+    snippetImageHoverTargets,
+    scaleFromTransform,
     collectFocusPass,
     snippetFocusIndicator,
     snippetNonSemanticClickables,

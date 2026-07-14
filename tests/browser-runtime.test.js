@@ -191,7 +191,7 @@ describe('collectEvidence degraded paths', () => {
     assert.equal(bundle.navigationError, 'no browser runtime');
     assert.equal(bundle.viewports.desktop.screenshot, null);
     assert.deepEqual(Object.keys(bundle).sort(), [
-      'confidence', 'console', 'focusPass', 'hoverStates',
+      'confidence', 'console', 'focusPass', 'hoverStates', 'imageHoverTransforms',
       'interactiveElements', 'interactivePromises', 'meta',
       'navigationError', 'network', 'personaChecks',
       'root', 'scroll', 'sourcePatterns', 'timestamp', 'title', 'url', 'viewports',

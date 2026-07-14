@@ -440,15 +440,33 @@ Collection metadata, timing, and bail-out tracking.
 
 ## Confidence Flags — Interaction Substrate
 
-The `confidence` object gained five new flags for interaction evidence:
+The `confidence` object carries these flags for interaction evidence:
 
 | Flag | Type | Meaning |
 |------|------|---------|
 | `interactiveMap` | `boolean` | `true` when `snippetBuildRefMap` ran and returned refs. |
 | `scrollData` | `boolean` | Reserved for future phases — scroll pass evidence collected. |
 | `hoverStates` | `boolean` | Reserved for future phases — hover pass evidence collected. |
+| `imageHoverTransforms` | `boolean` | `true` when the image-hover pass ran and returned a result. |
 | `focusPass` | `boolean` | Reserved for future phases — focus/tab pass evidence collected. |
 | `interactivePromises` | `boolean` | Reserved for future phases — interactive promise (click→verify) evidence collected. |
+
+### Image Hover Transforms
+
+Present when `confidence.imageHoverTransforms` is true. The collector hovers a sample of images and records how each one's `transform` changes — feeding slop pattern 26 (Uniform Image Hover-Zoom). A single image zooming is legitimate; only `uniform: true` (3+ images sharing the identical transform) is the templated-card fingerprint.
+
+```json
+"imageHoverTransforms": {
+  "tested": 8,
+  "transformed": 6,
+  "uniform": true,
+  "uniformTransform": "matrix(1.05, 0, 0, 1.05, 0, 0)",
+  "uniformCount": 6,
+  "samples": [
+    { "selector": ".card img", "tag": "img", "alt": "Product", "before": "none", "after": "matrix(1.05, 0, 0, 1.05, 0, 0)", "transformed": true, "scale": 1.05 }
+  ]
+}
+```
 
 ---
 

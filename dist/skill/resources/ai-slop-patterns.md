@@ -611,6 +611,25 @@ Severity scale: **1** = mild indicator (common in legit designs too), **2** = no
 **Severity:** 1 (heroes are legitimate; it's the generic execution that's slop)
 
 
+### 26. Uniform Image Hover-Zoom
+**What it looks like:** Every image in a grid lifts or zooms by the exact same amount on hover — the same `scale(1.05)` on card after card, because one component was copy-pasted across the whole gallery. A single product shot that zooms on hover is fine and often good; the tell is *uniformity at scale*, the fingerprint of a templated card.
+**How to detect:** This one can't be read from a static snapshot — a `:hover` transform only exists once you actually hover. The collector simulates it and hands you the result in `imageHoverTransforms`:
+```js
+// collector-provided evidence (bin/pixelslop-browser.cjs → collectImageHoverPass)
+// imageHoverTransforms: {
+//   tested,            // images hovered
+//   transformed,       // how many changed transform on hover
+//   uniform,           // TRUE only when 3+ images did the identical transform AND that's ≥60% of movers
+//   uniformTransform,  // the shared computed transform value, e.g. "matrix(1.05, 0, 0, 1.05, 0, 0)"
+//   uniformCount,      // how many images share it
+//   samples            // per-image before/after transform + parsed scale
+// }
+// Detected ONLY when imageHoverTransforms.uniform === true. A non-uniform result is not slop.
+```
+**Screenshot cues:** Not visible in a static screenshot — this is a motion tell. Evidence lives in the hover-simulation result, not the still.
+**Severity:** 1 (a lone hover-zoom is legitimate; only the uniform-across-many execution is a slop signal)
+
+
 ---
 
 ## Source Patterns
