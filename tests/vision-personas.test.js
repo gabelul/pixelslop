@@ -47,6 +47,24 @@ describe('the persona evaluator is vision-first', () => {
       'output must carry the fields the Persona Insights anchors need');
     assert.ok(/never a score|no.*score|\/20/i.test(agent), 'must never produce a /20 score');
   });
+
+  it('reads the whole scrolled page, not just the hero', () => {
+    assert.ok(/foldScreenshots/.test(agent), 'must read scroll.foldScreenshots for the below-fold view');
+    assert.ok(/don.?t stop at the fold|below the first screen|whole.*scrolled page/i.test(agent),
+      'must react to the page beyond the first screen');
+  });
+
+  it('grounds reactions in behavioral evidence, not just how the still looks', () => {
+    // The point of the enrichment: "does the flow work", from evidence the collector already captured.
+    assert.ok(/interactivePromises/.test(agent), 'must consult click→verify results');
+    assert.ok(/focusPass/.test(agent), 'must consult keyboard focus evidence');
+    assert.ok(/touchTargets/.test(agent), 'must consult touch-target evidence');
+    assert.ok(/whether it works|whether the flow work|did the.*work|behavioral/i.test(agent),
+      'must frame it as whether the page actually works');
+    // Null pass = didn't run; the agent must not invent it.
+    assert.ok(/null means the pass didn.?t run|don.?t invent/i.test(agent),
+      'a missing interaction pass must not be fabricated');
+  });
 });
 
 describe('the orchestrator selects page-relevant personas', () => {

@@ -500,7 +500,7 @@ Present when `confidence.scrollData` is true. Contains fold-by-fold page scroll 
 | `scroll.ratio` | number | Page height / viewport height. Values above 8 suggest very long pages. |
 | `scroll.stickyElements` | array | Sticky/fixed elements that persist across scroll positions. Empty = no persistent navigation. |
 
-Other scroll sub-fields (`foldScreenshots`, `lazyImages`, `belowFoldTypography`, `belowFoldColors`) are collector internals — not yet promoted to evaluator inputs.
+`foldScreenshots` is consumed by the **persona evaluator** — it reads the below-fold shots so a persona reacts to the whole scrolled page, not just the hero. The other scroll sub-fields (`lazyImages`, `belowFoldTypography`, `belowFoldColors`) remain collector internals, not yet promoted to evaluator inputs.
 
 ---
 
