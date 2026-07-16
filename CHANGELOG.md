@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.7](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.6...pixelslop-v0.3.7) (2026-07-16)
+
+
+### Features
+
+* infer a project persona from the hero when there's no audience context ([361a301](https://github.com/gabelul/pixelslop/commit/361a301f464a040b8b73403c15cddd7892e6aabf))
+* infer a project persona from the hero when there's no audience context ([3ee4a26](https://github.com/gabelul/pixelslop/commit/3ee4a26ff671dc8b63d804ea578d6c644c8dbb50))
+
 ## [0.3.6](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.5...pixelslop-v0.3.6) (2026-07-14)
 
 This is the release where Pixelslop stops just *measuring* design and starts *reading* it.
