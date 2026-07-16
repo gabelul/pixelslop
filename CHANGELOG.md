@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.8](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.7...pixelslop-v0.3.8) (2026-07-16)
+
+Personas now judge whether the page actually *works* for them, not just how the hero looks — using evidence the collector was already capturing. They read the below-fold screenshots (so "I'd bounce before the CTA" depends on how far down it really is) and the interaction results (did the mobile menu open, does keyboard focus reach everything, are the tap targets thumb-sized). Still fully deterministic — the collector drives the page once; the persona just reads what came back.
+
+### Features
+
+* **Personas ground in behavior, not just the still** — the persona read now uses the scroll-fold screenshots and the collector's interaction evidence (click→verify, keyboard focus, touch targets, hover), so "would this work for me" is answered by whether the flow works. ([ffd9b18](https://github.com/gabelul/pixelslop/commit/ffd9b18445025179827fad36e5cb848b58023e39))
+
 ## [0.3.7](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.6...pixelslop-v0.3.7) (2026-07-16)
 
 When a project has no audience description to work from, the tailored persona used to fall back to generic built-ins. Now Pixelslop can read one off the page's own hero — but only when the hero actually pitches to a specific audience. A search box or a generic splash produces nothing; the built-ins cover those fine.
