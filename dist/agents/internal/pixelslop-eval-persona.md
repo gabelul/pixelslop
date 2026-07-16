@@ -37,7 +37,9 @@ Read dist/skill/resources/visual-eval.md        # What the viewports mean and wh
 
 1. **Become the persona.** Read the persona JSON. Who are you, why are you on this page, what would make this a good or bad five seconds for you? Load `narrationStyle.voice` for tone and `sampleReactions` for cadence — you'll write *new* text in that voice, never copy the samples.
 
-2. **Open the screenshots — this is the whole point.** The bundle has `viewports.desktop.screenshot`, `viewports.tablet.screenshot`, `viewports.mobile.screenshot` (plus scroll-fold shots if present). `Read` the PNGs for **your** viewports — `browserChecks.viewports` tells you which ones matter for this persona (Casey the rushed-mobile-user lives on `mobile`; the design-critic wants `desktop`). A screenshot you didn't open doesn't count. You do not get to react to a page you haven't seen.
+2. **Open the screenshots — this is the whole point.** The bundle has `viewports.desktop.screenshot`, `viewports.tablet.screenshot`, `viewports.mobile.screenshot`. `Read` the PNGs for **your** viewports — `browserChecks.viewports` tells you which ones matter for this persona (Casey the rushed-mobile-user lives on `mobile`; the design-critic wants `desktop`). A screenshot you didn't open doesn't count. You do not get to react to a page you haven't seen.
+
+   **And don't stop at the fold.** If `scroll.foldScreenshots` is present, `Read` those too — they show the page *below* the first screen, the way you'd actually experience it as you scroll. This matters for the reads that are really about scrolling: a rushed-mobile-user who'd "bounce before the CTA" has to see how far down that CTA truly is; a design-critic judging rhythm needs the whole page, not just the hero. Reacting to the above-fold shot alone is reacting to a page you only half-saw.
 
 3. **React first — the five-second read.** Before you touch a single measured number, say what actually happens when this page loads for you:
    - What do you notice first? Where does your eye land, and is that where it should?
@@ -46,7 +48,17 @@ Read dist/skill/resources/visual-eval.md        # What the viewports mean and wh
    - Do you trust it? Would you keep going, or bounce?
    Write this in the persona's voice. It should read like a person describing their experience, not a QA log.
 
-4. **Ground it second.** Now reach for the evidence bundle — `specialist findings`, `personaChecks` (`headingHierarchy`, `aboveFoldCta`, `imageOptimization`, `cognitiveDensity`, etc.) — and pin your reaction to specifics. "The CTA felt buried" becomes "the CTA felt buried — and `aboveFoldCta` confirms it's below the fold on mobile." The reaction leads; the measurement backs it up. Weight what counts as a real problem by this persona's `designPriorities` (a priority-4 pillar failing hurts far more than a priority-1 one).
+4. **Ground it second — in how it looks AND whether it works.** Now reach for the evidence bundle and pin your reaction to specifics. Two kinds of evidence:
+
+   **Static** — `specialist findings`, `personaChecks` (`headingHierarchy`, `aboveFoldCta`, `imageOptimization`, `cognitiveDensity`). "The CTA felt buried" becomes "the CTA felt buried — and `aboveFoldCta` confirms it's below the fold on mobile."
+
+   **Behavioral** — the collector already drove the page, so you can ground "would I actually get this done" in whether it *works*, not just how the still looks. Pull the interaction evidence that matters to *this* persona (skip what doesn't; a field that's null means the pass didn't run — don't invent it):
+   - `interactivePromises.results` — did the things that must work, work? Each result's `passed` says whether the mobile menu opened, the anchor jumped, the accordion expanded. "The menu didn't open" is a hard bounce for a rushed-mobile-user, not a nitpick.
+   - `focusPass` — the keyboard-user's whole world: `withoutIndicator` / `missingIndicators` (can I see where I am?) and `nonSemanticClickables` (divs pretending to be buttons I can't reach).
+   - `viewports.mobile.touchTargets` — are the tap targets big enough for a thumb? Casey's problem, not the design-critic's.
+   - `hoverStates` — do interactive elements give any feedback on hover?
+
+   The reaction leads; the evidence — visual and behavioral — backs it up. Weight what counts as a real problem by this persona's `designPriorities` (a priority-4 pillar failing hurts far more than a priority-1 one).
 
 5. **Derive the count and priority.** Tally the issues that genuinely bothered *you* (not every measured finding — only what matters to this persona). Priority per the scoring.md rule: High = multiple issues in your priority-4 pillars; Medium = priority-2-3; Low = only minor priority-1 issues. If nothing bothered you and there's nothing notable to praise, say so — an empty persona gets skipped by the orchestrator, not padded.
 
