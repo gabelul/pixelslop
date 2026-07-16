@@ -107,3 +107,32 @@ describe('docs teach the vision-first read', () => {
     assert.ok(/pixelslop-eval-persona/.test(schema), 'schema should name the persona evaluator');
   });
 });
+
+describe('hero-inference fallback (persona from the page when context is missing)', () => {
+  const orch = readDist('agents/pixelslop.md');
+
+  it('infers a project persona from the hero only when there was no audience context', () => {
+    assert.ok(/fill the audience gap from the hero/i.test(orch), 'the fallback should be documented');
+    assert.ok(/Step 5b produced no project persona|no project persona/i.test(orch),
+      'it must be gated on Step 5b producing nothing');
+    assert.ok(/never overrides a persona you generated from a real audience/i.test(orch),
+      'explicit context must always win over a screenshot guess');
+  });
+
+  it('gates on whether the hero actually pitches a specific audience', () => {
+    assert.ok(/pitch to a specific, nameable audience/i.test(orch),
+      'the gate is a pitch-forward hero, not just brand-vs-product');
+    assert.ok(/search box/i.test(orch) && /write nothing|Don't invent/i.test(orch),
+      'a functional hero (search box) must produce no persona');
+  });
+
+  it('marks the inferred persona as a hypothesis, not confirmed fact', () => {
+    assert.ok(/hypothesis, not confirmed|inferred from the page hero/i.test(orch),
+      'the inferred persona must be tagged as an unconfirmed hypothesis');
+  });
+
+  it('reads the desktop hero screenshot to do it', () => {
+    assert.ok(/viewports\.desktop\.screenshot/.test(orch),
+      'the fallback should read the desktop hero screenshot');
+  });
+});

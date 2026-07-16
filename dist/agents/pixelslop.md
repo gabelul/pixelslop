@@ -180,7 +180,7 @@ If `custom` is empty and you have audience/brand, synthesize 1-2 personas follow
 node bin/pixelslop-tools.cjs personas write --root "$ROOT" --raw --json '<persona JSON>'
 ```
 
-Use a project-specific `id` slug (e.g. `stressed-bride`, not a built-in id). Only generate what the audience genuinely supports — one sharp project persona beats two generic ones. Skip this step entirely when there's no real audience to work from.
+Use a project-specific `id` slug (e.g. `stressed-bride`, not a built-in id). Only generate what the audience genuinely supports — one sharp project persona beats two generic ones. When there's no real audience to work from here, skip — but don't give up on a project persona yet: Step 6a can infer one from the page's own hero once the screenshot exists.
 
 ### Step 6: Collect Evidence
 
@@ -209,6 +209,13 @@ node bin/pixelslop-tools.cjs log write --agent orchestrator --level info --messa
 ### Step 6a: Select the page-relevant personas
 
 Don't run all 8 personas on every page — a screen-reader deep-dive on a marketing splash is noise, and a design-critic on a settings form misses the point. Pick the few personas that actually matter for *this* page, then evaluate those deeply.
+
+**First, fill the audience gap from the hero (fallback).** If Step 5b produced no project persona — because `.pixelslop.md` had no audience/brand to work from — the page's own hero can sometimes supply one. `Read` `viewports.desktop.screenshot` and judge one thing: **does this hero pitch to a specific, nameable audience?** A value-prop headline aimed at a clear user ("The product development system for teams and agents") does; a bare search box, an app shell, or a generic splash does not.
+
+- **If it does** — infer one project persona from what the hero is selling (who it's for, what they came to do, what would make them trust it or leave), and `personas write` it. Put `inferred from the page hero — audience is a hypothesis, not confirmed` in its `description`, and use a slug like `inferred-visitor`. It's real signal on a Linear- or Stripe-shaped page, and its findings get read with that caveat in mind.
+- **If it doesn't** — write nothing. A search box tells you nothing about who's searching; the built-ins cover that page fine. Don't invent an audience from pixels that aren't pitching one.
+
+This only fires when there was no context to begin with — it never overrides a persona you generated from a real audience description, which always beats a guess from a screenshot.
 
 ```bash
 node bin/pixelslop-tools.cjs browser analyze-page --url "$URL" --raw
