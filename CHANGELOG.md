@@ -2,11 +2,11 @@
 
 ## [0.3.7](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.6...pixelslop-v0.3.7) (2026-07-16)
 
+When a project has no audience description to work from, the tailored persona used to fall back to generic built-ins. Now Pixelslop can read one off the page's own hero — but only when the hero actually pitches to a specific audience. A search box or a generic splash produces nothing; the built-ins cover those fine.
 
 ### Features
 
-* infer a project persona from the hero when there's no audience context ([361a301](https://github.com/gabelul/pixelslop/commit/361a301f464a040b8b73403c15cddd7892e6aabf))
-* infer a project persona from the hero when there's no audience context ([3ee4a26](https://github.com/gabelul/pixelslop/commit/3ee4a26ff671dc8b63d804ea578d6c644c8dbb50))
+* **Persona from the hero** — when setup captured no audience, infer a project persona from the landing hero, gated to pitch-forward heroes and tagged as an unconfirmed hypothesis. Explicit audience text always wins; this only fires when there was none. ([3ee4a26](https://github.com/gabelul/pixelslop/commit/3ee4a26ff671dc8b63d804ea578d6c644c8dbb50))
 
 ## [0.3.6](https://github.com/gabelul/pixelslop/compare/pixelslop-v0.3.5...pixelslop-v0.3.6) (2026-07-14)
 
